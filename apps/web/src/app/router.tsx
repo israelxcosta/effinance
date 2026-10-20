@@ -45,6 +45,8 @@ export const router = (IS_DEMO ? createHashRouter : createBrowserRouter)([
   { path: '/esqueci-senha', element: <ForgotPasswordPage /> },
   { path: '/redefinir-senha', element: <ResetPasswordPage /> },
   { path: '/convite/:token', element: <InvitePage /> },
+  // Same screen after the token leaves the address bar (it stays in the history state).
+  { path: '/convite', element: <InvitePage /> },
   { path: '/termos', element: <TermsPage /> },
   { path: '/privacidade', element: <PrivacyPage /> },
   {

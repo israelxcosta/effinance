@@ -1,4 +1,5 @@
 import type { ApiError } from '@effinance/shared';
+import { isSafeApiPath } from './safe-url';
 
 /**
  * In the demo build requests are answered in-browser (PGlite) instead of going to the network.
@@ -148,6 +149,10 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // Ids interpolated from the URL must not turn into another endpoint (`../../billing/cancel`).
+  if (!isSafeApiPath(path)) {
+    throw new ApiRequestError(400, { error: 'invalid_path', message: 'Endereço inválido.' });
+  }
   let response = await send(path, options);
 
   // Expired access token: renew once and replay. If the replay still gets 401 the session is valid

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type Query } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type {
   AuthResponse,
   LoginInput,
@@ -13,6 +14,10 @@ import type {
 } from '@effinance/shared';
 import { api, ApiRequestError, onUnauthorized, setBearerToken } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
+import { announceSessionChange, onSessionChange } from '@/lib/session-sync';
+
+/** Everything cached except the observed `me` query. */
+const notMe = { predicate: (q: Query) => q.queryKey[0] !== qk.me[0] };
 
 export type LoginResult =
   { mfaRequired: true; mfaToken: string } | { mfaRequired: false; me: MeResponse };
@@ -52,21 +57,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useQuery({ queryKey: qk.me, queryFn: fetchMe, staleTime: 5 * 60_000, retry: false });
 
-  useEffect(() => {
-    onUnauthorized(() => {
-      setBearerToken(null);
-      qc.setQueryData(qk.me, null);
-    });
-    return () => onUnauthorized(null);
-  }, [qc]);
-
-  /** Drops cached data from a previous session/workspace but keeps the observed `me` query alive. */
+  /**
+   * Drops cached data from a previous session/workspace but keeps the observed `me` query alive.
+   * In-flight requests are cancelled so a late response of the old tenant can't land in the cache,
+   * and the mutation cache goes too (its variables hold passwords, MFA codes and recovery codes).
+   */
   const applySession = useCallback(
     (session: MeResponse | null) => {
-      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== qk.me[0] });
+      void qc.cancelQueries(notMe);
+      qc.removeQueries(notMe);
+      qc.getMutationCache().clear();
       qc.setQueryData(qk.me, session);
     },
     [qc],
+  );
+
+  useEffect(() => {
+    // The session ended (refresh refused): forget everything the previous user could see.
+    onUnauthorized(() => {
+      setBearerToken(null);
+      applySession(null);
+    });
+    return () => onUnauthorized(null);
+  }, [applySession]);
+
+  // Another tab signed in/out or switched workspace: the shared cookies now point elsewhere, so
+  // reload the session from the server instead of showing (and editing) stale tenant data.
+  useEffect(
+    () =>
+      onSessionChange(() => {
+        const previous = qc.getQueryData<MeResponse | null>(qk.me)?.workspace ?? null;
+        setBearerToken(null);
+        void fetchMe()
+          .then((session) => {
+            applySession(session);
+            if (previous && session?.workspace && session.workspace.id !== previous.id) {
+              toast.info(`Espaço alterado em outra aba. Agora você está em ${session.workspace.name}.`, { id: 'session-sync' });
+            }
+          })
+          .catch(() => void qc.invalidateQueries({ queryKey: qk.me }));
+      }),
+    [applySession, qc],
   );
 
   const startSession = useCallback(
@@ -75,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await fetchMe();
       if (!session) throw new ApiRequestError(401, null);
       applySession(session);
+      announceSessionChange('login');
       return session;
     },
     [applySession],
@@ -108,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     setBearerToken(null);
     applySession(null);
+    announceSessionChange('logout');
   }, [applySession]);
 
   const logout = useCallback(async () => {
@@ -138,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // The new access cookie carries the workspace claim; an older bearer token would not.
       setBearerToken(null);
       applySession(session);
+      announceSessionChange('workspace');
       return session;
     },
     [applySession],
@@ -147,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (session: MeResponse) => {
       setBearerToken(null);
       applySession(session);
+      announceSessionChange('workspace');
     },
     [applySession],
   );

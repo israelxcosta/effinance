@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Ellipsis, HandCoins, Mail, Pencil, Phone, Plus, Receipt, Search, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDocument, formatPhone, type Contact } from '@effinance/shared';
+import { formatPhone, type Contact } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/dialog';
@@ -21,6 +21,8 @@ import {
 import { api } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import { initials } from '@/lib/utils';
+import { maskDocument } from '@/lib/privacy';
+import { isUuid } from '@/lib/safe-url';
 import { useContacts, useDeleteContact } from '../api';
 import { ContactSheet } from '../contact-sheet';
 import { toastError } from '@/lib/notify';
@@ -50,7 +52,8 @@ export default function ContactsPage() {
   const contacts = useContacts({ search: search || undefined, page, pageSize: PAGE_SIZE });
 
   // Deep link from the command palette: /contatos?editar=<id>
-  const editId = params.get('editar');
+  const editParam = params.get('editar');
+  const editId = isUuid(editParam) ? editParam : null;
   const editing = useQuery({
     queryKey: qk.contact(editId ?? ''),
     queryFn: () => api<Contact>(`/contacts/${editId}`),
@@ -120,7 +123,8 @@ export default function ContactsPage() {
                         <span className="font-semibold text-fg">{c.name}</span>
                       </button>
                     </td>
-                    <td className="tabular px-4 py-3 text-muted">{c.document ? formatDocument(c.document) : '—'}</td>
+                    {/* CPF masked in the list (LGPD minimization); the edit form shows it in full. */}
+                    <td className="tabular px-4 py-3 text-muted">{c.document ? maskDocument(c.document) : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5 text-xs text-muted">
                         {c.email ? <span className="flex items-center gap-1.5"><Mail className="size-3.5" />{c.email}</span> : null}

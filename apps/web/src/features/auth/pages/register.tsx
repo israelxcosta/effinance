@@ -13,6 +13,7 @@ import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './login';
 import { PasswordChecklist } from '../password-checklist';
 import { FullPageLoader } from '@/components/layout/app-shell';
+import { safeInternalPath } from '@/lib/safe-url';
 
 type RegisterForm = z.input<typeof registerSchema>;
 
@@ -21,12 +22,12 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   // Coming from an invite: return there afterwards, with the invited e-mail prefilled.
-  const state = location.state as { from?: string; email?: string } | null;
-  const from = state?.from ?? '/';
+  const state = location.state as { from?: unknown; email?: unknown } | null;
+  const from = safeInternalPath(state?.from);
   const [show, setShow] = useState(false);
   const form = useForm<RegisterForm, unknown, z.output<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: '', email: state?.email ?? '', password: '', acceptTerms: false as unknown as true },
+    defaultValues: { name: '', email: typeof state?.email === 'string' ? state.email : '', password: '', acceptTerms: false as unknown as true },
   });
 
   if (loading) return <FullPageLoader />;
@@ -73,11 +74,11 @@ export default function RegisterPage() {
             <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--app-primary)]" {...form.register('acceptTerms')} />
             <span>
               Li e aceito os{' '}
-              <Link to="/termos" target="_blank" className="font-semibold text-brand-text hover:underline">
+              <Link to="/termos" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-text hover:underline">
                 Termos de uso
               </Link>{' '}
               e a{' '}
-              <Link to="/privacidade" target="_blank" className="font-semibold text-brand-text hover:underline">
+              <Link to="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-text hover:underline">
                 Política de privacidade
               </Link>
               .

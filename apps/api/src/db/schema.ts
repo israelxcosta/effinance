@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -11,6 +12,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   type AnyPgColumn,
@@ -49,28 +51,43 @@ const userRef = () =>
 /** Tenant column of every financial table (protected by Row Level Security). */
 const workspaceRef = () => uuid().references(() => workspaces.id, { onDelete: 'cascade' });
 
+// Tenant integrity (migration 0004): references between financial tables are composite foreign keys
+// `(workspace_id, x_id) → parent(workspace_id, id)`, so a row can only point to a row of its own
+// workspace. Foreign-key checks bypass RLS; a plain `x_id → parent(id)` would accept (and reveal) ids
+// of other tenants. Every parent therefore has `unique (workspace_id, id)`.
+// `onDelete('set null')` below is `ON DELETE SET NULL (x_id)` in the SQL (PostgreSQL 15+): only the
+// reference is cleared, never `workspace_id`. drizzle-kit cannot express the column list — do not
+// recreate these constraints with `drizzle-kit push`.
+const tenantUnique = (table: string, t: { workspaceId: AnyPgColumn; id: AnyPgColumn }) =>
+  unique(`${table}_workspace_id_id_uq`).on(t.workspaceId, t.id);
+
 // ---------------------------------------------------------------------------
 // Identity, tenancy and billing (not tenant-scoped: never touched inside a tenant transaction)
 // ---------------------------------------------------------------------------
 
-export const users = pgTable('users', {
-  id: id(),
-  name: text().notNull(),
-  email: text().notNull().unique(),
-  passwordHash: text().notNull(),
-  /** TOTP secret encrypted with the master key (`KeyProvider.encryptSecret`). Set on setup. */
-  mfaSecretEnc: text(),
-  mfaEnabled: boolean().notNull().default(false),
-  /** SHA-256 hashes of the unused recovery codes. */
-  mfaRecoveryCodes: jsonb().$type<string[]>(),
-  /** Last accepted TOTP time step (a code is never accepted twice). */
-  mfaLastStep: integer(),
-  lastWorkspaceId: uuid().references((): AnyPgColumn => workspaces.id, { onDelete: 'set null' }),
-  acceptedTermsAt: timestamptz(),
-  passwordChangedAt: timestamptz(),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: id(),
+    name: text().notNull(),
+    email: text().notNull().unique(),
+    passwordHash: text().notNull(),
+    /** TOTP secret encrypted with the master key (`KeyProvider.encryptSecret`). Set on setup. */
+    mfaSecretEnc: text(),
+    mfaEnabled: boolean().notNull().default(false),
+    /** SHA-256 hashes of the unused recovery codes. */
+    mfaRecoveryCodes: jsonb().$type<string[]>(),
+    /** Last accepted TOTP time step (a code is never accepted twice). */
+    mfaLastStep: integer(),
+    lastWorkspaceId: uuid().references((): AnyPgColumn => workspaces.id, { onDelete: 'set null' }),
+    acceptedTermsAt: timestamptz(),
+    passwordChangedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  // Deleting a workspace clears this reference: without the index that is a scan of every user.
+  (t) => [index('users_last_workspace_idx').on(t.lastWorkspaceId)],
+);
 
 export const workspaces = pgTable(
   'workspaces',
@@ -81,6 +98,12 @@ export const workspaces = pgTable(
     /** Data key (AES-256) wrapped by the key provider; deleting it crypto-shreds the workspace. */
     wrappedKey: text(),
     keyId: text(),
+    /**
+     * When the encryption backfill last confirmed that no sensitive field of this workspace is in
+     * plain text. New workspaces are born encrypted (default now()); rows that existed before
+     * migration 0004 start null, so `db:migrate` re-checks them even if their key already exists.
+     */
+    encryptionBackfilledAt: timestamptz().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -101,6 +124,9 @@ export const workspaceMembers = pgTable(
     primaryKey({ columns: [t.workspaceId, t.userId] }),
     index('workspace_members_user_idx').on(t.userId),
     check('workspace_members_role_chk', sql`${t.role} in ('owner', 'editor', 'viewer')`),
+    // Exactly one owner: owner-only actions (billing, deletion, members) and account deletion
+    // ("workspaces where I am the owner") rely on it.
+    uniqueIndex('workspace_members_single_owner_uq').on(t.workspaceId).where(sql`${t.role} = 'owner'`),
   ],
 );
 
@@ -120,24 +146,48 @@ export const workspaceInvites = pgTable(
     expiresAt: timestamptz().notNull(),
     acceptedAt: timestamptz(),
   },
-  (t) => [index('workspace_invites_workspace_idx').on(t.workspaceId)],
+  (t) => [
+    index('workspace_invites_workspace_idx').on(t.workspaceId),
+    // Account deletion removes the invites addressed to the user's e-mail (LGPD).
+    index('workspace_invites_email_idx').on(sql`lower(${t.email})`),
+    index('workspace_invites_invited_by_idx').on(t.invitedBy),
+    // At most one pending invite per e-mail and workspace ("a new invite replaces the pending one").
+    uniqueIndex('workspace_invites_pending_email_uq')
+      .on(t.workspaceId, sql`lower(${t.email})`)
+      .where(sql`${t.acceptedAt} is null`),
+    check('workspace_invites_role_chk', sql`${t.role} in ('editor', 'viewer')`),
+  ],
 );
 
-export const subscriptions = pgTable('subscriptions', {
-  workspaceId: uuid()
-    .primaryKey()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  planCode: text().$type<PlanCode>(),
-  status: text().$type<SubscriptionStatus>().notNull(),
-  provider: text().$type<'mercadopago' | 'fake'>(),
-  providerSubscriptionId: text().unique(),
-  trialEndsAt: timestamptz(),
-  currentPeriodEnd: timestamptz(),
-  pastDueSince: timestamptz(),
-  cancelAtPeriodEnd: boolean().notNull().default(false),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    workspaceId: uuid()
+      .primaryKey()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    planCode: text().$type<PlanCode>(),
+    status: text().$type<SubscriptionStatus>().notNull(),
+    provider: text().$type<'mercadopago' | 'fake'>(),
+    providerSubscriptionId: text().unique(),
+    trialEndsAt: timestamptz(),
+    currentPeriodEnd: timestamptz(),
+    pastDueSince: timestamptz(),
+    cancelAtPeriodEnd: boolean().notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'subscriptions_status_chk',
+      sql`${t.status} in ('trialing', 'pending', 'active', 'past_due', 'canceled', 'expired')`,
+    ),
+    check(
+      'subscriptions_plan_code_chk',
+      sql`${t.planCode} in ('individual_monthly', 'individual_yearly', 'family_monthly', 'business_monthly')`,
+    ),
+    check('subscriptions_provider_chk', sql`${t.provider} in ('mercadopago', 'fake')`),
+  ],
+);
 
 /** Webhook notifications already received (idempotency). */
 export const billingEvents = pgTable(
@@ -177,7 +227,14 @@ export const sessions = pgTable(
     revokedAt: timestamptz(),
     createdAt: createdAt(),
   },
-  (t) => [index('sessions_user_idx').on(t.userId), index('sessions_family_idx').on(t.familyId)],
+  (t) => [
+    index('sessions_user_idx').on(t.userId),
+    index('sessions_family_idx').on(t.familyId),
+    // Deleting a workspace clears `workspace_id` here; one row per refresh makes this table big.
+    index('sessions_workspace_idx').on(t.workspaceId),
+    // Retention purge (`db/retention.ts`).
+    index('sessions_expires_idx').on(t.expiresAt),
+  ],
 );
 
 export const passwordResets = pgTable(
@@ -223,7 +280,7 @@ export const categories = pgTable(
   {
     id: id(),
     workspaceId: workspaceRef().notNull(),
-    parentId: uuid().references((): AnyPgColumn => categories.id, { onDelete: 'cascade' }),
+    parentId: uuid(),
     name: text().notNull(),
     type: text().$type<CategoryType>().notNull(),
     icon: text().$type<IconName>().notNull(),
@@ -234,6 +291,12 @@ export const categories = pgTable(
   (t) => [
     index('categories_workspace_idx').on(t.workspaceId, t.type),
     check('categories_type_chk', sql`${t.type} in ('income', 'expense')`),
+    tenantUnique('categories', t),
+    foreignKey({
+      name: 'categories_parent_fk',
+      columns: [t.workspaceId, t.parentId],
+      foreignColumns: [t.workspaceId, t.id],
+    }).onDelete('cascade'),
   ],
 );
 
@@ -252,7 +315,14 @@ export const accounts = pgTable(
     archived: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
-  (t) => [index('accounts_workspace_idx').on(t.workspaceId)],
+  (t) => [
+    index('accounts_workspace_idx').on(t.workspaceId),
+    tenantUnique('accounts', t),
+    check(
+      'accounts_type_chk',
+      sql`${t.type} in ('checking', 'savings', 'wallet', 'benefit', 'investment', 'other')`,
+    ),
+  ],
 );
 
 export const creditCards = pgTable(
@@ -267,13 +337,24 @@ export const creditCards = pgTable(
     closingDay: integer().notNull(),
     dueDay: integer().notNull(),
     color: text().notNull(),
-    defaultAccountId: uuid().references(() => accounts.id, { onDelete: 'set null' }),
+    defaultAccountId: uuid(),
     archived: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
     index('credit_cards_workspace_idx').on(t.workspaceId),
     check('credit_cards_days_chk', sql`${t.closingDay} between 1 and 31 and ${t.dueDay} between 1 and 31`),
+    check('credit_cards_limit_chk', sql`${t.limit} >= 0`),
+    check(
+      'credit_cards_brand_chk',
+      sql`${t.brand} in ('visa', 'mastercard', 'elo', 'amex', 'hipercard', 'diners', 'other')`,
+    ),
+    tenantUnique('credit_cards', t),
+    foreignKey({
+      name: 'credit_cards_default_account_fk',
+      columns: [t.workspaceId, t.defaultAccountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
   ],
 );
 
@@ -287,12 +368,21 @@ export const goals = pgTable(
     deadline: calendarDate(),
     icon: text().$type<IconName>().notNull(),
     color: text().notNull(),
-    accountId: uuid().references(() => accounts.id, { onDelete: 'set null' }),
+    accountId: uuid(),
     notes: text(),
     archived: boolean().notNull().default(false),
     createdAt: createdAt(),
   },
-  (t) => [index('goals_workspace_idx').on(t.workspaceId)],
+  (t) => [
+    index('goals_workspace_idx').on(t.workspaceId),
+    check('goals_target_amount_chk', sql`${t.targetAmount} > 0`),
+    tenantUnique('goals', t),
+    foreignKey({
+      name: 'goals_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+  ],
 );
 
 export const goalContributions = pgTable(
@@ -300,9 +390,8 @@ export const goalContributions = pgTable(
   {
     id: id(),
     workspaceId: workspaceRef().notNull(),
-    goalId: uuid()
-      .notNull()
-      .references(() => goals.id, { onDelete: 'cascade' }),
+    goalId: uuid().notNull(),
+    /** Negative = withdrawal; never zero. */
     amount: money().notNull(),
     date: calendarDate().notNull(),
     note: text(),
@@ -311,6 +400,12 @@ export const goalContributions = pgTable(
   (t) => [
     index('goal_contributions_goal_idx').on(t.goalId),
     index('goal_contributions_workspace_idx').on(t.workspaceId),
+    check('goal_contributions_amount_chk', sql`${t.amount} <> 0`),
+    foreignKey({
+      name: 'goal_contributions_goal_fk',
+      columns: [t.workspaceId, t.goalId],
+      foreignColumns: [goals.workspaceId, goals.id],
+    }).onDelete('cascade'),
   ],
 );
 
@@ -338,6 +433,7 @@ export const contacts = pgTable(
   (t) => [
     index('contacts_workspace_idx').on(t.workspaceId, t.name),
     index('contacts_document_hash_idx').on(t.workspaceId, t.documentHash),
+    tenantUnique('contacts', t),
   ],
 );
 
@@ -381,6 +477,13 @@ export const recurrences = pgTable(
   },
   (t) => [
     index('recurrences_workspace_pending_idx').on(t.workspaceId, t.nextDate),
+    tenantUnique('recurrences', t),
+    check('recurrences_kind_chk', sql`${t.kind} in ('installment', 'recurring', 'fixed')`),
+    check('recurrences_frequency_chk', sql`${t.frequency} in ('weekly', 'monthly', 'semiannual', 'annual')`),
+    check(
+      'recurrences_counters_chk',
+      sql`${t.nextIndex} >= 0 and (${t.totalOccurrences} is null or ${t.totalOccurrences} > 0)`,
+    ),
   ],
 );
 
@@ -395,17 +498,17 @@ export const transactions = pgTable(
     date: calendarDate().notNull(),
     paid: boolean().notNull().default(false),
     paidAt: calendarDate(),
-    accountId: uuid().references(() => accounts.id, { onDelete: 'no action' }),
-    toAccountId: uuid().references(() => accounts.id, { onDelete: 'no action' }),
-    creditCardId: uuid().references(() => creditCards.id, { onDelete: 'no action' }),
+    accountId: uuid(),
+    toAccountId: uuid(),
+    creditCardId: uuid(),
     invoiceMonth: text(),
-    categoryId: uuid().references(() => categories.id, { onDelete: 'no action' }),
-    subcategoryId: uuid().references(() => categories.id, { onDelete: 'no action' }),
-    contactId: uuid().references(() => contacts.id, { onDelete: 'set null' }),
+    categoryId: uuid(),
+    subcategoryId: uuid(),
+    contactId: uuid(),
     paymentMethod: text().$type<PaymentMethod>(),
     notes: text(),
     transferKind: text().$type<TransferKind>(),
-    recurrenceId: uuid().references(() => recurrences.id, { onDelete: 'set null' }),
+    recurrenceId: uuid(),
     recurrenceKind: text().$type<RecurrenceKind>().notNull().default('single'),
     frequency: text().$type<Frequency>(),
     installmentNumber: integer(),
@@ -426,8 +529,63 @@ export const transactions = pgTable(
     index('transactions_category_idx').on(t.categoryId),
     index('transactions_split_group_idx').on(t.splitGroupId),
     uniqueIndex('transactions_series_occurrence_uq').on(t.recurrenceId, t.occurrenceIndex),
+    // Deleting a category checks this reference: without the index, a scan of every tenant's rows.
+    index('transactions_subcategory_idx').on(t.subcategoryId).where(sql`${t.subcategoryId} is not null`),
     check('transactions_type_chk', sql`${t.type} in ('income', 'expense', 'transfer')`),
     check('transactions_amount_chk', sql`${t.amount} > 0`),
+    check(
+      'transactions_recurrence_kind_chk',
+      sql`${t.recurrenceKind} in ('single', 'installment', 'recurring', 'fixed')`,
+    ),
+    check('transactions_frequency_chk', sql`${t.frequency} in ('weekly', 'monthly', 'semiannual', 'annual')`),
+    check(
+      'transactions_payment_method_chk',
+      sql`${t.paymentMethod} in ('pix', 'cash', 'debit_card', 'credit_card', 'bank_slip', 'transfer', 'auto_debit', 'other')`,
+    ),
+    check(
+      'transactions_transfer_kind_chk',
+      sql`${t.transferKind} in ('transfer', 'investment', 'redemption', 'card_payment')`,
+    ),
+    check('transactions_invoice_month_chk', sql`${t.invoiceMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    check(
+      'transactions_installments_chk',
+      sql`(${t.installmentNumber} is null or ${t.installmentNumber} > 0) and (${t.installmentTotal} is null or ${t.installmentTotal} > 0) and (${t.occurrenceIndex} is null or ${t.occurrenceIndex} >= 0)`,
+    ),
+    foreignKey({
+      name: 'transactions_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }),
+    foreignKey({
+      name: 'transactions_to_account_fk',
+      columns: [t.workspaceId, t.toAccountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }),
+    foreignKey({
+      name: 'transactions_credit_card_fk',
+      columns: [t.workspaceId, t.creditCardId],
+      foreignColumns: [creditCards.workspaceId, creditCards.id],
+    }),
+    foreignKey({
+      name: 'transactions_category_fk',
+      columns: [t.workspaceId, t.categoryId],
+      foreignColumns: [categories.workspaceId, categories.id],
+    }),
+    foreignKey({
+      name: 'transactions_subcategory_fk',
+      columns: [t.workspaceId, t.subcategoryId],
+      foreignColumns: [categories.workspaceId, categories.id],
+    }),
+    foreignKey({
+      name: 'transactions_contact_fk',
+      columns: [t.workspaceId, t.contactId],
+      foreignColumns: [contacts.workspaceId, contacts.id],
+    }).onDelete('set null'),
+    foreignKey({
+      name: 'transactions_recurrence_fk',
+      columns: [t.workspaceId, t.recurrenceId],
+      foreignColumns: [recurrences.workspaceId, recurrences.id],
+    }).onDelete('set null'),
   ],
 );
 

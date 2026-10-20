@@ -14,6 +14,7 @@ import { useAuth } from '../auth-context';
 import { AuthLayout } from './auth-layout';
 import { FullPageLoader } from '@/components/layout/app-shell';
 import { IS_DEMO } from '@/lib/demo';
+import { safeInternalPath } from '@/lib/safe-url';
 
 type LoginForm = z.input<typeof loginSchema>;
 
@@ -28,7 +29,8 @@ export default function LoginPage() {
     // The demo build ships a sample user; prefill it so testers can sign in with one click.
     defaultValues: IS_DEMO ? { email: 'demo@effinance.app', password: 'demo12345' } : { email: '', password: '' },
   });
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  // Only in-app paths: `from` comes from the URL the visitor first opened (e.g. `//evil.example`).
+  const from = safeInternalPath((location.state as { from?: unknown } | null)?.from);
 
   if (loading) return <FullPageLoader />;
   if (user) return <Navigate to={from} replace />;
@@ -36,7 +38,11 @@ export default function LoginPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       const result = await login(values);
-      if (result.mfaRequired) setMfaToken(result.mfaToken);
+      if (result.mfaRequired) {
+        // The password is no longer needed: don't keep it in memory during the second step.
+        form.setValue('password', '');
+        setMfaToken(result.mfaToken);
+      }
       else navigate(from, { replace: true });
     } catch (error) {
       toast.error(errorMessage(error));

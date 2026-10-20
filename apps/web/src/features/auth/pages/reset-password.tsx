@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { TriangleAlert } from 'lucide-react';
@@ -20,8 +20,17 @@ const schema = z
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
-  const token = params.get('token') ?? '';
+  const location = useLocation();
   const navigate = useNavigate();
+  // The e-mail link carries the token in the query (`?token=`) or in the fragment (`#token=`, never
+  // sent to servers). It moves into this history entry's state and leaves the address bar, so it
+  // doesn't linger in the browser history, screenshots or the Referer of later requests.
+  const urlToken = params.get('token') ?? new URLSearchParams(location.hash.slice(1)).get('token');
+  const stateToken = (location.state as { resetToken?: unknown } | null)?.resetToken;
+  const token = urlToken ?? (typeof stateToken === 'string' ? stateToken : '');
+  useEffect(() => {
+    if (urlToken) navigate(location.pathname, { replace: true, state: { resetToken: urlToken } });
+  }, [urlToken, location.pathname, navigate]);
   const [show, setShow] = useState(false);
   const form = useForm<z.input<typeof schema>, unknown, z.output<typeof schema>>({
     resolver: zodResolver(schema),
@@ -46,7 +55,7 @@ export default function ResetPasswordPage() {
 
   if (token.length < 20) {
     return (
-      <AuthLayout title="Link inválido" subtitle="Este link de redefinição está incompleto ou expirou." footer={footer}>
+      <AuthLayout title="Link inválido" subtitle="Este link de redefinição está incompleto ou expirou. Abra de novo o link do e-mail." footer={footer}>
         <div className="flex flex-col items-start gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-4 text-sm">
           <span className="inline-flex items-center gap-2 font-semibold text-warning">
             <TriangleAlert className="size-4" /> Não foi possível usar este link

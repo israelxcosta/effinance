@@ -2,5 +2,25 @@ packages:
   - apps/*
   - packages/*
 
+# --- Supply chain (pnpm 10.34+) ----------------------------------------------------------------
+# Only these packages may run install scripts (esbuild's postinstall checks its native binary).
+# Any other dependency that ships a build script makes the install fail until it is reviewed and
+# added here (or to ignoredBuiltDependencies).
 onlyBuiltDependencies:
   - esbuild
+strictDepBuilds: true
+# New versions are only resolvable 24 h after publication (most malicious releases are pulled
+# within hours). For an urgent security patch, add the package to minimumReleaseAgeExclude.
+minimumReleaseAge: 1440
+# Refuse versions that lost provenance / trusted publishing compared to earlier releases
+# (typical sign of a hijacked maintainer account).
+trustPolicy: no-downgrade
+# Transitive dependencies cannot come from git repositories or tarball URLs.
+blockExoticSubdeps: true
+# Fail instead of warn when the Node/pnpm version does not satisfy `engines`.
+engineStrict: true
+
+overrides:
+  # GHSA-67mh-4wv8-2f99 (esbuild <=0.24.2, dev server). drizzle-kit 0.31 still declares the
+  # deprecated @esbuild-kit/esm-loader (unused by its CLI); reuse the esbuild 0.25 it already ships.
+  '@esbuild-kit/core-utils>esbuild': ^0.25.0

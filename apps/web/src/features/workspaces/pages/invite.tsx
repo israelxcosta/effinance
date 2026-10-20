@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { MailWarning } from 'lucide-react';
 import { toast } from 'sonner';
 import { MEMBER_ROLE_HINTS, MEMBER_ROLE_LABELS, WORKSPACE_KIND_LABELS } from '@effinance/shared';
@@ -13,18 +13,34 @@ import { WORKSPACE_KIND_ICONS } from '../kind-icon';
 
 /** `/convite/:token` — public preview; accepting requires being signed in with the invited e-mail. */
 export default function InvitePage() {
-  const { token = '' } = useParams();
+  const { token: urlToken } = useParams();
+  const location = useLocation();
+  const stateToken = (location.state as { inviteToken?: unknown } | null)?.inviteToken;
+  const token = urlToken ?? (typeof stateToken === 'string' ? stateToken : '');
   const { user, loading, applySession, logout } = useAuth();
   const navigate = useNavigate();
+  // The token moves from the address bar into this history entry's state (`/convite`), so it doesn't
+  // linger in the browser history, screenshots or the Referer of later requests.
+  useEffect(() => {
+    if (urlToken) navigate('/convite', { replace: true, state: { inviteToken: urlToken } });
+  }, [urlToken, navigate]);
   const preview = useInvitePreview(token);
   const [accepting, setAccepting] = useState(false);
-  const back = { from: `/convite/${token}` };
+  const back = { from: `/convite/${encodeURIComponent(token)}` };
 
   const footer = (
     <Link to="/" className="font-semibold text-brand-text hover:underline">
       Ir para o Effinance
     </Link>
   );
+
+  if (!token) {
+    return (
+      <AuthLayout title="Convite não encontrado" subtitle="Abra de novo o link do convite que você recebeu." footer={footer}>
+        {null}
+      </AuthLayout>
+    );
+  }
 
   if (loading || preview.isPending) {
     return (
