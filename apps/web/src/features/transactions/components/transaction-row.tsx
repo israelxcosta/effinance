@@ -134,6 +134,7 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold text-fg">{tx.description}</span>
             <SeriesBadge tx={tx} />
+            {tx.splitGroupId ? <Badge tone="neutral" title="Valor dividido entre categorias">Dividido</Badge> : null}
             {tx.type === 'transfer' && tx.transferKind ? <Badge tone="brand">{TRANSFER_KIND_LABELS[tx.transferKind]}</Badge> : null}
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">

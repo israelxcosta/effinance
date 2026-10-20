@@ -78,6 +78,23 @@ describe('demo api (PGlite)', () => {
     expect((await call('DELETE', `/transactions/${created.body[0].id}?scope=all`)).status).toBe(204);
   });
 
+  it('splits an amount across categories (migration 0001 applied)', async () => {
+    const cats = (await call('GET', '/categories?type=expense')).body;
+    const split = await call('POST', '/transactions', {
+      type: 'expense',
+      description: 'Compra dividida',
+      amount: 5000,
+      date: from,
+      splits: [
+        { categoryId: cats[0].id, amount: 3000 },
+        { categoryId: cats[1].id, amount: 2000 },
+      ],
+    });
+    expect(split.status).toBe(201);
+    expect(split.body.map((t: { amount: number }) => t.amount)).toEqual([3000, 2000]);
+    expect(split.body[0].splitGroupId).toBe(split.body[1].splitGroupId);
+  });
+
   it('registers new users with default categories', async () => {
     const reg = await call('POST', '/auth/register', { name: 'Teste', email: 'teste@demo.app', password: 'senha12345' });
     expect(reg.status).toBe(201);

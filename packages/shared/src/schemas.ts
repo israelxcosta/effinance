@@ -266,8 +266,26 @@ const transactionBaseSchema = z.object({
   notes: optionalText(1000),
 });
 
+export const transactionSplitSchema = z.object({
+  categoryId: idSchema,
+  subcategoryId: idSchema.nullish().transform((v) => v ?? null),
+  amount: amountSchema,
+});
+export type TransactionSplitInput = z.input<typeof transactionSplitSchema>;
+
 export const transactionInputSchema = transactionBaseSchema
   .extend({
+    /**
+     * Divides `amount` across categories (2–10 parts). One linked transaction is created per part
+     * (same date, account, status and repetition), sharing a `splitGroupId`; the parts' categories
+     * replace `categoryId`/`subcategoryId` and their amounts must add up to `amount`.
+     */
+    splits: z
+      .array(transactionSplitSchema)
+      .min(2, { message: 'Divida em pelo menos 2 categorias' })
+      .max(10, { message: 'Máximo de 10 categorias' })
+      .nullish()
+      .transform((v) => v ?? null),
     recurrenceKind: z.enum(RECURRENCE_KINDS).default('single'),
     frequency: z.enum(FREQUENCIES).default('monthly'),
     /** installment: number of installments (2–360). */
@@ -296,6 +314,16 @@ export const transactionInputSchema = transactionBaseSchema
     }
     if (v.subcategoryId && !v.categoryId) {
       ctx.addIssue({ code: 'custom', message: 'Selecione a categoria', path: ['categoryId'] });
+    }
+    if (v.splits) {
+      const sum = v.splits.reduce((acc, s) => acc + s.amount, 0);
+      if (sum !== v.amount) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'A soma das categorias deve ser igual ao valor total',
+          path: ['splits'],
+        });
+      }
     }
   });
 export type TransactionInput = z.input<typeof transactionInputSchema>;

@@ -229,6 +229,8 @@ export interface Transaction {
   installmentTotal: number | null;
   /** Position of this occurrence in a recurring/fixed series (1-based). */
   occurrenceNumber: number | null;
+  /** Shared by the parts of an amount divided across categories at creation. */
+  splitGroupId: string | null;
 
   createdAt: string;
   updatedAt: string;

@@ -31,7 +31,6 @@ export function Sidebar() {
       </nav>
       <div className="mt-4 flex flex-col items-center gap-3">
         <SidebarLink {...SETTINGS_ITEM} />
-        <span className="rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-extrabold tracking-wider text-primary-fg">PRO</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

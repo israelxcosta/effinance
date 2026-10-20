@@ -47,7 +47,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 | DELETE | `/api/contacts/:id` | — | 204 (lançamentos ficam sem contato) |
 | GET | `/api/transactions` | `transactionQuerySchema` | `TransactionListResponse` |
 | GET | `/api/transactions/:id` | — | `Transaction` |
-| POST | `/api/transactions` | `transactionInputSchema` | `Transaction[]` (201) — todas as ocorrências criadas |
+| POST | `/api/transactions` | `transactionInputSchema` | `Transaction[]` (201) — todas as ocorrências criadas (e todas as partes, se dividido) |
 | PUT | `/api/transactions/:id?scope=one\|future\|all` | `transactionUpdateSchema` | `Transaction` |
 | PATCH | `/api/transactions/:id/paid` | `setPaidSchema` | `Transaction` |
 | DELETE | `/api/transactions/:id?scope=one\|future\|all` | — | 204 |
@@ -74,6 +74,10 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 - **Parcelado**: N lançamentos criados de uma vez (`installmentNumber/Total`); com
   `installmentAmountMode = total` o valor é dividido e os centavos restantes vão para a 1ª parcela.
 - **Recorrente**: frequência semanal/mensal/semestral/anual, com quantidade definida ou sem fim.
+- **Divisão por categoria** (`splits`, 2–10 partes): o valor é distribuído entre categorias e a soma
+  das partes deve ser igual ao total. Cria uma transação (ou série) por parte, com os mesmos dados
+  (data, conta, status, repetição) e um `splitGroupId` em comum; relatórios por categoria somam cada
+  parte na sua categoria. Cada parte pode ser editada ou excluída individualmente.
 - **Fixa mensal**: série mensal sem fim. Séries sem fim são materializadas sob demanda até o fim do
   período consultado (mínimo hoje + 12 meses; teto hoje + 5 anos), então aparecem em extratos,
   relatórios e projeções de qualquer mês.

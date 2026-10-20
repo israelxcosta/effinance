@@ -5,23 +5,12 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-export function greeting(now: Date = new Date()): string {
-  const h = now.getHours();
-  if (h < 12) return 'Bom dia';
-  if (h < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
 export function initials(name: string | null | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
   const first = parts[0]![0] ?? '';
   const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
   return (first + last).toUpperCase();
-}
-
-export function firstName(name: string | null | undefined): string {
-  return (name ?? '').trim().split(/\s+/)[0] ?? '';
 }
 
 /** Hex color with alpha (0..1) → rgba() string. */

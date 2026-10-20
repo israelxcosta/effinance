@@ -177,6 +177,8 @@ export interface RecurrenceTemplate {
   contactId: string | null;
   paymentMethod: PaymentMethod | null;
   notes: string | null;
+  /** Set when the series was created as one part of a category split. */
+  splitGroupId?: string | null;
 }
 
 /**
@@ -232,6 +234,8 @@ export const transactions = pgTable(
     installmentTotal: integer(),
     /** 0-based position inside the series. */
     occurrenceIndex: integer(),
+    /** Parts of an amount divided across categories share this id. */
+    splitGroupId: uuid(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -242,6 +246,7 @@ export const transactions = pgTable(
     index('transactions_card_invoice_idx').on(t.creditCardId, t.invoiceMonth),
     index('transactions_contact_idx').on(t.contactId),
     index('transactions_category_idx').on(t.categoryId),
+    index('transactions_split_group_idx').on(t.splitGroupId),
     uniqueIndex('transactions_series_occurrence_uq').on(t.recurrenceId, t.occurrenceIndex),
     check('transactions_type_chk', sql`${t.type} in ('income', 'expense', 'transfer')`),
     check('transactions_amount_chk', sql`${t.amount} > 0`),

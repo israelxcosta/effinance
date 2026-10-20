@@ -269,3 +269,106 @@ describe('paid toggle and balances', () => {
     expect(bySub.body.total).toBe(5);
   });
 });
+
+describe('category split', () => {
+  it('creates one linked transaction per category and keeps balances and reports right', async () => {
+    const food = await firstCategory(c, 'expense', 'Alimentação');
+    const home = await firstCategory(c, 'expense', 'Moradia');
+    const res = await c.post('/transactions', {
+      type: 'expense',
+      description: 'Supermercado + casa',
+      amount: 10000,
+      date: '2026-10-05',
+      paid: true,
+      accountId: account,
+      splits: [
+        { categoryId: food.id, subcategoryId: food.subcategories[0]!.id, amount: 6000 },
+        { categoryId: home.id, amount: 4000 },
+      ],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveLength(2);
+    const [a, b] = res.body;
+    expect(a.splitGroupId).toBeTruthy();
+    expect(b.splitGroupId).toBe(a.splitGroupId);
+    expect(res.body.map((t: any) => [t.category.name, t.subcategory?.id ?? null, t.amount, t.paid, t.description])).toEqual([
+      ['Alimentação', food.subcategories[0]!.id, 6000, true, 'Supermercado + casa'],
+      ['Moradia', null, 4000, true, 'Supermercado + casa'],
+    ]);
+
+    const acc = await c.get(`/accounts/${account}`);
+    expect(acc.body.balance).toBe(1000000 - 10000);
+
+    const report = await c.get('/reports/categories?from=2026-10-01&to=2026-10-31&type=expense');
+    const byName = Object.fromEntries(report.body.series.map((s: any) => [s.name, s.total]));
+    expect(byName).toMatchObject({ Alimentação: 6000, Moradia: 4000 });
+  });
+
+  it('splits installments per part and rejects parts that do not add up', async () => {
+    const food = await firstCategory(c, 'expense', 'Alimentação');
+    const home = await firstCategory(c, 'expense', 'Moradia');
+    const ok = await c.post('/transactions', {
+      type: 'expense',
+      description: 'Compra parcelada',
+      amount: 9000,
+      date: '2026-10-05',
+      accountId: account,
+      recurrenceKind: 'installment',
+      installments: 3,
+      splits: [
+        { categoryId: food.id, amount: 6000 },
+        { categoryId: home.id, amount: 3000 },
+      ],
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body).toHaveLength(6);
+    const byCategory = (name: string) => ok.body.filter((t: any) => t.category.name === name).map((t: any) => t.amount);
+    expect(byCategory('Alimentação')).toEqual([2000, 2000, 2000]);
+    expect(byCategory('Moradia')).toEqual([1000, 1000, 1000]);
+    expect(new Set(ok.body.map((t: any) => t.splitGroupId)).size).toBe(1);
+
+    const bad = await c.post('/transactions', {
+      type: 'expense',
+      description: 'x',
+      amount: 9000,
+      date: '2026-10-05',
+      splits: [
+        { categoryId: food.id, amount: 6000 },
+        { categoryId: home.id, amount: 2000 },
+      ],
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.body.message).toBe('A soma das categorias deve ser igual ao valor total');
+  });
+
+  it('rejects categories of the wrong type or from another user', async () => {
+    const food = await firstCategory(c, 'expense', 'Alimentação');
+    const salary = await firstCategory(c, 'income');
+    const wrongType = await c.post('/transactions', {
+      type: 'expense',
+      description: 'x',
+      amount: 2000,
+      date: '2026-10-05',
+      splits: [
+        { categoryId: food.id, amount: 1000 },
+        { categoryId: salary.id, amount: 1000 },
+      ],
+    });
+    expect(wrongType.status).toBeGreaterThanOrEqual(400);
+
+    const other = await registerUser(app, 'Outra pessoa');
+    const theirs = await firstCategory(other, 'expense', 'Moradia');
+    const foreign = await c.post('/transactions', {
+      type: 'expense',
+      description: 'x',
+      amount: 2000,
+      date: '2026-10-05',
+      splits: [
+        { categoryId: food.id, amount: 1000 },
+        { categoryId: theirs.id, amount: 1000 },
+      ],
+    });
+    expect(foreign.status).toBe(404);
+    expect((await listRange('2026-10-01', '2026-10-31')).total).toBe(0);
+  });
+});

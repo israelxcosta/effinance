@@ -28,7 +28,16 @@ interface FormValues {
   archived: boolean;
 }
 
-export function CategorySheet({ state, onOpenChange }: { state: CategorySheetState; onOpenChange: (o: boolean) => void }) {
+export function CategorySheet({
+  state,
+  onOpenChange,
+  onCreated,
+}: {
+  state: CategorySheetState;
+  onOpenChange: (o: boolean) => void;
+  /** Called with the new category after a successful create (e.g. to select it in a picker). */
+  onCreated?: (category: Category) => void;
+}) {
   const create = useCreateCategory();
   const update = useUpdateCategory();
   const { category, parent } = state;
@@ -66,8 +75,9 @@ export function CategorySheet({ state, onOpenChange }: { state: CategorySheetSta
           for (const i of parsed.error.issues) setError(String(i.path[0]) as keyof FormValues, { message: i.message });
           return;
         }
-        await create.mutateAsync(parsed.data);
+        const created = await create.mutateAsync(parsed.data);
         toast.success(parent ? 'Subcategoria criada' : 'Categoria criada');
+        onCreated?.(created);
       }
       onOpenChange(false);
     } catch (error) {

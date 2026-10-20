@@ -62,6 +62,7 @@ export function occurrenceRow(
     contactId: template.contactId,
     paymentMethod: template.paymentMethod,
     notes: template.notes,
+    splitGroupId: template.splitGroupId ?? null,
     recurrenceId: series.id,
     recurrenceKind: series.kind,
     frequency: series.frequency,

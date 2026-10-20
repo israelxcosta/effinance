@@ -15,13 +15,13 @@ O Effinance segue o estilo do **Graniq** (graniq.com.br), com a cor de marca tro
 **azul-marinho**:
 
 - Fundo off-white quente, cards brancos com borda sutil, raio generoso (16–20px), sombras mínimas.
-- Sidebar compacta só com ícones (logo em texto no topo, item ativo com fundo suave, badge "PRO" e
-  avatar no rodapé).
-- Topbar com saudação ("Bom dia, Nome 👋"), busca com atalho ⌘K, botões em pílula com borda, botão
-  de destaque com fundo de marca claro.
+- Sidebar compacta só com ícones (logo em texto no topo, item ativo com fundo suave, Configurações e
+  avatar no rodapé). Sem topbar: cada página abre com o próprio cabeçalho.
+- Busca (⌘K), ações rápidas e notificações na barra flutuante inferior.
 - Controles segmentados (abas "Dashboard / Dashboard inteligente"; período "D S M A Todos").
 - KPIs: rótulo + ícone de info, valor grande, rodapé cinza com variação (seta + % vs mês anterior).
-- Gráficos com barras arredondadas e textura listrada (receita na cor de marca clara, despesa em cinza).
+- Gráficos com barras arredondadas e textura listrada (receita na cor de marca clara, despesa em vermelho).
+- Categoria escolhida numa lista única com busca (categorias como grupos, subcategorias selecionáveis).
 - Card de insights com gradiente da cor de marca e cartão interno "vidro" (chip "OPORTUNIDADE").
 - Estados vazios com borda tracejada, ícone, título, descrição e botão outline.
 - Barra flutuante inferior de ações rápidas (+ Despesa, + Receita, Transferir, Fatura).

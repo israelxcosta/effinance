@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
-import { CalendarClock, Infinity as InfinityIcon, Layers, Repeat, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { CalendarClock, Infinity as InfinityIcon, Layers, Repeat, Split, ThumbsDown, ThumbsUp } from 'lucide-react';
 import {
   FREQUENCIES,
   FREQUENCY_LABELS,
@@ -32,10 +32,11 @@ import { cn } from '@/lib/utils';
 import { ApiRequestError, errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useCards } from '@/features/cards/api';
-import { useCategories } from '@/features/categories/api';
+import { CategoryPicker } from '@/features/categories/category-picker';
 import { useContactOptions } from '@/features/contacts/api';
 import { useCreateTransaction, useUpdateTransaction } from './api';
 import { ScopeDialog } from './scope-dialog';
+import { SplitEditor, evenSplit, newSplitRow, validateSplits, type SplitRow, type SplitRowErrors } from './components/split-editor';
 
 export type TxKind = 'income' | 'expense';
 
@@ -68,6 +69,9 @@ interface FormValues {
   installments: string;
   installmentAmountMode: 'total' | 'per_installment';
   occurrences: string;
+  /** Divide the amount across categories (create only). */
+  split: boolean;
+  splits: SplitRow[];
 }
 
 function initialValues(state: TransactionSheetState): FormValues {
@@ -91,6 +95,8 @@ function initialValues(state: TransactionSheetState): FormValues {
     installments: '2',
     installmentAmountMode: 'total',
     occurrences: '',
+    split: false,
+    splits: [],
   };
   if (!tx) return { ...base, ...state.defaults };
   return {
@@ -126,9 +132,13 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
   const { register, control, handleSubmit, reset, setValue, setError, formState } = form;
   const [scopeOpen, setScopeOpen] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<TransactionUpdateInput | null>(null);
+  const [splitErrors, setSplitErrors] = useState<{ rows: Record<number, SplitRowErrors>; summary?: string }>({ rows: {} });
 
   useEffect(() => {
-    if (state.open) reset(initialValues(state));
+    if (state.open) {
+      reset(initialValues(state));
+      setSplitErrors({ rows: {} });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.open, state.transaction?.id, state.mode, state.type]);
 
@@ -138,16 +148,12 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
 
   const accounts = useAccounts();
   const cards = useCards();
-  const categories = useCategories({ type });
   const contacts = useContactOptions();
   const create = useCreateTransaction();
   const update = useUpdateTransaction();
 
   const activeAccounts = (accounts.data ?? []).filter((a) => !a.archived);
   const activeCards = (cards.data ?? []).filter((c) => !c.archived);
-  const categoryList = (categories.data ?? []).filter((c) => !c.archived);
-  const selectedCategory = categoryList.find((c) => c.id === values.categoryId);
-  const subcategories = (selectedCategory?.subcategories ?? []).filter((s) => !s.archived);
 
   const installmentPreview = useMemo(() => {
     const n = Number(values.installments);
@@ -190,10 +196,36 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
     };
   }
 
+  function startSplit() {
+    const first = newSplitRow({ categoryId: values.categoryId ?? '', subcategoryId: values.subcategoryId ?? '' });
+    setValue('splits', evenSplit([first, newSplitRow()], values.amount ?? 0));
+    setValue('split', true);
+    setSplitErrors({ rows: {} });
+  }
+
+  function cancelSplit() {
+    const first = values.splits?.[0];
+    if (first) {
+      setValue('categoryId', first.categoryId);
+      setValue('subcategoryId', first.subcategoryId);
+    }
+    setValue('split', false);
+    setValue('splits', []);
+    setSplitErrors({ rows: {} });
+  }
+
   async function submitCreate(v: FormValues) {
+    let splits: TransactionInput['splits'] = null;
+    if (v.split) {
+      const check = validateSplits(v.splits, v.amount);
+      setSplitErrors({ rows: check.rowErrors, summary: check.summary });
+      if (!check.ok) return;
+      splits = v.splits.map((r) => ({ categoryId: r.categoryId, subcategoryId: r.subcategoryId || null, amount: r.amount }));
+    }
     const payload: TransactionInput = {
       type: v.type,
       ...commonPayload(v),
+      ...(splits ? { categoryId: null, subcategoryId: null, splits } : {}),
       recurrenceKind: v.repeat ? v.recurrenceKind : 'single',
       frequency: v.repeat && v.recurrenceKind !== 'fixed' ? v.frequency : 'monthly',
       installments: v.repeat && v.recurrenceKind === 'installment' ? Number(v.installments) || null : null,
@@ -206,7 +238,11 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
       const created = await create.mutateAsync(payload);
       const label = v.type === 'income' ? 'Receita' : 'Despesa';
       toast.success(
-        created.length > 1 ? `${label} criada · ${created.length} lançamentos gerados` : `${label} criada`,
+        splits
+          ? `${label} dividida em ${splits.length} categorias`
+          : created.length > 1
+            ? `${label} criada · ${created.length} lançamentos gerados`
+            : `${label} criada`,
       );
       onOpenChange(false);
     } catch (error) {
@@ -280,6 +316,8 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                 setValue('type', next);
                 setValue('categoryId', '');
                 setValue('subcategoryId', '');
+                if (values.split) setValue('splits', evenSplit([newSplitRow(), newSplitRow()], values.amount ?? 0));
+                setSplitErrors({ rows: {} });
                 if (next === 'income' && isCard) setValue('source', '');
               }}
               options={[
@@ -309,6 +347,12 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
           noValidate
         >
           {isEdit && tx ? <SeriesInfo tx={tx} /> : null}
+          {isEdit && tx?.splitGroupId ? (
+            <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-[13px] text-primary-soft-fg">
+              <Split className="size-4" />
+              <span className="font-medium">Parte de um lançamento dividido entre categorias</span>
+            </div>
+          ) : null}
 
           <Field label="Valor" error={formState.errors.amount?.message}>
             <Controller
@@ -383,34 +427,48 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
             </Select>
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Categoria" error={formState.errors.categoryId?.message}>
-              <Select {...register('categoryId', { onChange: () => setValue('subcategoryId', '') })}>
-                <option value="">Selecione</option>
-                {categoryList.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={isCard ? 'Data da compra' : values.paid ? 'Data' : 'Vencimento'} error={formState.errors.date?.message}>
-              <Input type="date" {...register('date')} />
-            </Field>
-          </div>
-
-          {subcategories.length ? (
-            <Field label="Subcategoria" error={formState.errors.subcategoryId?.message}>
-              <Select {...register('subcategoryId')}>
-                <option value="">Nenhuma</option>
-                {subcategories.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
+          {values.split ? (
+            <>
+              <Field label={isCard ? 'Data da compra' : values.paid ? 'Data' : 'Vencimento'} error={formState.errors.date?.message}>
+                <Input type="date" {...register('date')} />
+              </Field>
+              <SplitEditor
+                type={type}
+                total={values.amount ?? 0}
+                rows={values.splits ?? []}
+                onChange={(rows) => setValue('splits', rows)}
+                onCancel={cancelSplit}
+                rowErrors={splitErrors.rows}
+                error={splitErrors.summary}
+              />
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label="Categoria"
+                error={formState.errors.categoryId?.message ?? formState.errors.subcategoryId?.message}
+                aside={
+                  isEdit ? null : (
+                    <button type="button" onClick={startSplit} className="flex items-center gap-1 text-xs font-semibold text-brand-text hover:underline">
+                      <Split className="size-3.5" /> Dividir
+                    </button>
+                  )
+                }
+              >
+                <CategoryPicker
+                  type={type}
+                  value={{ categoryId: values.categoryId ?? '', subcategoryId: values.subcategoryId ?? '' }}
+                  onChange={(v) => {
+                    setValue('categoryId', v.categoryId);
+                    setValue('subcategoryId', v.subcategoryId);
+                  }}
+                />
+              </Field>
+              <Field label={isCard ? 'Data da compra' : values.paid ? 'Data' : 'Vencimento'} error={formState.errors.date?.message}>
+                <Input type="date" {...register('date')} />
+              </Field>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Forma de pagamento">

@@ -4,7 +4,6 @@ import { useAuth } from '@/features/auth/auth-context';
 import { TransactionActionsProvider } from '@/features/transactions/transaction-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from './sidebar';
-import { Topbar } from './topbar';
 import { QuickBar } from './quick-bar';
 import { MobileNav } from './mobile-nav';
 import { CommandPalette } from './command-palette';
@@ -39,8 +38,7 @@ export function AppShell() {
       <div className="min-h-dvh">
         <Sidebar />
         <div className="lg:pl-[76px]">
-          <Topbar />
-          <main className="mx-auto max-w-[1440px] px-4 pt-6 pb-28 sm:px-6 lg:pb-32">
+          <main className="mx-auto max-w-[1440px] px-4 pt-6 pb-28 sm:px-6 lg:pt-8 lg:pb-32">
             <DemoBanner />
             <Suspense fallback={<PageLoader />}>
               <Outlet />

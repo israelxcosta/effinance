@@ -19,7 +19,7 @@
 | `brand-500` | `#3F64BE` | links, anel de foco                                      |
 | `brand-600` | `#2A4C9F` | hover de botão primário                                  |
 | `brand-700` | `#1E3A80` | texto de marca, rótulos de seção                         |
-| `brand-800` | `#152B61` | **cor primária** (botão primário, aba ativa, PRO)        |
+| `brand-800` | `#152B61` | **cor primária** (botão primário, aba ativa)             |
 | `brand-900` | `#0F1F47` | gradiente do card de insights (fim)                      |
 | `brand-950` | `#0A1530` | textos sobre fundo claro de marca                        |
 
@@ -76,7 +76,7 @@ clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem 
 | Estilo       | Tamanho/peso                     | Uso                                   |
 | ------------ | -------------------------------- | ------------------------------------- |
 | Display      | 28–32px / 700, tracking -0.02em  | valores-herói ("R$ 9.680,00")         |
-| H1 (página)  | 22px / 600                       | saudação, título de página            |
+| H1 (página)  | 22px / 600                       | título de página                      |
 | H2 (card)    | 15–16px / 600                    | "Fluxo de Caixa", "Resumo do período" |
 | Body         | 14px / 400–500                   | texto geral                           |
 | Small        | 12–13px / 400–500                | legendas, rodapés de KPI              |
@@ -94,12 +94,9 @@ clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem 
 ## 2. Layout (app shell)
 
 - **Sidebar** fixa de 76px (`bg-subtle`, borda direita): logo "Effinance" em texto no topo; ícones
-  `lucide` 20px em botões 44×44 com raio 12; ativo = `surface` + sombra xs (ou `brand-100` +
-  `text-brand-800`); tooltip com o nome à direita; rodapé com badge **PRO** (`brand-800`) e avatar
-  com iniciais.
-- **Topbar** (altura 72px, sticky, `bg` com blur): apenas a saudação "Bom dia, {nome} 👋" (H1).
-  Busca, ações e notificações ficam na barra flutuante; o tema fica no menu do avatar e em
-  Configurações.
+  `lucide` 20px em botões 44×44 com raio 12; ativo = `surface` + sombra xs; tooltip com o nome à
+  direita; rodapé com Configurações e avatar com iniciais (menu de conta e tema).
+- **Sem topbar**: cada página abre direto com seu cabeçalho (overline + título + descrição).
 - **Conteúdo**: max-width 1440px, padding 24px, seções em cards `xl`.
 - **Barra flutuante** inferior centralizada (pílula `surface`, sombra lg): busca/⌘K, ações rápidas
   `+ Despesa` (texto `danger`), `+ Receita` (texto `success`), `Transferir`, `Fatura` e, à direita,
@@ -116,6 +113,8 @@ clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem 
 | Card               | `surface`, borda, raio xl, padding 20–24; header com título H2 + subtítulo small muted + ação à direita |
 | KpiCard            | rótulo small + ícone info; valor Display; rodapé `surface-muted` com seta (TrendingUp/Down) colorida, "% vs mês anterior" e chevron |
 | Input / Select     | altura 44, raio md, borda `border`, foco: borda `brand-500` + anel 3px `brand-500/15` |
+| CategoryPicker     | campo único de categoria: lista com busca no topo, categorias como títulos de grupo e só subcategorias selecionáveis (rádio circular); categoria sem subcategorias é selecionável; rodapé "+ Nova categoria" |
+| SplitEditor        | "Dividir" no campo Categoria: linhas categoria + valor (2–10), "Dividir igualmente", "+ Adicionar categoria" (já com o valor que falta) e faixa de conferência (Falta / Excede / Valores conferem) |
 | Select (lista)     | nunca o menu nativo: lista própria (Radix) com raio xl, borda, sombra lg, padding 6px; itens com raio lg, destaque `bg-subtle` no hover/teclado, item escolhido em negrito com ✓; grupos com rótulo overline e divisor |
 | MoneyInput         | prefixo "R$" muted, digitação da direita para a esquerda (centavos), tabular-nums |
 | Sheet (lateral)    | 440px, raio 2xl à esquerda, header (título H2 + subtítulo muted + X), corpo rolável, rodapé fixo com `Cancelar` (ghost) e `Salvar` (primary) |

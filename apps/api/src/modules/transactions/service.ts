@@ -163,7 +163,38 @@ export async function createTransaction(
   userId: string,
   input: TransactionInputParsed,
 ): Promise<Transaction[]> {
-  const { card } = await validateTransactionRefs(db, userId, input);
+  // A category split becomes one linked transaction (or series) per part.
+  const parts = input.splits ?? [
+    { categoryId: input.categoryId, subcategoryId: input.subcategoryId, amount: input.amount },
+  ];
+  let card: Awaited<ReturnType<typeof validateTransactionRefs>>['card'] = null;
+  for (const part of parts) ({ card } = await validateTransactionRefs(db, userId, { ...input, ...part }));
+  const splitGroupId = input.splits ? globalThis.crypto.randomUUID() : null;
+
+  const ids = await db.transaction(async (tx) => {
+    const created: string[] = [];
+    for (const part of parts) {
+      created.push(...(await insertTransaction(tx, userId, { ...input, ...part }, card, splitGroupId)));
+    }
+    return created;
+  });
+
+  const rows = await db
+    .select()
+    .from(transactions)
+    .where(inArray(transactions.id, ids))
+    .orderBy(asc(transactions.date), asc(transactions.createdAt));
+  return toTransactions(db, rows);
+}
+
+/** Inserts a single transaction or a whole series (installments, recurring, fixed). Returns ids. */
+async function insertTransaction(
+  tx: DbExecutor,
+  userId: string,
+  input: TransactionInputParsed,
+  card: Awaited<ReturnType<typeof validateTransactionRefs>>['card'],
+  splitGroupId: string | null,
+): Promise<string[]> {
   const paymentMethod = input.paymentMethod ?? (card ? 'credit_card' : null);
 
   const template: RecurrenceTemplate = {
@@ -177,65 +208,40 @@ export async function createTransaction(
     contactId: input.contactId,
     paymentMethod,
     notes: input.notes,
+    splitGroupId,
   };
   const paidFields = (date: string) =>
     input.paid ? { paid: true, paidAt: input.paidAt ?? date } : { paid: false, paidAt: null };
 
-  const ids = await db.transaction(async (tx) => {
-    if (input.recurrenceKind === 'single') {
-      const [row] = await tx
-        .insert(transactions)
-        .values({
-          userId,
-          ...template,
-          date: input.date,
-          invoiceMonth: invoiceMonthFor(card, input.date),
-          recurrenceKind: 'single',
-          ...paidFields(input.date),
-        })
-        .returning({ id: transactions.id });
-      return [row!.id];
-    }
+  if (input.recurrenceKind === 'single') {
+    const [row] = await tx
+      .insert(transactions)
+      .values({
+        userId,
+        ...template,
+        date: input.date,
+        invoiceMonth: invoiceMonthFor(card, input.date),
+        recurrenceKind: 'single',
+        ...paidFields(input.date),
+      })
+      .returning({ id: transactions.id });
+    return [row!.id];
+  }
 
-    const frequency = input.recurrenceKind === 'fixed' ? 'monthly' : input.frequency;
-    const count =
-      input.recurrenceKind === 'installment'
-        ? input.installments!
-        : input.recurrenceKind === 'recurring'
-          ? (input.occurrences ?? null)
-          : null;
+  const frequency = input.recurrenceKind === 'fixed' ? 'monthly' : input.frequency;
+  const count =
+    input.recurrenceKind === 'installment'
+      ? input.installments!
+      : input.recurrenceKind === 'recurring'
+        ? (input.occurrences ?? null)
+        : null;
 
-    if (count !== null) {
-      // Finite series: generate everything now.
-      const amounts =
-        input.recurrenceKind === 'installment' && input.installmentAmountMode === 'total'
-          ? splitInstallments(input.amount, count)
-          : Array.from({ length: count }, () => input.amount);
-      const [series] = await tx
-        .insert(recurrences)
-        .values({
-          userId,
-          kind: input.recurrenceKind,
-          frequency,
-          startDate: input.date,
-          totalOccurrences: count,
-          nextIndex: count,
-          nextDate: null,
-          template: { ...template, amount: amounts[amounts.length - 1]! },
-        })
-        .returning();
-      const dates = buildOccurrenceDates(input.date, frequency, count);
-      const rows: NewTransactionRow[] = dates.map((date, i) => ({
-        ...occurrenceRow(userId, series!, template, i, date, card),
-        amount: amounts[i]!,
-        ...(input.recurrenceKind === 'installment' ? { installmentNumber: i + 1, installmentTotal: count } : {}),
-        ...(i === 0 ? paidFields(date) : {}),
-      }));
-      const inserted = await tx.insert(transactions).values(rows).returning({ id: transactions.id });
-      return inserted.map((r) => r.id);
-    }
-
-    // Open-ended series (fixed monthly or recurring without end): materialize up to the horizon.
+  if (count !== null) {
+    // Finite series: generate everything now.
+    const amounts =
+      input.recurrenceKind === 'installment' && input.installmentAmountMode === 'total'
+        ? splitInstallments(input.amount, count)
+        : Array.from({ length: count }, () => input.amount);
     const [series] = await tx
       .insert(recurrences)
       .values({
@@ -243,32 +249,49 @@ export async function createTransaction(
         kind: input.recurrenceKind,
         frequency,
         startDate: input.date,
-        totalOccurrences: null,
-        nextIndex: 0,
-        nextDate: input.date,
-        template,
+        totalOccurrences: count,
+        nextIndex: count,
+        nextDate: null,
+        template: { ...template, amount: amounts[amounts.length - 1]! },
       })
       .returning();
-    await materializeSeries(tx, series!, materializationHorizon(), card);
-    if (input.paid) {
-      await tx
-        .update(transactions)
-        .set(paidFields(input.date))
-        .where(and(eq(transactions.recurrenceId, series!.id), eq(transactions.occurrenceIndex, 0)));
-    }
-    const rows = await tx
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(eq(transactions.recurrenceId, series!.id));
-    return rows.map((r) => r.id);
-  });
+    const dates = buildOccurrenceDates(input.date, frequency, count);
+    const rows: NewTransactionRow[] = dates.map((date, i) => ({
+      ...occurrenceRow(userId, series!, template, i, date, card),
+      amount: amounts[i]!,
+      ...(input.recurrenceKind === 'installment' ? { installmentNumber: i + 1, installmentTotal: count } : {}),
+      ...(i === 0 ? paidFields(date) : {}),
+    }));
+    const inserted = await tx.insert(transactions).values(rows).returning({ id: transactions.id });
+    return inserted.map((r) => r.id);
+  }
 
-  const rows = await db
-    .select()
+  // Open-ended series (fixed monthly or recurring without end): materialize up to the horizon.
+  const [series] = await tx
+    .insert(recurrences)
+    .values({
+      userId,
+      kind: input.recurrenceKind,
+      frequency,
+      startDate: input.date,
+      totalOccurrences: null,
+      nextIndex: 0,
+      nextDate: input.date,
+      template,
+    })
+    .returning();
+  await materializeSeries(tx, series!, materializationHorizon(), card);
+  if (input.paid) {
+    await tx
+      .update(transactions)
+      .set(paidFields(input.date))
+      .where(and(eq(transactions.recurrenceId, series!.id), eq(transactions.occurrenceIndex, 0)));
+  }
+  const rows = await tx
+    .select({ id: transactions.id })
     .from(transactions)
-    .where(inArray(transactions.id, ids))
-    .orderBy(asc(transactions.date));
-  return toTransactions(db, rows);
+    .where(eq(transactions.recurrenceId, series!.id));
+  return rows.map((r) => r.id);
 }
 
 // ---------------------------------------------------------------------------
