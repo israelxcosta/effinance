@@ -51,6 +51,19 @@ pnpm dev
 
 Acesse http://localhost:5173.
 
+## Ambiente de testes (sem servidor)
+
+`pnpm --filter @effinance/web build:demo` gera em `apps/web/dist-demo` uma versão estática e completa
+do sistema: as mesmas rotas e regras da API rodam no navegador sobre o PGlite (PostgreSQL em
+WebAssembly). Cada navegador ganha sua própria base, salva no IndexedDB e já preenchida com os dados
+de demonstração; o login vem preenchido com a conta demo e um aviso permite restaurar os dados.
+
+A pasta pode ser publicada em qualquer hospedagem estática (Netlify, Vercel, GitHub Pages, S3).
+Para testar localmente: `pnpm --filter @effinance/web dev:demo`.
+
+Para produção use a API real (Node + PostgreSQL): ela é a fonte da verdade, com autenticação por
+cookie httpOnly e dados no servidor.
+
 ## Scripts
 
 | Comando           | O que faz |
@@ -59,6 +72,7 @@ Acesse http://localhost:5173.
 | `pnpm typecheck`  | checagem de tipos em todos os pacotes |
 | `pnpm test`       | testes (a API usa o banco `effinance_test`, veja `apps/api/.env.example`) |
 | `pnpm build`      | build de produção (API em `apps/api/dist`, Web em `apps/web/dist`) |
+| `pnpm --filter @effinance/web build:demo` | build estático de testes, sem servidor (`apps/web/dist-demo`) |
 | `pnpm db:migrate` | aplica as migrações do Drizzle |
 | `pnpm db:seed`    | cria/recria o usuário de demonstração com dados realistas |
 

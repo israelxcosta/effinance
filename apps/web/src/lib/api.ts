@@ -1,4 +1,9 @@
 import type { ApiError } from '@effinance/shared';
+import { IS_DEMO } from './demo';
+
+/** In the demo build requests are answered in-browser (PGlite) instead of going to the network. */
+const transport = (input: string, init: RequestInit): Promise<Response> =>
+  IS_DEMO ? import('@/demo/fetch').then((m) => m.demoFetch(input, init)) : fetch(input, init);
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -80,7 +85,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   let response: Response;
   try {
-    response = await fetch(`/api${path}${buildQuery(query)}`, {
+    response = await transport(`/api${path}${buildQuery(query)}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,

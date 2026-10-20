@@ -12,6 +12,7 @@ import { errorMessage } from '@/lib/api';
 import { useAuth } from '../auth-context';
 import { AuthLayout } from './auth-layout';
 import { FullPageLoader } from '@/components/layout/app-shell';
+import { IS_DEMO } from '@/lib/demo';
 
 type LoginForm = z.input<typeof loginSchema>;
 
@@ -22,7 +23,8 @@ export default function LoginPage() {
   const [show, setShow] = useState(false);
   const form = useForm<LoginForm, unknown, z.output<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    // The demo build ships a sample user; prefill it so testers can sign in with one click.
+    defaultValues: IS_DEMO ? { email: 'demo@effinance.app', password: 'demo12345' } : { email: '', password: '' },
   });
   const from = (location.state as { from?: string } | null)?.from ?? '/';
 
@@ -51,6 +53,12 @@ export default function LoginPage() {
         </>
       }
     >
+      {IS_DEMO ? (
+        <p className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] text-fg">
+          <strong className="font-semibold">Ambiente de testes.</strong> A conta de demonstração já está
+          preenchida — é só clicar em Entrar. Você também pode criar sua própria conta.
+        </p>
+      ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <Field label="E-mail" error={form.formState.errors.email?.message}>
           <Input type="email" autoComplete="email" placeholder="voce@email.com" autoFocus {...form.register('email')} />

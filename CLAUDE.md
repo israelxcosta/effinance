@@ -7,6 +7,8 @@ Sistema financeiro pessoal (pt-BR). Monorepo pnpm:
   CPF/CNPJ, fatura, recorrência). **Altere o contrato primeiro.**
 - `apps/api` — Fastify 5 + Drizzle + PostgreSQL. Ver `docs/api.md`.
 - `apps/web` — React 19 + Vite + Tailwind v4 + TanStack Query. Ver `docs/design-system.md`.
+  `--mode demo` (`src/demo/`) roda as rotas da API no navegador sobre PGlite: mantenha os módulos
+  de `apps/api/src/modules` livres de imports exclusivos do Node (exceto `lib/password`, trocado por alias).
 
 ## Agentes por função (`.claude/agents/`)
 

@@ -13,18 +13,8 @@ import { env } from './env';
 import { createDb, type Database } from './db/client';
 import { authPlugin } from './lib/auth';
 import { AppError } from './lib/errors';
-import { accountRoutes } from './modules/accounts/routes';
 import { authRoutes } from './modules/auth/routes';
-import { categoryRoutes } from './modules/categories/routes';
-import { contactRoutes } from './modules/contacts/routes';
-import { creditCardRoutes } from './modules/credit-cards/routes';
-import { dashboardRoutes } from './modules/dashboard/routes';
-import { goalRoutes } from './modules/goals/routes';
-import { reportRoutes } from './modules/reports/routes';
-import { searchRoutes } from './modules/search/routes';
-import { statementRoutes } from './modules/statement/routes';
-import { transactionRoutes } from './modules/transactions/routes';
-import { transferRoutes } from './modules/transfers/routes';
+import { domainRoutes } from './routes';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -95,17 +85,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     async (api) => {
       api.get('/health', async () => ({ status: 'ok' }));
       await api.register(authRoutes, { prefix: '/auth' });
-      await api.register(categoryRoutes, { prefix: '/categories' });
-      await api.register(accountRoutes, { prefix: '/accounts' });
-      await api.register(creditCardRoutes, { prefix: '/credit-cards' });
-      await api.register(goalRoutes, { prefix: '/goals' });
-      await api.register(contactRoutes, { prefix: '/contacts' });
-      await api.register(transactionRoutes, { prefix: '/transactions' });
-      await api.register(transferRoutes, { prefix: '/transfers' });
-      await api.register(statementRoutes, { prefix: '/statement' });
-      await api.register(dashboardRoutes, { prefix: '/dashboard' });
-      await api.register(reportRoutes, { prefix: '/reports' });
-      await api.register(searchRoutes, { prefix: '/search' });
+      for (const { plugin, prefix } of domainRoutes) await api.register(plugin, { prefix });
     },
     { prefix: '/api' },
   );

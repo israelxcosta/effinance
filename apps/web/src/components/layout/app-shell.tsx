@@ -8,6 +8,8 @@ import { Topbar } from './topbar';
 import { QuickBar } from './quick-bar';
 import { MobileNav } from './mobile-nav';
 import { CommandPalette } from './command-palette';
+import { IS_DEMO } from '@/lib/demo';
+import { DemoBanner } from './demo-banner';
 
 export function AppShell() {
   const { user, loading } = useAuth();
@@ -39,6 +41,7 @@ export function AppShell() {
         <div className="lg:pl-[76px]">
           <Topbar onSearch={() => setPaletteOpen(true)} />
           <main className="mx-auto max-w-[1440px] px-4 pt-6 pb-28 sm:px-6 lg:pb-32">
+            <DemoBanner />
             <Suspense fallback={<PageLoader />}>
               <Outlet />
             </Suspense>
@@ -59,6 +62,7 @@ export function FullPageLoader() {
       <span className="h-1 w-24 overflow-hidden rounded-full bg-bg-subtle">
         <span className="block h-full w-1/2 animate-shimmer rounded-full bg-primary" />
       </span>
+      {IS_DEMO ? <span className="text-xs text-muted">Preparando o ambiente de testes…</span> : null}
     </div>
   );
 }

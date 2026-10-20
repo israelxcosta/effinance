@@ -1,7 +1,8 @@
 import { lazy } from 'react';
-import { createBrowserRouter, Link } from 'react-router';
+import { createBrowserRouter, createHashRouter, Link } from 'react-router';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
+import { IS_DEMO } from '@/lib/demo';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/login'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/register'));
@@ -32,7 +33,8 @@ function NotFound() {
   );
 }
 
-export const router = createBrowserRouter([
+// The demo build is served from a single static page, so it routes on the URL hash.
+export const router = (IS_DEMO ? createHashRouter : createBrowserRouter)([
   { path: '/login', element: <LoginPage /> },
   { path: '/cadastro', element: <RegisterPage /> },
   {

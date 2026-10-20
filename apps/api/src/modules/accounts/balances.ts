@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { ISODate } from '@effinance/shared';
 import type { DbExecutor } from '../../db/client';
-import { toNumber } from '../../lib/sql';
+import { executeRows, toNumber } from '../../lib/sql';
 
 export interface AccountMovementSums {
   /** Paid movements with effective date <= asOf. */
@@ -20,7 +20,7 @@ export async function accountMovements(
   asOf: ISODate,
   projectedUntil: ISODate = asOf,
 ): Promise<Map<string, AccountMovementSums>> {
-  const rows = await db.execute<{ acc: string; realized: string; projected: string }>(sql`
+  const rows = await executeRows<{ acc: string; realized: string; projected: string }>(db, sql`
     with m as (
       select account_id as acc,
              case when type = 'income' then amount else -amount end as delta,
