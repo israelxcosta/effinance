@@ -16,6 +16,13 @@ Sistema financeiro pessoal (pt-BR). Monorepo pnpm:
 - `frontend-specialist` — telas, componentes, formulários, gráficos.
 - `ui-saas-designer` — tokens, componentes e revisão visual (estilo Graniq em azul-marinho).
 
+Segurança (auditoria + correção com teste de regressão, um por linguagem/camada):
+
+- `security-node-api` — TypeScript/Node (Fastify): auth, sessões, MFA, tenancy, cripto, webhooks.
+- `security-react-web` — TypeScript/React/HTML/CSS: XSS, CSP, tokens, redirects, estados de permissão.
+- `security-postgres-sql` — SQL/PostgreSQL/Drizzle: RLS, papéis, migrações, cripto em repouso.
+- `security-infra-supply-chain` — Docker/YAML/pnpm/AWS: dependências, segredos, deploy.
+
 ## Regras
 
 - Dinheiro em centavos inteiros; datas de calendário como `YYYY-MM-DD`.
