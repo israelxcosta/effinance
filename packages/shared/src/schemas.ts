@@ -311,6 +311,8 @@ export const seriesScopeQuerySchema = z.object({
  */
 export const transactionUpdateSchema = transactionBaseSchema
   .omit({ type: true })
+  // No default here: an omitted `paid` must keep the current value.
+  .extend({ paid: z.boolean() })
   .partial()
   .superRefine((v, ctx) => {
     if (v.accountId && v.creditCardId) {
