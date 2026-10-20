@@ -1,0 +1,25 @@
+{
+  "name": "effinance",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Effinance — gestão financeira pessoal (contas, cartões, metas, contas a pagar/receber, relatórios)",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @effinance/api --filter @effinance/web dev",
+    "dev:api": "pnpm --filter @effinance/api dev",
+    "dev:web": "pnpm --filter @effinance/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "pnpm --filter @effinance/api db:migrate",
+    "db:seed": "pnpm --filter @effinance/api db:seed",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3"
+  }
+}
