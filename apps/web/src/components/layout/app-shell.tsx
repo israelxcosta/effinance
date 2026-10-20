@@ -56,7 +56,7 @@ export function AppShell() {
 export function FullPageLoader() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-3" aria-busy="true">
-      <span className="text-lg font-extrabold tracking-tight text-fg">Effinance</span>
+      <span className="text-lg font-extrabold tracking-tight text-fg">effinance</span>
       <span className="h-1 w-24 overflow-hidden rounded-full bg-bg-subtle">
         <span className="block h-full w-1/2 animate-shimmer rounded-full bg-primary" />
       </span>
