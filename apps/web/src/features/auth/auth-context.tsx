@@ -9,13 +9,13 @@ import type {
   MfaVerifyInput,
   RegisterInput,
   UpdateProfileInput,
-  User,
   WorkspaceSummary,
 } from '@effinance/shared';
 import { api, ApiRequestError, onUnauthorized, setBearerToken } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 
-export type LoginResult = { mfaRequired: true; mfaToken: string } | { mfaRequired: false; me: MeResponse };
+export type LoginResult =
+  { mfaRequired: true; mfaToken: string } | { mfaRequired: false; me: MeResponse };
 
 interface AuthContextValue {
   user: MeUser | null;
@@ -39,32 +39,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/**
- * `/auth/me` returns `MeResponse`. The pre-workspace API returned a bare `User`; that shape is
- * mapped to a single personal workspace with full access so the app keeps working against it.
- */
-function normalizeMe(data: MeResponse | User): MeResponse {
-  if ('workspace' in data) return data;
-  const workspace: WorkspaceSummary = {
-    id: 'personal',
-    name: 'Pessoal',
-    kind: 'personal',
-    role: 'owner',
-    subscription: {
-      planCode: null,
-      status: 'trialing',
-      trialEndsAt: null,
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-      canWrite: true,
-    },
-  };
-  return { user: { ...data, mfaEnabled: false }, workspace, workspaces: [workspace] };
-}
-
 async function fetchMe(): Promise<MeResponse | null> {
   try {
-    return normalizeMe(await api<MeResponse | User>('/auth/me'));
+    return await api<MeResponse>('/auth/me');
   } catch (error) {
     if (error instanceof ApiRequestError && error.status === 401) return null;
     throw error;
@@ -105,8 +82,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (input: LoginInput): Promise<LoginResult> => {
-      const res = await api<AuthResponse | MfaChallengeResponse>('/auth/login', { method: 'POST', body: input });
-      if ('mfaRequired' in res && res.mfaRequired) return { mfaRequired: true, mfaToken: res.mfaToken };
+      const res = await api<AuthResponse | MfaChallengeResponse>('/auth/login', {
+        method: 'POST',
+        body: input,
+      });
+      if ('mfaRequired' in res && res.mfaRequired)
+        return { mfaRequired: true, mfaToken: res.mfaToken };
       return { mfaRequired: false, me: await startSession(res as AuthResponse) };
     },
     [startSession],
@@ -140,7 +121,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateProfile = useCallback(
     async (input: UpdateProfileInput) => {
       const user = await api<MeUser>('/auth/me', { method: 'PUT', body: input });
-      qc.setQueryData<MeResponse | null>(qk.me, (prev) => (prev ? { ...prev, user: { ...prev.user, ...user } } : prev));
+      qc.setQueryData<MeResponse | null>(qk.me, (prev) =>
+        prev ? { ...prev, user: { ...prev.user, ...user } } : prev,
+      );
       return user;
     },
     [qc],
@@ -148,9 +131,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const switchWorkspace = useCallback(
     async (workspaceId: string) => {
-      const session = normalizeMe(
-        await api<MeResponse>('/auth/switch-workspace', { method: 'POST', body: { workspaceId } }),
-      );
+      const session = await api<MeResponse>('/auth/switch-workspace', {
+        method: 'POST',
+        body: { workspaceId },
+      });
       // The new access cookie carries the workspace claim; an older bearer token would not.
       setBearerToken(null);
       applySession(session);
@@ -185,7 +169,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshMe,
       clearSession,
     }),
-    [me.data, me.isPending, login, verifyMfa, register, logout, updateProfile, switchWorkspace, adopt, refreshMe, clearSession],
+    [
+      me.data,
+      me.isPending,
+      login,
+      verifyMfa,
+      register,
+      logout,
+      updateProfile,
+      switchWorkspace,
+      adopt,
+      refreshMe,
+      clearSession,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

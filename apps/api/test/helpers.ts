@@ -1,6 +1,21 @@
 import { sql } from 'drizzle-orm';
 import type { LightMyRequestResponse } from 'fastify';
+import { afterAll } from 'vitest';
 import { buildApp, type App } from '../src/app';
+import { createDb, type Database } from '../src/db/client';
+
+let adminConnection: ReturnType<typeof createDb> | null = null;
+
+/** Superuser connection for resets and raw assertions (the app itself runs least-privileged). */
+export function admin(): Database {
+  adminConnection ??= createDb(process.env.ADMIN_DATABASE_URL);
+  return adminConnection.db;
+}
+
+afterAll(async () => {
+  await adminConnection?.client.end({ timeout: 5 });
+  adminConnection = null;
+});
 
 export async function createTestApp(): Promise<App> {
   const app = await buildApp({ logger: false });
@@ -8,8 +23,8 @@ export async function createTestApp(): Promise<App> {
   return app;
 }
 
-export async function resetDb(app: App) {
-  await app.db.execute(sql`truncate table users, workspaces, billing_events restart identity cascade`);
+export async function resetDb(_app?: App) {
+  await admin().execute(sql`truncate table users, workspaces, billing_events restart identity cascade`);
 }
 
 export interface Client {

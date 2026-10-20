@@ -5,7 +5,7 @@ import { accounts, contacts, workspaces } from '../src/db/schema';
 import type { MemoryMailer } from '../src/lib/mailer';
 import { executeRows } from '../src/lib/sql';
 import { withTenant } from '../src/lib/tenant';
-import { createAccount, createTestApp, registerUser, resetDb, type Client } from './helpers';
+import { admin, createAccount, createTestApp, registerUser, resetDb, type Client } from './helpers';
 
 let app: App;
 beforeAll(async () => {
@@ -84,6 +84,13 @@ describe('row level security', () => {
       executeRows(tx, sql`update accounts set name = 'hacked' where workspace_id = ${wb} returning id`),
     );
     expect(updated).toHaveLength(0);
+  });
+
+  it('the API login role has no direct access to financial tables (only through effinance_app)', async () => {
+    const alice = await registerUser(app, 'Alice');
+    await createAccount(alice, { name: 'Conta Alice' });
+    expect(await pgError(app.db.execute(sql`select count(*) from accounts`))).toMatch(/permission denied for table accounts/);
+    expect(await pgError(app.db.execute(sql`delete from transactions`))).toMatch(/permission denied/);
   });
 
   it('without the tenant setting no row is visible, and the app role cannot read identity tables', async () => {
@@ -249,7 +256,7 @@ describe('workspace lifecycle and LGPD', () => {
     // Session moved back to the personal workspace; rows and the wrapped key are gone.
     expect((await owner.get('/auth/me')).body.workspace.kind).toBe('personal');
     expect(await app.db.select().from(workspaces).where(sql`${workspaces.id} = ${familyId}`)).toEqual([]);
-    expect(await app.db.select().from(contacts).where(sql`${contacts.workspaceId} = ${familyId}`)).toEqual([]);
+    expect(await admin().select().from(contacts).where(sql`${contacts.workspaceId} = ${familyId}`)).toEqual([]);
 
     // The personal workspace goes only with the account.
     const personal = await owner.del('/workspaces/current', { confirmName: 'Pessoal' });

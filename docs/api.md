@@ -1,13 +1,16 @@
 # Effinance — API
 
 Base: `/api` (o Vite faz proxy de `/api` → `http://localhost:3333` em desenvolvimento).
-Autenticação: cookie httpOnly `effinance_token` (definido no login/registro) **ou**
-`Authorization: Bearer <token>`. Todas as rotas exceto `/api/health` e `/api/auth/{register,login}`
-exigem autenticação. Corpos e queries são validados pelos schemas de `@effinance/shared`
+Autenticação: access token JWT de 15 min no cookie httpOnly `effinance_token` (definido no
+login/registro/refresh) **ou** `Authorization: Bearer <token>`; renovação com o refresh token do cookie
+`effinance_refresh` em `POST /api/auth/refresh` (veja "Autenticação e sessões"). Rotas públicas:
+`/api/health`, `/api/auth/{register,login,mfa/verify,refresh,logout,password/forgot,password/reset}`,
+`/api/invites/:token` (prévia), `/api/billing/plans` e o webhook do Mercado Pago. Corpos e queries são validados pelos schemas de `@effinance/shared`
 (`schemas.ts`); respostas seguem `types.ts`.
 
 Valores monetários: **centavos inteiros**. Datas: `YYYY-MM-DD`. Meses: `YYYY-MM`.
-Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 409, 422, 429, 500).
+Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 403, 404, 409, 415,
+422, 429, 500).
 
 | Método | Rota | Entrada | Resposta |
 | --- | --- | --- | --- |
@@ -15,8 +18,8 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 | POST | `/api/auth/register` | `registerSchema` | `AuthResponse` (201) — cria categorias padrão e a conta "Carteira" |
 | POST | `/api/auth/login` | `loginSchema` | `AuthResponse` |
 | POST | `/api/auth/logout` | — | 204 |
-| GET | `/api/auth/me` | — | `User` |
-| PUT | `/api/auth/me` | `updateProfileSchema` | `User` |
+| GET | `/api/auth/me` | — | `MeResponse` (usuário + workspace ativo + lista) |
+| PUT | `/api/auth/me` | `updateProfileSchema` | `MeUser` |
 | GET | `/api/categories` | `categoryQuerySchema` | `CategoryWithChildren[]` |
 | POST | `/api/categories` | `categoryInputSchema` | `Category` (201) |
 | PUT | `/api/categories/:id` | `categoryUpdateSchema` | `Category` |
@@ -63,7 +66,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 | GET | `/api/reports/contacts` | `contactReportQuerySchema` | `ContactReportResponse` |
 | GET | `/api/reports/comparison` | `comparisonReportQuerySchema` | `ComparisonReportResponse` |
 | GET | `/api/reports/cashflow` | `cashflowReportQuerySchema` | `CashflowReportResponse` |
-| GET | `/api/search?q=` | `searchQuerySchema` | `SearchResponse` |
+| GET | `/api/search?q=` | `searchQuerySchema` | `SearchResponse` — descrição, nomes e CPF/CNPJ exato |
 
 ## Regras de negócio
 
@@ -190,6 +193,33 @@ Contrato em `packages/shared/src/saas.ts`.
 | POST | `/api/billing/cancel` | — | `Subscription` (owner; cancela ao fim do período) |
 | POST | `/api/billing/webhooks/mercadopago` | notificação MP | 200 (assinatura `x-signature` verificada, idempotente) |
 | POST | `/api/billing/dev/activate` | `checkoutSchema` | `Subscription` — só com `BILLING_PROVIDER=fake` (dev/demo) |
+
+## Detalhes de implementação
+
+- **Fronteira de tenant**: as rotas financeiras são montadas por `lib/tenant-routes.ts`, que autentica,
+  verifica permissão de escrita (papel + assinatura) e abre a transação RLS exposta como `req.db`.
+  Os serviços recebem `(db, workspaceId, …)`. Workspaces, membros, convites, sessões e assinaturas
+  não ficam sob RLS: são acessados pelo login da API, com checagem explícita de papel.
+- **Busca com dados cifrados**: observações não são pesquisáveis (a busca de lançamentos usa só a
+  descrição). Contatos: busca parcial por nome ou exata por CPF/CNPJ (índice cego); e-mail e
+  telefone não são pesquisáveis.
+- **Limite de membros**: plano pago → `maxMembers` do plano; em teste → 1 (pessoal), 5 (família),
+  15 (empresa). Membros + convites pendentes acima do limite → `422`. Convites pedem assinatura
+  com escrita liberada (`402`).
+- **Regras de exclusão**: o espaço pessoal só sai junto com a conta (`422`); o proprietário não pode
+  sair do próprio espaço (`422`); excluir/sair troca a sessão para outro espaço do usuário.
+- **Convite**: `POST /invites/:token/accept` exige o mesmo e-mail do convite (`403` caso contrário),
+  vale 7 dias e uso único; o token só existe no link (guardado como SHA-256).
+- **Assinatura**: o checkout grava `pending` (o teste continua valendo até acabar); cancelar mantém
+  o acesso até `currentPeriodEnd`. `POST /billing/dev/activate` responde `404` fora do provedor fake.
+- **Refresh**: um token já rotacionado reapresentado em até 10 s (requisições simultâneas da mesma
+  aba) recebe `204` sem novos cookies; depois disso é tratado como roubo e revoga a sessão inteira.
+  Se o membro foi removido do workspace da sessão, o refresh troca para outro workspace dele.
+- **Corpo vazio**: `Content-Type: application/json` com corpo vazio é aceito como "sem corpo".
+- **Dados legados**: `db:migrate` gera as chaves dos workspaces migrados e cifra campos ainda em
+  texto puro (idempotente). A demo faz o mesmo ao abrir uma base antiga do IndexedDB.
+- **Demo (PGlite)**: mesmas rotas e serviços, inclusive RLS e criptografia (chave mestra fixa e
+  pública da demo), sessão no `localStorage` e provedor de pagamento fake.
 
 ## Mercado Pago (assinaturas)
 

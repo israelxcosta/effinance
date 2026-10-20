@@ -6,7 +6,7 @@ import { randomBytes } from '../src/lib/crypto/encoding';
 import type { MemoryMailer } from '../src/lib/mailer';
 import { executeRows } from '../src/lib/sql';
 import { totpCode, totpStep } from '../src/lib/totp';
-import { TEST_PASSWORD, createAccount, createTestApp, registerUser, resetDb } from './helpers';
+import { TEST_PASSWORD, admin, createAccount, createTestApp, registerUser, resetDb } from './helpers';
 
 let app: App;
 beforeAll(async () => {
@@ -63,7 +63,7 @@ describe('sessions', () => {
     expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers: bearer(access2) })).statusCode).toBe(401);
     vi.useRealTimers();
 
-    const auditRows = await executeRows<{ action: string }>(app.db, sql`select action from audit_logs where action = 'auth.refresh_token_reuse'`);
+    const auditRows = await executeRows<{ action: string }>(admin(), sql`select action from audit_logs where action = 'auth.refresh_token_reuse'`);
     expect(auditRows).toHaveLength(1);
   });
 
@@ -119,7 +119,7 @@ describe('two-factor authentication', () => {
     expect((await user.get('/auth/me')).body.user.mfaEnabled).toBe(true);
 
     // The secret is stored encrypted.
-    const [stored] = await executeRows<{ mfa_secret_enc: string }>(app.db, sql`select mfa_secret_enc from users where id = ${user.userId}`);
+    const [stored] = await executeRows<{ mfa_secret_enc: string }>(admin(), sql`select mfa_secret_enc from users where id = ${user.userId}`);
     expect(stored!.mfa_secret_enc).not.toContain(secret);
 
     const challenge = await login(user.email);
@@ -200,21 +200,21 @@ describe('encryption at rest', () => {
     await user.post(`/goals/${goal.body.id}/contributions`, { amount: 1000, date: '2026-10-01', note: 'Bônus' });
 
     const [row] = await executeRows<Record<string, string>>(
-      app.db,
+      admin(),
       sql`select document, email, phone, street, notes, document_hash from contacts where id = ${contact.body.id}`,
     );
     for (const field of ['document', 'email', 'phone', 'street', 'notes']) expect(row![field]).toMatch(/^v1\./);
     expect(JSON.stringify(row)).not.toMatch(/52998224725|carlos@|98765|Flores|2020/);
     expect(row!.document_hash).toMatch(/^[0-9a-f]{64}$/);
 
-    const notes = await executeRows<{ notes: string }>(app.db, sql`select notes from transactions where notes is not null`);
+    const notes = await executeRows<{ notes: string }>(admin(), sql`select notes from transactions where notes is not null`);
     expect(notes.length).toBeGreaterThan(1);
     expect(notes.every((n) => n.notes.startsWith('v1.'))).toBe(true);
-    const [series] = await executeRows<{ notes: string }>(app.db, sql`select template->>'notes' as notes from recurrences`);
+    const [series] = await executeRows<{ notes: string }>(admin(), sql`select template->>'notes' as notes from recurrences`);
     expect(series!.notes).toMatch(/^v1\./);
-    const [goalRow] = await executeRows<{ notes: string }>(app.db, sql`select notes from goals`);
+    const [goalRow] = await executeRows<{ notes: string }>(admin(), sql`select notes from goals`);
     expect(goalRow!.notes).toMatch(/^v1\./);
-    const [contribution] = await executeRows<{ note: string }>(app.db, sql`select note from goal_contributions`);
+    const [contribution] = await executeRows<{ note: string }>(admin(), sql`select note from goal_contributions`);
     expect(contribution!.note).toMatch(/^v1\./);
 
     expect((await user.get(`/contacts/${contact.body.id}`)).body).toMatchObject({

@@ -3,17 +3,27 @@ import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { ADMIN_URL, API_ROLE, API_ROLE_PASSWORD, IDENTITY_TABLES } from './db-roles';
 
-const DEFAULT_URL = 'postgres://postgres:postgres@localhost:5432/effinance_test';
 const migrationsFolder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../drizzle');
 
-/** Recreates the test schema once per run and applies migrations. */
+/**
+ * Recreates the test schema once per run, applies migrations as the owner, and creates the
+ * least-privileged login role the app connects with during tests — the production setup
+ * (docs/deploy-aws.md): no direct access to financial tables, only SET ROLE effinance_app (RLS).
+ */
 export default async function setup() {
-  const url = process.env.TEST_DATABASE_URL ?? DEFAULT_URL;
-  const sql = postgres(url, { onnotice: () => {}, max: 1 });
+  const sql = postgres(ADMIN_URL, { onnotice: () => {}, max: 1 });
   try {
     await sql.unsafe('drop schema if exists public cascade; drop schema if exists drizzle cascade; create schema public;');
     await migrate(drizzle(sql), { migrationsFolder });
+    const [exists] = await sql`select 1 from pg_roles where rolname = ${API_ROLE}`;
+    if (!exists) {
+      await sql.unsafe(`create role ${API_ROLE} login noinherit nosuperuser nobypassrls password '${API_ROLE_PASSWORD}'`);
+    }
+    await sql.unsafe(`grant effinance_app to ${API_ROLE}`);
+    await sql.unsafe(`grant usage on schema public to ${API_ROLE}`);
+    await sql.unsafe(`grant select, insert, update, delete on ${IDENTITY_TABLES.join(', ')} to ${API_ROLE}`);
   } finally {
     await sql.end();
   }

@@ -10,7 +10,7 @@ conta, transferências e investimentos, e relatórios com insights.
 | Camada    | Tecnologias |
 | --------- | ----------- |
 | Frontend  | React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, React Router, react-hook-form + Zod, Radix UI, Recharts, lucide |
-| Backend   | Node.js 22, Fastify 5, Zod (type provider), Drizzle ORM, PostgreSQL 16, JWT em cookie httpOnly |
+| Backend   | Node.js 22, Fastify 5, Zod (type provider), Drizzle ORM, PostgreSQL 16 (Row Level Security), sessões com refresh token rotativo, 2FA, criptografia de envelope (AWS KMS) |
 | Contrato  | `packages/shared` — schemas Zod, tipos de resposta e regras (datas, dinheiro, fatura, recorrência) usados pelos dois lados |
 | Testes    | Vitest (unitários no shared, integração da API contra Postgres real) |
 
@@ -24,6 +24,7 @@ packages/
   shared/      contrato compartilhado
 docs/
   api.md             endpoints e regras de negócio
+  deploy-aws.md      produção na AWS (RDS, KMS, ECS, CloudFront, WAF, SES, Mercado Pago)
   design-system.md   tokens, componentes e padrões de tela
 .claude/agents/      agentes por função (backend, frontend, UI designer)
 ```
@@ -43,7 +44,7 @@ cp apps/api/.env.example apps/api/.env
 
 # migrações + dados de demonstração
 pnpm db:migrate
-pnpm db:seed          # usuário demo@effinance.app / demo12345
+pnpm db:seed          # demo@effinance.app / demo12345 (espaço "Família Costa" com rafael@effinance.app)
 
 # API (3333) + Web (5173)
 pnpm dev
@@ -70,7 +71,7 @@ cookie httpOnly e dados no servidor.
 | ----------------- | --------- |
 | `pnpm dev`        | API e Web em modo watch |
 | `pnpm typecheck`  | checagem de tipos em todos os pacotes |
-| `pnpm test`       | testes (a API usa o banco `effinance_test`, veja `apps/api/.env.example`) |
+| `pnpm test`       | testes (a API usa o banco `effinance_test` e conecta com o papel de privilégio mínimo `effinance_api_test`, criado pelo setup) |
 | `pnpm build`      | build de produção (API em `apps/api/dist`, Web em `apps/web/dist`) |
 | `pnpm --filter @effinance/web build:demo` | build estático de testes, sem servidor (`apps/web/dist-demo`) |
 | `pnpm db:migrate` | aplica as migrações do Drizzle |
@@ -94,3 +95,30 @@ cookie httpOnly e dados no servidor.
    investido somado à parte).
 10. **Relatórios**: visão geral com insights, evolução e projeção por categoria, totais e evolução
     por contato, comparação entre períodos, fluxo de caixa realizado × previsto, saúde financeira.
+
+## SaaS e segurança
+
+- **Assinantes (workspaces)**: cada pessoa tem um espaço pessoal e pode criar espaços de Família ou
+  Empresa e convidar membros como Editor ou Leitor. Todo dado financeiro pertence a um workspace.
+- **Isolamento no banco**: PostgreSQL compartilhado com **Row Level Security** forçado nas tabelas
+  financeiras. Cada requisição roda numa transação com o papel `effinance_app` e o workspace ativo
+  fixado em `app.workspace_id`; mesmo uma consulta sem filtro não enxerga outro assinante. O login
+  da API não tem acesso direto às tabelas financeiras (veja `docs/deploy-aws.md`).
+- **Criptografia**: CPF/CNPJ, e-mail, telefone, endereço e observações de contatos, observações de
+  lançamentos e metas são cifrados por campo (AES-256-GCM) com uma chave por workspace, protegida
+  pelo AWS KMS em produção (`KEY_PROVIDER=aws`) ou por `ENCRYPTION_MASTER_KEY` em desenvolvimento.
+  CPF/CNPJ continua pesquisável por igualdade (índice cego HMAC). Excluir um workspace destrói a
+  chave. O segredo do 2FA é cifrado com a chave mestra.
+- **Sessões**: access token de 15 min e refresh token rotativo (cookie `httpOnly` restrito a
+  `/api/auth`) com detecção de reuso; logout, troca de senha e "encerrar sessão" revogam no
+  servidor. 2FA por aplicativo autenticador com códigos de recuperação. Recuperação de senha por
+  e-mail com link de uso único.
+- **Proteções**: CSP restritiva e HSTS, verificação de origem e de JSON em toda escrita (CSRF),
+  rate limit (Redis opcional para várias instâncias), log de auditoria sem dados pessoais.
+- **Assinaturas**: Mercado Pago (assinaturas recorrentes); webhooks com assinatura HMAC verificada
+  e status sempre reconsultado na API do Mercado Pago. Teste grátis de 14 dias; sem assinatura
+  válida o espaço fica somente leitura (`402`). Em desenvolvimento e na demo, `BILLING_PROVIDER=fake`.
+- **LGPD**: aceite dos termos no cadastro, exportação completa dos dados (JSON) e exclusão da conta
+  e dos espaços.
+
+Produção: imagem em `apps/api/Dockerfile` e passo a passo em [`docs/deploy-aws.md`](docs/deploy-aws.md).
