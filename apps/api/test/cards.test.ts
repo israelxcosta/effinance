@@ -50,6 +50,20 @@ describe('credit cards', () => {
     expect(both.status).toBe(400);
   });
 
+  it('judges card purchases overdue by the invoice due date', async () => {
+    // today = 2026-10-20; Nubank closes on 3 and is due on 10.
+    await buy(nubankCard, '2026-10-02', 10000); // invoice 2026-10, due 10/10 → overdue
+    await buy(nubankCard, '2026-10-15', 20000); // invoice 2026-11, due 10/11 → not overdue yet
+    const list = await c.get('/transactions?type=expense&from=2026-10-01&to=2026-10-31');
+    expect(list.body.items.map((t: any) => [t.amount, t.overdue])).toEqual([
+      [10000, true],
+      [20000, false],
+    ]);
+    expect(list.body.summary).toMatchObject({ overdue: 10000, overdueCount: 1 });
+    const overdue = await c.get('/transactions?status=overdue');
+    expect(overdue.body.items.map((t: any) => t.amount)).toEqual([10000]);
+  });
+
   it('assigns purchases to invoices by closing day', async () => {
     const before = await buy(nubankCard, '2026-10-02', 10000);
     const onClosing = await buy(nubankCard, '2026-10-03', 20000);

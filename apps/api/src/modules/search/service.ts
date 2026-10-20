@@ -1,7 +1,8 @@
-import { and, desc, eq, ilike, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { onlyDigits, type SearchResponse } from '@effinance/shared';
 import type { Database } from '../../db/client';
 import { accounts, categories, contacts, transactions } from '../../db/schema';
+import { today } from '../../lib/clock';
 import { likePattern } from '../../lib/sql';
 import { listAccountsWithBalances } from '../accounts/service';
 import { toCategory } from '../categories/service';
@@ -21,7 +22,8 @@ export async function search(db: Database, userId: string, q: string): Promise<S
           or(ilike(transactions.description, pattern), ilike(transactions.notes, pattern)),
         ),
       )
-      .orderBy(desc(transactions.date))
+      // Closest to today first, so far-future occurrences of a series don't crowd the results.
+      .orderBy(asc(sql`abs(${transactions.date} - ${today()}::date)`), desc(transactions.date))
       .limit(8),
     db
       .select({ id: accounts.id })

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, ilike, inArray, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, ilike, inArray, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import {
   buildOccurrenceDates,
   minISO,
@@ -13,7 +13,7 @@ import {
 } from '@effinance/shared';
 import type { z } from 'zod';
 import type { Database, DbExecutor } from '../../db/client';
-import { recurrences, transactions, type NewTransactionRow, type RecurrenceTemplate } from '../../db/schema';
+import { creditCards, recurrences, transactions, type NewTransactionRow, type RecurrenceTemplate } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { ValidationError } from '../../lib/errors';
 import { countAll, likePattern, sumOf } from '../../lib/sql';
@@ -44,6 +44,26 @@ export function defaultPaidAt(date: string): string {
 // Queries
 // ---------------------------------------------------------------------------
 
+/**
+ * Unpaid and past due. Card purchases are judged by their invoice due date (not the purchase
+ * date), mirroring `isOverdue` in the mapper.
+ */
+export function overdueCondition(now: string): SQL {
+  const month = transactions.invoiceMonth;
+  return sql`(not ${transactions.paid} and ${transactions.type} <> 'transfer' and (
+    (${transactions.creditCardId} is null and ${transactions.date} < ${now})
+    or (${month} is not null and exists (
+      select 1 from ${creditCards} cc
+      where cc.id = ${transactions.creditCardId}
+        and make_date(
+          split_part(${month}, '-', 1)::int,
+          split_part(${month}, '-', 2)::int,
+          least(cc.due_day, extract(day from (to_date(${month} || '-01', 'YYYY-MM-DD') + interval '1 month' - interval '1 day'))::int)
+        ) < ${now}::date
+    ))
+  ))`;
+}
+
 function buildFilters(userId: string, q: TransactionQuery): SQL[] {
   const now = today();
   const where: SQL[] = [eq(transactions.userId, userId)];
@@ -52,7 +72,7 @@ function buildFilters(userId: string, q: TransactionQuery): SQL[] {
   if (q.to) where.push(lte(transactions.date, q.to));
   if (q.status === 'paid') where.push(eq(transactions.paid, true));
   if (q.status === 'pending') where.push(eq(transactions.paid, false));
-  if (q.status === 'overdue') where.push(eq(transactions.paid, false), lt(transactions.date, now));
+  if (q.status === 'overdue') where.push(overdueCondition(now));
   if (q.accountId) {
     where.push(or(eq(transactions.accountId, q.accountId), eq(transactions.toAccountId, q.accountId))!);
   }
@@ -101,10 +121,8 @@ export async function listTransactions(
         total: sumOf(transactions.amount),
         paid: sumOf(sql`case when ${transactions.paid} then ${transactions.amount} else 0 end`),
         pending: sumOf(sql`case when not ${transactions.paid} then ${transactions.amount} else 0 end`),
-        overdue: sumOf(
-          sql`case when not ${transactions.paid} and ${transactions.date} < ${now} then ${transactions.amount} else 0 end`,
-        ),
-        overdueCount: sumOf(sql`case when not ${transactions.paid} and ${transactions.date} < ${now} then 1 else 0 end`),
+        overdue: sumOf(sql`case when ${overdueCondition(now)} then ${transactions.amount} else 0 end`),
+        overdueCount: sumOf(sql`case when ${overdueCondition(now)} then 1 else 0 end`),
         income: sumOf(sql`case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end`),
         expense: sumOf(sql`case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end`),
       })

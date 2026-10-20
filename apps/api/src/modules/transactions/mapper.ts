@@ -1,9 +1,10 @@
 import { inArray } from 'drizzle-orm';
-import type {
-  RefAccount,
-  RefCard,
-  RefCategory,
-  Transaction,
+import {
+  getInvoiceDates,
+  type RefAccount,
+  type RefCard,
+  type RefCategory,
+  type Transaction,
 } from '@effinance/shared';
 import type { DbExecutor } from '../../db/client';
 import {
@@ -71,6 +72,17 @@ export function effectiveDateOf(row: Pick<TransactionRow, 'paid' | 'paidAt' | 'd
   return row.paid && row.paidAt ? row.paidAt : row.date;
 }
 
+/** Card purchases become overdue when their invoice is past due, not on the purchase date. */
+function isOverdue(row: TransactionRow, refs: RefMaps, now: string): boolean {
+  if (row.paid || row.type === 'transfer') return false;
+  if (row.creditCardId) {
+    const card = refs.cards.get(row.creditCardId);
+    if (!card || !row.invoiceMonth) return false;
+    return getInvoiceDates(row.invoiceMonth, card.closingDay, card.dueDay).dueDate < now;
+  }
+  return row.date < now;
+}
+
 export function toTransaction(row: TransactionRow, refs: RefMaps, now: string = today()): Transaction {
   const get = <T>(map: Map<string, T>, id: string | null) => (id ? map.get(id) : undefined);
   return {
@@ -82,7 +94,7 @@ export function toTransaction(row: TransactionRow, refs: RefMaps, now: string = 
     paid: row.paid,
     paidAt: row.paidAt,
     effectiveDate: effectiveDateOf(row),
-    overdue: !row.paid && row.type !== 'transfer' && row.date < now,
+    overdue: isOverdue(row, refs, now),
     accountId: row.accountId,
     toAccountId: row.toAccountId,
     creditCardId: row.creditCardId,
