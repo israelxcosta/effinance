@@ -121,7 +121,7 @@ export default function TransfersPage() {
 
         <Card className="h-fit p-5">
           <CardHeader title="Investimentos" subtitle="Saldo por conta de investimento" icon={<PiggyBank />} />
-          <div className="mt-4 rounded-xl bg-gradient-to-br from-brand-700 to-brand-900 p-5 text-white">
+          <div className="mt-4 rounded-xl bg-gradient-to-br from-hero-from to-hero-to p-5 text-white">
             <p className="eyebrow text-white/70">Patrimônio investido</p>
             <p className="tabular mt-2 text-[28px] font-semibold tracking-tight">{formatBRL(invested)}</p>
             <p className="mt-1 text-xs text-white/70">{investmentAccounts.length} conta(s) de investimento</p>

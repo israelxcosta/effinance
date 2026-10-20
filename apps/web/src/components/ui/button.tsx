@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 const VARIANTS = {
   primary:
     'bg-primary text-primary-fg shadow-xs hover:bg-primary-hover active:translate-y-px disabled:bg-primary/50',
-  soft: 'bg-primary-soft text-primary-soft-fg hover:bg-brand-200/70 dark:hover:bg-brand-800',
+  soft: 'bg-primary-soft text-primary-soft-fg hover:bg-brand-200/70',
   outline:
     'border border-border bg-surface text-fg shadow-xs hover:border-border-strong hover:bg-surface-muted',
   ghost: 'text-muted hover:bg-bg-subtle hover:text-fg',

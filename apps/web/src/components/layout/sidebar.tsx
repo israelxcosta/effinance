@@ -89,7 +89,7 @@ function SidebarLink({ to, label, icon: Icon }: { to: string; label: string; ico
         className={cn(
           'flex size-11 shrink-0 items-center justify-center rounded-md transition-all duration-150',
           isActive
-            ? 'bg-surface text-primary shadow-sm ring-1 ring-border dark:text-brand-300'
+            ? 'bg-surface text-primary shadow-sm ring-1 ring-border dark:text-fg'
             : 'text-muted hover:bg-surface/70 hover:text-fg',
         )}
       >

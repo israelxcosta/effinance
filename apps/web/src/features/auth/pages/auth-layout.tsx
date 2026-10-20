@@ -32,7 +32,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
           </h2>
           <div className="mt-10 grid max-w-md grid-cols-2 gap-x-10 gap-y-8">
             {NODES.map((n, i) => (
-              <div key={n.title} className="relative rounded-lg border border-brand-700/40 bg-surface p-3.5 shadow-xs dark:border-brand-400/40">
+              <div key={n.title} className="relative rounded-lg border border-brand-700/40 bg-surface p-3.5 shadow-xs">
                 <div className="flex items-center gap-2.5">
                   <span className="flex size-8 items-center justify-center rounded-[10px] bg-primary-soft text-primary-soft-fg">
                     <n.icon className="size-4" />
@@ -41,14 +41,14 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
                 </div>
                 <p className="mt-2 text-xs text-muted">{n.text}</p>
                 {i % 2 === 0 ? (
-                  <ArrowRight className="absolute top-1/2 -right-8 size-4 -translate-y-1/2 text-brand-700 dark:text-brand-400" aria-hidden />
+                  <ArrowRight className="absolute top-1/2 -right-8 size-4 -translate-y-1/2 text-brand-700" aria-hidden />
                 ) : i < NODES.length - 1 ? (
-                  <ArrowDown className="absolute -bottom-7 left-1/2 size-4 -translate-x-1/2 text-brand-700 dark:text-brand-400" aria-hidden />
+                  <ArrowDown className="absolute -bottom-7 left-1/2 size-4 -translate-x-1/2 text-brand-700" aria-hidden />
                 ) : null}
               </div>
             ))}
           </div>
-          <div className="mt-12 max-w-md rounded-xl bg-gradient-to-br from-brand-700 to-brand-900 p-5 text-white shadow-lg">
+          <div className="mt-12 max-w-md rounded-xl bg-gradient-to-br from-hero-from to-hero-to p-5 text-white shadow-lg">
             <span className="eyebrow rounded-full bg-white/10 px-2 py-1 text-[10px] text-white/90">Oportunidade</span>
             <p className="mt-3 text-[15px] font-semibold">Sua reserva avançou neste mês</p>
             <p className="mt-1 text-xs text-white/70">Acompanhe metas, projeções e insights automáticos sobre suas finanças.</p>

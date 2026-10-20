@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { categoryListHref } from '@/features/transactions/links';
 import { ArrowUpRight, CircleAlert, Lightbulb, Sparkles, Trophy, TrendingUp } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
@@ -54,6 +55,7 @@ export function InsightList({ insights }: { insights: Insight[] }) {
 }
 
 export function InsightsTab({ month, dashboard, loading }: { month: string; dashboard: DashboardResponse | undefined; loading: boolean }) {
+  const navigate = useNavigate();
   const range = monthRange(month);
   const overview = useOverviewReport(range);
   const o = overview.data;
@@ -71,17 +73,17 @@ export function InsightsTab({ month, dashboard, loading }: { month: string; dash
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-brand-700 via-brand-800 to-brand-950 p-6 text-white">
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-hero-from via-hero-via to-hero-to p-6 text-white">
         <div className="pointer-events-none absolute -top-24 -right-10 size-72 rounded-full bg-white/5" aria-hidden />
         <p className="eyebrow text-white/70">Dashboard inteligente</p>
         <h2 className="mt-2 max-w-2xl text-[22px] leading-snug font-semibold tracking-tight">
           {o ? (
             o.savingsRate !== null && o.savingsRate > 0 ? (
-              <>Você economizou <span className="text-brand-200">{formatPercent(o.savingsRate, 0)}</span> da sua receita neste mês.</>
+              <>Você economizou <span className="text-hero-accent">{formatPercent(o.savingsRate, 0)}</span> da sua receita neste mês.</>
             ) : o.income === 0 && o.expense === 0 ? (
               <>Registre suas movimentações para receber análises personalizadas.</>
             ) : (
-              <>Neste mês suas despesas superaram as receitas em <span className="text-brand-200">{formatBRL(Math.abs(o.net))}</span>.</>
+              <>Neste mês suas despesas superaram as receitas em <span className="text-hero-accent">{formatBRL(Math.abs(o.net))}</span>.</>
             )
           ) : (
             'Analisando suas finanças…'
@@ -177,7 +179,13 @@ export function InsightsTab({ month, dashboard, loading }: { month: string; dash
         <Card className="p-5">
           <CardHeader title="Categorias que mais pesaram" subtitle="Distribuição das despesas do mês" />
           <div className="mt-4">
-            <DonutChart data={o.topCategories} total={o.expense} height={170} maxItems={7} />
+            <DonutChart
+              data={o.topCategories}
+              total={o.expense}
+              height={170}
+              maxItems={7}
+              onSelect={(c) => c.categoryId && navigate(categoryListHref('expense', c.categoryId, month))}
+            />
           </div>
         </Card>
       ) : null}

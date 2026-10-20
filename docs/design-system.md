@@ -47,17 +47,22 @@
 
 ### Modo escuro
 
-Neutro, sem azul: preto, cinzas escuros, branco e off-white. A rampa `brand-*` é trocada por uma
-rampa de cinzas (mesma ordem claro→escuro), então gradientes e utilitários de marca ficam grafite.
+Neutro, sem azul: fundo cinza escuro, cards e seções em cinza mais claro, texto off-white e tons
+claros. A rampa `brand-*` vira uma rampa de cinzas **invertida** (50 = escuro … 950 = claro), então
+`text-brand-700` continua legível e `bg-brand-50` continua um tom sutil; cards em degradê usam os
+tokens `hero-*` (`from-hero-from via-hero-via to-hero-to`, destaque `text-hero-accent`).
 
 | Token | Hex | Token | Hex |
 | --- | --- | --- | --- |
-| `bg` | `#0B0B0B` | `fg` | `#F2F1EE` (off-white) |
-| `bg-subtle` | `#121212` | `text-muted` | `#A3A29E` |
-| `surface` | `#171717` | `text-subtle` | `#6F6E6A` |
-| `surface-muted` | `#1E1E1D` | `primary` | `#F2F1EE` com texto `#121211` |
-| `border` | `#282827` | `primary-soft` | `#262625` |
-| `border-strong` | `#393937` | gráfico receita/despesa | `#E2E1DD` / `#A8474B` |
+| `bg` | `#1E1E1E` | `fg` | `#F4F3EF` (off-white) |
+| `bg-subtle` | `#252525` | `text-muted` | `#CAC9C3` |
+| `surface` | `#2B2B2B` | `text-subtle` | `#9C9B95` |
+| `surface-muted` | `#323232` | `primary` | `#F4F3EF` com texto `#1E1E1E` |
+| `border` | `#3B3B3B` | `primary-soft` | `#3B3B3B` |
+| `border-strong` | `#4C4C4B` | gráfico receita/despesa | `#E3E2DD` / `#C4595D` |
+
+O fundo, a cor e a fonte de `html`/`body` ficam **fora** de `@layer` em `index.css`, para que estilos
+de quem hospeda o app (ex.: o esqueleto do artifact do claude.ai) não os sobrescrevam.
 
 Cores escolhidas pelo usuário muito escuras (ex.: o azul-marinho padrão de categorias e metas) são
 clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem legíveis.

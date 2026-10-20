@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   ArrowRight,
@@ -46,6 +46,7 @@ import { CashflowCard } from '../components/cashflow-card';
 import { HealthCard } from '../components/health-card';
 import { InsightCard } from '../components/insight-card';
 import { InsightsTab } from '../components/insights-tab';
+import { categoryListHref } from '@/features/transactions/links';
 
 type Tab = 'dashboard' | 'insights';
 
@@ -115,6 +116,7 @@ export default function DashboardPage() {
 
 function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loading: boolean; month: string }) {
   const actions = useTransactionActions();
+  const navigate = useNavigate();
   const s = d?.summary;
   const p = d?.previous;
   const avgExpense = useMemo(() => {
@@ -194,7 +196,13 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
               {loading ? (
                 <Skeleton className="h-44" />
               ) : d && d.expensesByCategory.length ? (
-                <DonutChart data={d.expensesByCategory} total={s?.expense ?? 0} height={150} maxItems={4} />
+                <DonutChart
+                  data={d.expensesByCategory}
+                  total={s?.expense ?? 0}
+                  height={150}
+                  maxItems={4}
+                  onSelect={(c) => c.categoryId && navigate(categoryListHref('expense', c.categoryId, month))}
+                />
               ) : (
                 <EmptyState
                   compact
@@ -259,7 +267,13 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
             {loading ? (
               <Skeleton className="h-44" />
             ) : d && d.incomeByCategory.length ? (
-              <DonutChart data={d.incomeByCategory} total={s?.income ?? 0} height={150} maxItems={4} />
+              <DonutChart
+                data={d.incomeByCategory}
+                total={s?.income ?? 0}
+                height={150}
+                maxItems={4}
+                onSelect={(c) => c.categoryId && navigate(categoryListHref('income', c.categoryId, month))}
+              />
             ) : (
               <EmptyState compact icon={<PieIcon />} title="Nenhuma receita registrada no período selecionado." />
             )}

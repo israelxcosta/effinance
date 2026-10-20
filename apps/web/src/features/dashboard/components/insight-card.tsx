@@ -18,7 +18,7 @@ export function InsightCard({ insights, loading, className }: { insights: Insigh
   const list = insights ?? [];
   const current = list[Math.min(index, Math.max(0, list.length - 1))];
   return (
-    <div className={cn('relative flex flex-col overflow-hidden rounded-xl bg-gradient-to-br from-brand-700 via-brand-800 to-brand-950 p-5 text-white shadow-sm', className)}>
+    <div className={cn('relative flex flex-col overflow-hidden rounded-xl bg-gradient-to-br from-hero-from via-hero-via to-hero-to p-5 text-white shadow-sm', className)}>
       <div className="pointer-events-none absolute -top-20 -right-16 size-56 rounded-full bg-white/5" aria-hidden />
       <div className="relative flex items-center gap-3">
         <span className="flex size-10 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">

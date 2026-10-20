@@ -115,7 +115,7 @@ export function MoneyTooltip({ active, label, payload, names, footer, hideZero }
                 <span className={cn('size-2 rounded-full', !color && 'bg-brand-400')} style={color ? { backgroundColor: color } : undefined} />
                 {names?.[key] ?? key}
               </span>
-              <span className="tabular font-semibold text-fg">{formatBRL(Number(p.value ?? 0))}</span>
+              <span className="tabular font-semibold whitespace-nowrap text-fg">{formatBRL(Number(p.value ?? 0))}</span>
             </div>
           );
         })}

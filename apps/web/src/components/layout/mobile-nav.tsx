@@ -24,7 +24,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
   const overdue = useOverdueBills().data?.filter((t) => t.type === 'expense').length ?? 0;
   const items = NAV_ITEMS.filter((i) => i.mobile);
   const link = ({ isActive }: { isActive: boolean }) =>
-    cn('flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold', isActive ? 'text-primary dark:text-brand-300' : 'text-muted');
+    cn('flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold', isActive ? 'text-primary dark:text-fg' : 'text-muted');
 
   return (
     <>

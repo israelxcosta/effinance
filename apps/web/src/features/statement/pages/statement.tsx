@@ -186,7 +186,7 @@ function BalanceTile({
   className?: string;
 }) {
   return (
-    <div className={cn('rounded-lg border border-border bg-surface px-4 py-3 shadow-xs', strong && 'border-brand-200 bg-primary-soft/40 dark:border-brand-800', className)}>
+    <div className={cn('rounded-lg border border-border bg-surface px-4 py-3 shadow-xs', strong && 'border-brand-200 bg-primary-soft/40', className)}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted [&_svg]:size-3.5">
         {icon ? <span className={tone === 'income' ? 'text-success' : 'text-danger'}>{icon}</span> : null}
         {label}
