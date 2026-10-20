@@ -19,39 +19,37 @@ import {
 } from './service';
 
 export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
-  app.addHook('onRequest', app.authenticate);
-
   app.get('/', { schema: { querystring: transactionQuerySchema } }, async (req) =>
-    listTransactions(app.db, req.userId, req.query),
+    listTransactions(req.db, req.workspaceId, req.query),
   );
 
   app.get('/:id', { schema: { params: idParams } }, async (req) =>
-    getTransaction(app.db, req.userId, req.params.id),
+    getTransaction(req.db, req.workspaceId, req.params.id),
   );
 
   app.post('/', { schema: { body: transactionInputSchema } }, async (req, reply) =>
-    reply.code(201).send(await createTransaction(app.db, req.userId, req.body)),
+    reply.code(201).send(await createTransaction(req.db, req.workspaceId, req.body)),
   );
 
   app.put(
     '/:id',
     { schema: { params: idParams, querystring: seriesScopeQuerySchema, body: transactionUpdateSchema } },
-    async (req) => updateTransaction(app.db, req.userId, req.params.id, req.body, req.query.scope),
+    async (req) => updateTransaction(req.db, req.workspaceId, req.params.id, req.body, req.query.scope),
   );
 
   app.patch('/:id/paid', { schema: { params: idParams, body: setPaidSchema } }, async (req) =>
-    setPaid(app.db, req.userId, req.params.id, req.body),
+    setPaid(req.db, req.workspaceId, req.params.id, req.body),
   );
 
   app.post('/:id/anticipate', { schema: { params: idParams, body: anticipateInstallmentsSchema } }, async (req) =>
-    anticipateInstallments(app.db, req.userId, req.params.id, req.body),
+    anticipateInstallments(req.db, req.workspaceId, req.params.id, req.body),
   );
 
   app.delete(
     '/:id',
     { schema: { params: idParams, querystring: seriesScopeQuerySchema } },
     async (req, reply) => {
-      await deleteTransaction(app.db, req.userId, req.params.id, req.query.scope);
+      await deleteTransaction(req.db, req.workspaceId, req.params.id, req.query.scope);
       return reply.code(204).send();
     },
   );

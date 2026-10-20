@@ -19,14 +19,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { alpha, cn } from '@/lib/utils';
-import { errorMessage } from '@/lib/api';
 import { useDeleteGoal, useGoals } from '../api';
 import { GoalSheet } from '../goal-sheet';
 import { ContributionDialog } from '../contribution-dialog';
 import { GoalDeadline } from '../goal-card';
 import { useTone } from '@/lib/theme';
+import { toastError } from '@/lib/notify';
+import { usePermissions, WriteGate } from '@/features/auth/permissions';
 
 export default function GoalsPage() {
+  const readOnly = !usePermissions().canWrite;
   const goals = useGoals();
   const tone = useTone();
   const [sheet, setSheet] = useState<{ open: boolean; goal?: Goal | null }>({ open: false });
@@ -47,7 +49,7 @@ export default function GoalsPage() {
         overline="Planejamento"
         title="Metas"
         description="Trace seu caminho: defina objetivos, guarde dinheiro e acompanhe o progresso."
-        actions={<Button onClick={() => setSheet({ open: true, goal: null })}><Plus /> Nova meta</Button>}
+        actions={<WriteGate><Button onClick={() => setSheet({ open: true, goal: null })}><Plus /> Nova meta</Button></WriteGate>}
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -69,7 +71,7 @@ export default function GoalsPage() {
             icon={<Target />}
             title="Você ainda não tem metas ativas"
             description="Metas ajudam a priorizar seu plano financeiro: reserva de emergência, viagem, troca de carro…"
-            action={<Button onClick={() => setSheet({ open: true, goal: null })}>Criar primeira meta</Button>}
+            action={<WriteGate><Button onClick={() => setSheet({ open: true, goal: null })}>Criar primeira meta</Button></WriteGate>}
           />
         </Card>
       ) : (
@@ -90,10 +92,10 @@ export default function GoalsPage() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem icon={<PiggyBank />} onSelect={() => setContributing(g)}>Guardar / retirar</DropdownMenuItem>
-                    <DropdownMenuItem icon={<Pencil />} onSelect={() => setSheet({ open: true, goal: g })}>Editar</DropdownMenuItem>
+                    <DropdownMenuItem icon={<PiggyBank />} disabled={readOnly} onSelect={() => setContributing(g)}>Guardar / retirar</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => setSheet({ open: true, goal: g })}>Editar</DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setToDelete(g)}>Excluir</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Trash2 />} tone="danger" disabled={readOnly} onSelect={() => setToDelete(g)}>Excluir</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -117,9 +119,11 @@ export default function GoalsPage() {
                     <>Guarde <span className="font-semibold text-fg">{formatBRL(g.monthlyNeeded)}</span>/mês</>
                   ) : g.completed ? 'Parabéns! 🎉' : 'Defina um prazo para ver o valor mensal'}
                 </p>
-                <Button size="sm" variant="soft" onClick={() => setContributing(g)}>
-                  <PiggyBank /> Guardar
-                </Button>
+                <WriteGate>
+                  <Button size="sm" variant="soft" onClick={() => setContributing(g)}>
+                    <PiggyBank /> Guardar
+                  </Button>
+                </WriteGate>
               </div>
             </Card>
           ))}
@@ -141,7 +145,7 @@ export default function GoalsPage() {
             toast.success('Meta excluída');
             setToDelete(null);
           } catch (error) {
-            toast.error(errorMessage(error));
+            toastError(error);
           }
         }}
       />

@@ -26,7 +26,7 @@ import {
   type overviewReportQuerySchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { categories, contacts, creditCards, transactions, type CategoryRow } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { ValidationError } from '../../lib/errors';
@@ -52,17 +52,17 @@ export function reportPeriods(from: ISODate, to: ISODate, granularity: Granulari
 }
 
 /** income/expense, competence (date) basis, optionally only paid. */
-function competenceWhere(userId: string, from: ISODate, to: ISODate, status: 'all' | 'paid', type?: 'income' | 'expense') {
+function competenceWhere(workspaceId: string, from: ISODate, to: ISODate, status: 'all' | 'paid', type?: 'income' | 'expense') {
   return and(
-    eq(transactions.userId, userId),
+    eq(transactions.workspaceId, workspaceId),
     type ? eq(transactions.type, type) : inArray(transactions.type, ['income', 'expense']),
     between(transactions.date, from, to),
     status === 'paid' ? eq(transactions.paid, true) : undefined,
   );
 }
 
-async function categoryMap(db: DbExecutor, userId: string): Promise<Map<string, CategoryRow>> {
-  const rows = await db.select().from(categories).where(eq(categories.userId, userId));
+async function categoryMap(db: DbExecutor, workspaceId: string): Promise<Map<string, CategoryRow>> {
+  const rows = await db.select().from(categories).where(eq(categories.workspaceId, workspaceId));
   return new Map(rows.map((r) => [r.id, r]));
 }
 
@@ -74,7 +74,7 @@ function categoryMeta(map: Map<string, CategoryRow>, id: string | null) {
 /** Totals per top-level category in a range. */
 export async function totalsByCategory(
   db: DbExecutor,
-  userId: string,
+  workspaceId: string,
   from: ISODate,
   to: ISODate,
   type: 'income' | 'expense',
@@ -83,7 +83,7 @@ export async function totalsByCategory(
   return db
     .select({ categoryId: transactions.categoryId, amount: sumOf(transactions.amount) })
     .from(transactions)
-    .where(competenceWhere(userId, from, to, status, type))
+    .where(competenceWhere(workspaceId, from, to, status, type))
     .groupBy(transactions.categoryId);
 }
 
@@ -114,17 +114,17 @@ export function toCategoryTotalMap(amounts: CategoryAmount[]): Map<string, Categ
 type CategoryReportQuery = z.output<typeof categoryReportQuerySchema>;
 
 export async function categoryReport(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: CategoryReportQuery,
 ): Promise<CategoryReportResponse> {
   assertRange(q.from, q.to);
-  await ensureMaterialized(db, userId, q.to);
+  await ensureMaterialized(db, workspaceId, q.to);
   const periods = reportPeriods(q.from, q.to, q.granularity);
   const index = new Map(periods.map((p, i) => [p.key, i]));
 
   let parent: CategoryRow | null = null;
-  if (q.categoryId) parent = await getCategoryOrThrow(db, userId, q.categoryId);
+  if (q.categoryId) parent = await getCategoryOrThrow(db, workspaceId, q.categoryId);
   const dimension = parent ? transactions.subcategoryId : transactions.categoryId;
 
   const rows = await db
@@ -132,13 +132,13 @@ export async function categoryReport(
     .from(transactions)
     .where(
       and(
-        competenceWhere(userId, q.from, q.to, q.status, q.type),
+        competenceWhere(workspaceId, q.from, q.to, q.status, q.type),
         parent ? eq(transactions.categoryId, parent.id) : undefined,
       ),
     )
     .groupBy(dimension, transactions.date);
 
-  const cats = await categoryMap(db, userId);
+  const cats = await categoryMap(db, workspaceId);
   const seriesMap = new Map<string, number[]>();
   for (const r of rows) {
     const k = r.key ?? 'none';
@@ -183,12 +183,12 @@ export async function categoryReport(
 type ContactReportQuery = z.output<typeof contactReportQuerySchema>;
 
 export async function contactReport(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: ContactReportQuery,
 ): Promise<ContactReportResponse> {
   assertRange(q.from, q.to);
-  await ensureMaterialized(db, userId, q.to);
+  await ensureMaterialized(db, workspaceId, q.to);
   const periods = reportPeriods(q.from, q.to, q.granularity);
   const index = new Map(periods.map((p, i) => [p.key, i]));
 
@@ -201,7 +201,7 @@ export async function contactReport(
       count: countAll(),
     })
     .from(transactions)
-    .where(competenceWhere(userId, q.from, q.to, q.status))
+    .where(competenceWhere(workspaceId, q.from, q.to, q.status))
     .groupBy(transactions.contactId, transactions.type, transactions.date);
 
   const contactIds = [...new Set(rows.map((r) => r.contactId).filter((v): v is string => !!v))];
@@ -256,7 +256,7 @@ type ComparisonReportQuery = z.output<typeof comparisonReportQuerySchema>;
 
 async function periodTotals(
   db: DbExecutor,
-  userId: string,
+  workspaceId: string,
   from: ISODate,
   to: ISODate,
   status: 'all' | 'paid',
@@ -268,27 +268,27 @@ async function periodTotals(
       count: countAll(),
     })
     .from(transactions)
-    .where(competenceWhere(userId, from, to, status));
+    .where(competenceWhere(workspaceId, from, to, status));
   const income = row?.income ?? 0;
   const expense = row?.expense ?? 0;
   return { from, to, income, expense, net: income - expense, count: row?.count ?? 0 };
 }
 
 export async function comparisonReport(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: ComparisonReportQuery,
 ): Promise<ComparisonReportResponse> {
   assertRange(q.aFrom, q.aTo);
   assertRange(q.bFrom, q.bTo);
-  await ensureMaterialized(db, userId, q.aTo > q.bTo ? q.aTo : q.bTo);
+  await ensureMaterialized(db, workspaceId, q.aTo > q.bTo ? q.aTo : q.bTo);
 
   const [a, b, aCats, bCats, cats] = await Promise.all([
-    periodTotals(db, userId, q.aFrom, q.aTo, q.status),
-    periodTotals(db, userId, q.bFrom, q.bTo, q.status),
-    totalsByCategory(db, userId, q.aFrom, q.aTo, q.type, q.status),
-    totalsByCategory(db, userId, q.bFrom, q.bTo, q.type, q.status),
-    categoryMap(db, userId),
+    periodTotals(db, workspaceId, q.aFrom, q.aTo, q.status),
+    periodTotals(db, workspaceId, q.bFrom, q.bTo, q.status),
+    totalsByCategory(db, workspaceId, q.aFrom, q.aTo, q.type, q.status),
+    totalsByCategory(db, workspaceId, q.bFrom, q.bTo, q.type, q.status),
+    categoryMap(db, workspaceId),
   ]);
 
   const keys = new Set([...aCats, ...bCats].map((r) => r.categoryId ?? 'none'));
@@ -320,18 +320,18 @@ export async function comparisonReport(
 type CashflowReportQuery = z.output<typeof cashflowReportQuerySchema>;
 
 export async function cashflowReport(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: CashflowReportQuery,
 ): Promise<CashflowReportResponse> {
   assertRange(q.from, q.to);
-  await ensureMaterialized(db, userId, q.to);
+  await ensureMaterialized(db, workspaceId, q.to);
   const periods = reportPeriods(q.from, q.to, q.granularity);
   const index = new Map(periods.map((p, i) => [p.key, i]));
 
-  const set = q.accountId ? [await getAccountOrThrow(db, userId, q.accountId)] : await cashAccounts(db, userId);
+  const set = q.accountId ? [await getAccountOrThrow(db, workspaceId, q.accountId)] : await cashAccounts(db, workspaceId);
   const ids = new Set(set.map((a) => a.id));
-  const openingBalance = set.length ? await balanceAt(db, userId, set, addDays(q.from, -1)) : 0;
+  const openingBalance = set.length ? await balanceAt(db, workspaceId, set, addDays(q.from, -1)) : 0;
 
   const result = periods.map((p) => ({
     ...p,
@@ -351,7 +351,7 @@ export async function cashflowReport(
       .from(transactions)
       .where(
         and(
-          eq(transactions.userId, userId),
+          eq(transactions.workspaceId, workspaceId),
           or(inArray(transactions.accountId, [...ids]), inArray(transactions.toAccountId, [...ids])),
           or(
             sql`${transactions.paid} and coalesce(${transactions.paidAt}, ${transactions.date}) between ${q.from} and ${q.to}`,
@@ -387,7 +387,7 @@ export async function cashflowReport(
       .innerJoin(creditCards, eq(creditCards.id, transactions.creditCardId))
       .where(
         and(
-          eq(transactions.userId, userId),
+          eq(transactions.workspaceId, workspaceId),
           eq(transactions.type, 'expense'),
           eq(transactions.paid, false),
           isNotNull(transactions.invoiceMonth),
@@ -422,19 +422,19 @@ export async function cashflowReport(
 type OverviewReportQuery = z.output<typeof overviewReportQuerySchema>;
 
 export async function overviewReport(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: OverviewReportQuery,
 ): Promise<OverviewReportResponse> {
   assertRange(q.from, q.to);
-  await ensureMaterialized(db, userId, q.to);
+  await ensureMaterialized(db, workspaceId, q.to);
   const days = diffInDays(q.to, q.from) + 1;
   const prevTo = addDays(q.from, -1);
   const prevFrom = addDays(prevTo, -(days - 1));
-  const where = competenceWhere(userId, q.from, q.to, 'all');
+  const where = competenceWhere(workspaceId, q.from, q.to, 'all');
 
   const [totals, split, methods, top, catTotals, prevCatTotals, cats] = await Promise.all([
-    periodTotals(db, userId, q.from, q.to, 'all'),
+    periodTotals(db, workspaceId, q.from, q.to, 'all'),
     db
       .select({ kind: transactions.recurrenceKind, amount: sumOf(transactions.amount) })
       .from(transactions)
@@ -454,9 +454,9 @@ export async function overviewReport(
       .where(and(where, eq(transactions.type, 'expense')))
       .orderBy(desc(transactions.amount))
       .limit(5),
-    totalsByCategory(db, userId, q.from, q.to, 'expense'),
-    totalsByCategory(db, userId, prevFrom, prevTo, 'expense'),
-    categoryMap(db, userId),
+    totalsByCategory(db, workspaceId, q.from, q.to, 'expense'),
+    totalsByCategory(db, workspaceId, prevFrom, prevTo, 'expense'),
+    categoryMap(db, workspaceId),
   ]);
 
   const byKind = new Map(split.map((s) => [s.kind, s.amount]));

@@ -8,7 +8,7 @@ export interface DefaultCategory {
   subcategories?: { name: string; icon: IconName }[];
 }
 
-/** Categories created for every new user. */
+/** Categories created for every new workspace. */
 export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   {
     name: 'Alimentação',

@@ -7,15 +7,26 @@ import {
   type goalInputSchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { goalContributions, goals, type GoalContributionRow, type GoalRow } from '../../db/schema';
 import { today } from '../../lib/clock';
+import { getCipher } from '../../lib/crypto/keyring';
 import { NotFoundError } from '../../lib/errors';
 import { sumOf } from '../../lib/sql';
 import { getAccountOrThrow, getGoalOrThrow } from '../common/ownership';
 
 type GoalInput = z.output<typeof goalInputSchema>;
 type ContributionInput = z.output<typeof goalContributionInputSchema>;
+
+// Free-text notes are encrypted with the workspace key.
+async function sealNote(workspaceId: string, table: string, column: string, value: string | null | undefined) {
+  if (value === null || value === undefined) return value ?? null;
+  return (await getCipher(workspaceId)).encrypt(table, column, value);
+}
+
+async function openNote(workspaceId: string, table: string, column: string, value: string | null) {
+  return value === null ? null : (await getCipher(workspaceId)).decrypt(table, column, value);
+}
 
 /** Whole months left until the deadline (the current month counts). */
 function monthsUntil(from: string, to: string): number {
@@ -24,6 +35,7 @@ function monthsUntil(from: string, to: string): number {
   return (b.year - a.year) * 12 + (b.month - a.month) + 1;
 }
 
+/** Expects `row.notes` already decrypted (see toGoals). */
 export function toGoal(row: GoalRow, currentAmount: number, now = today()): Goal {
   const remaining = Math.max(0, row.targetAmount - currentAmount);
   let monthlyNeeded: number | null = null;
@@ -58,77 +70,92 @@ export async function toGoals(db: DbExecutor, rows: GoalRow[]): Promise<Goal[]> 
     .groupBy(goalContributions.goalId);
   const map = new Map(sums.map((s) => [s.goalId, s.total]));
   const now = today();
-  return rows.map((r) => toGoal(r, map.get(r.id) ?? 0, now));
+  return Promise.all(
+    rows.map(async (r) =>
+      toGoal({ ...r, notes: await openNote(r.workspaceId, 'goals', 'notes', r.notes) }, map.get(r.id) ?? 0, now),
+    ),
+  );
 }
 
-export async function listGoals(db: DbExecutor, userId: string, includeArchived = true): Promise<Goal[]> {
+export async function listGoals(db: DbExecutor, workspaceId: string, includeArchived = true): Promise<Goal[]> {
   const rows = await db
     .select()
     .from(goals)
-    .where(and(eq(goals.userId, userId), includeArchived ? undefined : eq(goals.archived, false)))
+    .where(and(eq(goals.workspaceId, workspaceId), includeArchived ? undefined : eq(goals.archived, false)))
     .orderBy(asc(goals.archived), asc(goals.deadline), asc(goals.createdAt));
   return toGoals(db, rows);
 }
 
-async function getGoal(db: Database, userId: string, id: string) {
-  const row = await getGoalOrThrow(db, userId, id);
+async function getGoal(db: DbExecutor, workspaceId: string, id: string) {
+  const row = await getGoalOrThrow(db, workspaceId, id);
   const [goal] = await toGoals(db, [row]);
   return goal!;
 }
 
-export async function createGoal(db: Database, userId: string, input: GoalInput) {
-  if (input.accountId) await getAccountOrThrow(db, userId, input.accountId);
-  const [row] = await db.insert(goals).values({ userId, ...input }).returning();
-  return toGoal(row!, 0);
+export async function createGoal(db: DbExecutor, workspaceId: string, input: GoalInput) {
+  if (input.accountId) await getAccountOrThrow(db, workspaceId, input.accountId);
+  const [row] = await db
+    .insert(goals)
+    .values({ workspaceId, ...input, notes: await sealNote(workspaceId, 'goals', 'notes', input.notes) })
+    .returning();
+  return toGoal({ ...row!, notes: input.notes ?? null }, 0);
 }
 
-export async function updateGoal(db: Database, userId: string, id: string, input: GoalInput) {
-  await getGoalOrThrow(db, userId, id);
-  if (input.accountId) await getAccountOrThrow(db, userId, input.accountId);
-  await db.update(goals).set(input).where(eq(goals.id, id));
-  return getGoal(db, userId, id);
+export async function updateGoal(db: DbExecutor, workspaceId: string, id: string, input: GoalInput) {
+  await getGoalOrThrow(db, workspaceId, id);
+  if (input.accountId) await getAccountOrThrow(db, workspaceId, input.accountId);
+  await db
+    .update(goals)
+    .set({ ...input, notes: await sealNote(workspaceId, 'goals', 'notes', input.notes) })
+    .where(eq(goals.id, id));
+  return getGoal(db, workspaceId, id);
 }
 
-export async function deleteGoal(db: Database, userId: string, id: string) {
-  await getGoalOrThrow(db, userId, id);
+export async function deleteGoal(db: DbExecutor, workspaceId: string, id: string) {
+  await getGoalOrThrow(db, workspaceId, id);
   await db.delete(goals).where(eq(goals.id, id));
 }
 
-function toContribution(row: GoalContributionRow): GoalContribution {
+async function toContribution(row: GoalContributionRow): Promise<GoalContribution> {
   return {
     id: row.id,
     goalId: row.goalId,
     amount: row.amount,
     date: row.date,
-    note: row.note,
+    note: await openNote(row.workspaceId, 'goal_contributions', 'note', row.note),
     createdAt: row.createdAt.toISOString(),
   };
 }
 
-export async function listContributions(db: Database, userId: string, goalId: string) {
-  await getGoalOrThrow(db, userId, goalId);
+export async function listContributions(db: DbExecutor, workspaceId: string, goalId: string) {
+  await getGoalOrThrow(db, workspaceId, goalId);
   const rows = await db
     .select()
     .from(goalContributions)
     .where(eq(goalContributions.goalId, goalId))
     .orderBy(desc(goalContributions.date), desc(goalContributions.createdAt));
-  return rows.map(toContribution);
+  return Promise.all(rows.map(toContribution));
 }
 
-export async function addContribution(db: Database, userId: string, goalId: string, input: ContributionInput) {
-  await getGoalOrThrow(db, userId, goalId);
+export async function addContribution(db: DbExecutor, workspaceId: string, goalId: string, input: ContributionInput) {
+  await getGoalOrThrow(db, workspaceId, goalId);
   const [row] = await db
     .insert(goalContributions)
-    .values({ userId, goalId, ...input })
+    .values({
+      workspaceId,
+      goalId,
+      ...input,
+      note: await sealNote(workspaceId, 'goal_contributions', 'note', input.note),
+    })
     .returning();
   return toContribution(row!);
 }
 
-export async function deleteContribution(db: Database, userId: string, goalId: string, id: string) {
-  await getGoalOrThrow(db, userId, goalId);
+export async function deleteContribution(db: DbExecutor, workspaceId: string, goalId: string, id: string) {
+  await getGoalOrThrow(db, workspaceId, goalId);
   const deleted = await db
     .delete(goalContributions)
-    .where(and(eq(goalContributions.id, id), eq(goalContributions.goalId, goalId), eq(goalContributions.userId, userId)))
+    .where(and(eq(goalContributions.id, id), eq(goalContributions.goalId, goalId), eq(goalContributions.workspaceId, workspaceId)))
     .returning({ id: goalContributions.id });
   if (deleted.length === 0) throw new NotFoundError('Aporte não encontrado');
 }

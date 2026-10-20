@@ -17,6 +17,7 @@ import { useAccounts } from '@/features/accounts/api';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { TransactionRow } from '@/features/transactions/components/transaction-row';
 import { useStatement } from '../api';
+import { WriteGate } from '@/features/auth/permissions';
 
 export default function StatementPage() {
   const [params, setParams] = useSearchParams();
@@ -123,9 +124,11 @@ export default function StatementPage() {
               title="Sem movimentações neste período"
               description="Lançamentos pagos e previstos desta conta aparecerão aqui com o saldo dia a dia."
               action={
-                <Button variant="outline" onClick={() => actions.openTransaction({ type: 'expense', defaults: accountId ? { source: `account:${accountId}` } : undefined })}>
-                  Adicionar lançamento
-                </Button>
+                <WriteGate>
+                  <Button variant="outline" onClick={() => actions.openTransaction({ type: 'expense', defaults: accountId ? { source: `account:${accountId}` } : undefined })}>
+                    Adicionar lançamento
+                  </Button>
+                </WriteGate>
               }
             />
           ) : (

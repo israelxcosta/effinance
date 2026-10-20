@@ -6,6 +6,11 @@ import { IS_DEMO } from '@/lib/demo';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/login'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/register'));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/forgot-password'));
+const ResetPasswordPage = lazy(() => import('@/features/auth/pages/reset-password'));
+const InvitePage = lazy(() => import('@/features/workspaces/pages/invite'));
+const TermsPage = lazy(() => import('@/features/legal/pages/legal').then((m) => ({ default: m.TermsPage })));
+const PrivacyPage = lazy(() => import('@/features/legal/pages/legal').then((m) => ({ default: m.PrivacyPage })));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/dashboard'));
 const StatementPage = lazy(() => import('@/features/statement/pages/statement'));
 const PayablesPage = lazy(() => import('@/features/transactions/pages/payables'));
@@ -37,6 +42,11 @@ function NotFound() {
 export const router = (IS_DEMO ? createHashRouter : createBrowserRouter)([
   { path: '/login', element: <LoginPage /> },
   { path: '/cadastro', element: <RegisterPage /> },
+  { path: '/esqueci-senha', element: <ForgotPasswordPage /> },
+  { path: '/redefinir-senha', element: <ResetPasswordPage /> },
+  { path: '/convite/:token', element: <InvitePage /> },
+  { path: '/termos', element: <TermsPage /> },
+  { path: '/privacidade', element: <PrivacyPage /> },
   {
     path: '/',
     element: <AppShell />,

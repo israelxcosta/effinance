@@ -16,7 +16,7 @@ export interface AccountMovementSums {
  */
 export async function accountMovements(
   db: DbExecutor,
-  userId: string,
+  workspaceId: string,
   asOf: ISODate,
   projectedUntil: ISODate = asOf,
 ): Promise<Map<string, AccountMovementSums>> {
@@ -26,11 +26,11 @@ export async function accountMovements(
              case when type = 'income' then amount else -amount end as delta,
              paid, coalesce(paid_at, date) as eff, date
         from transactions
-       where user_id = ${userId} and account_id is not null
+       where workspace_id = ${workspaceId} and account_id is not null
       union all
       select to_account_id as acc, amount as delta, paid, coalesce(paid_at, date) as eff, date
         from transactions
-       where user_id = ${userId} and type = 'transfer' and to_account_id is not null
+       where workspace_id = ${workspaceId} and type = 'transfer' and to_account_id is not null
     )
     select acc,
            coalesce(sum(case when paid and eff <= ${asOf} then delta else 0 end), 0) as realized,

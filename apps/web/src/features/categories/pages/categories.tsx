@@ -21,12 +21,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { alpha, cn } from '@/lib/utils';
-import { errorMessage } from '@/lib/api';
 import { useCategories, useDeleteCategory } from '../api';
 import { CategorySheet, type CategorySheetState } from '../category-sheet';
 import { useTone } from '@/lib/theme';
+import { toastError } from '@/lib/notify';
+import { usePermissions, WriteGate } from '@/features/auth/permissions';
 
 export default function CategoriesPage() {
+  const readOnly = !usePermissions().canWrite;
   const [params, setParams] = useSearchParams();
   const tone = useTone();
   const type = (params.get('tipo') as CategoryType) || 'expense';
@@ -49,9 +51,11 @@ export default function CategoriesPage() {
             <label className="mr-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
               <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Mostrar arquivadas" /> Arquivadas
             </label>
-            <Button onClick={() => open({ category: null, parent: null })}>
-              <Plus /> Nova categoria
-            </Button>
+            <WriteGate>
+              <Button onClick={() => open({ category: null, parent: null })}>
+                <Plus /> Nova categoria
+              </Button>
+            </WriteGate>
           </>
         }
       />
@@ -80,7 +84,7 @@ export default function CategoriesPage() {
             icon={<Tags />}
             title={type === 'expense' ? 'Nenhuma categoria de despesa' : 'Nenhuma categoria de receita'}
             description="Crie categorias para entender para onde vai e de onde vem seu dinheiro."
-            action={<Button variant="outline" onClick={() => open({ category: null, parent: null })}>Criar categoria</Button>}
+            action={<WriteGate><Button variant="outline" onClick={() => open({ category: null, parent: null })}>Criar categoria</Button></WriteGate>}
           />
         </Card>
       ) : (
@@ -103,10 +107,10 @@ export default function CategoriesPage() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem icon={<Pencil />} onSelect={() => open({ category: c, parent: null })}>Editar</DropdownMenuItem>
-                    <DropdownMenuItem icon={<Plus />} onSelect={() => open({ category: null, parent: c })}>Nova subcategoria</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => open({ category: c, parent: null })}>Editar</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Plus />} disabled={readOnly} onSelect={() => open({ category: null, parent: c })}>Nova subcategoria</DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Trash2 />} tone="danger" disabled={readOnly} onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -124,13 +128,15 @@ export default function CategoriesPage() {
                     {s.name}
                   </button>
                 ))}
-                <button
-                  type="button"
-                  onClick={() => open({ category: null, parent: c })}
-                  className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border-strong px-2.5 text-xs font-medium text-muted hover:text-fg"
-                >
-                  <Plus className="size-3.5" /> Subcategoria
-                </button>
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    onClick={() => open({ category: null, parent: c })}
+                    className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border-strong px-2.5 text-xs font-medium text-muted hover:text-fg"
+                  >
+                    <Plus className="size-3.5" /> Subcategoria
+                  </button>
+                )}
               </div>
               {c.archived ? <Badge className="self-start">Arquivada</Badge> : null}
             </Card>
@@ -152,7 +158,7 @@ export default function CategoriesPage() {
             toast.success('Categoria excluída');
             setToDelete(null);
           } catch (error) {
-            toast.error(errorMessage(error));
+            toastError(error);
           }
         }}
       />

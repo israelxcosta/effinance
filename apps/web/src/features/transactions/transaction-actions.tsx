@@ -6,13 +6,14 @@ import { ConfirmDialog, Modal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useDeleteTransfer } from '@/features/transfers/api';
 import { TransferSheet, type TransferMode, type TransferSheetState } from '@/features/transfers/transfer-sheet';
 import { useAnticipateInstallments, useDeleteTransaction, useSetPaid } from './api';
 import { ScopeDialog } from './scope-dialog';
 import { TransactionSheet, type TransactionSheetState, type TxKind } from './transaction-sheet';
+import { toastError } from '@/lib/notify';
+import { usePermissions } from '@/features/auth/permissions';
 
 interface OpenTransactionOptions {
   type: TxKind;
@@ -30,6 +31,8 @@ interface TransactionActions {
   anticipate: (tx: Transaction) => void;
   /** Id of the transaction whose paid status is being saved. */
   savingPaidId: string | null;
+  /** Why the workspace is read-only (viewer role or inactive subscription); null when writable. */
+  readOnlyReason: string | null;
 }
 
 const Ctx = createContext<TransactionActions | null>(null);
@@ -51,16 +54,33 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
   const deleteTx = useDeleteTransaction();
   const deleteTransfer = useDeleteTransfer();
   const setPaid = useSetPaid();
+  const { readOnlyReason } = usePermissions();
 
-  const openTransaction = useCallback((o: OpenTransactionOptions) => {
-    setTxSheet({ open: true, mode: 'create', type: o.type, defaults: o.defaults });
-  }, []);
+  /** Every entry point (quick bar, palette, rows, dashboard) goes through here: read-only blocks it. */
+  const blocked = useCallback(() => {
+    if (!readOnlyReason) return false;
+    toast.info(readOnlyReason, { id: 'read-only' });
+    return true;
+  }, [readOnlyReason]);
 
-  const openTransfer = useCallback((mode: TransferMode = 'transfer') => {
-    setTransferSheet({ open: true, mode });
-  }, []);
+  const openTransaction = useCallback(
+    (o: OpenTransactionOptions) => {
+      if (blocked()) return;
+      setTxSheet({ open: true, mode: 'create', type: o.type, defaults: o.defaults });
+    },
+    [blocked],
+  );
+
+  const openTransfer = useCallback(
+    (mode: TransferMode = 'transfer') => {
+      if (blocked()) return;
+      setTransferSheet({ open: true, mode });
+    },
+    [blocked],
+  );
 
   const edit = useCallback((tx: Transaction) => {
+    if (blocked()) return;
     if (tx.type === 'transfer') {
       if (tx.transferKind === 'card_payment') {
         toast.info('Pagamentos de fatura são gerenciados na tela do cartão.');
@@ -70,14 +90,22 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
       return;
     }
     setTxSheet({ open: true, mode: 'edit', type: tx.type, transaction: tx });
-  }, []);
+  }, [blocked]);
 
-  const duplicate = useCallback((tx: Transaction) => {
-    if (tx.type === 'transfer') return;
-    setTxSheet({ open: true, mode: 'duplicate', type: tx.type, transaction: tx });
-  }, []);
+  const duplicate = useCallback(
+    (tx: Transaction) => {
+      if (tx.type === 'transfer' || blocked()) return;
+      setTxSheet({ open: true, mode: 'duplicate', type: tx.type, transaction: tx });
+    },
+    [blocked],
+  );
 
-  const remove = useCallback((tx: Transaction) => setToDelete(tx), []);
+  const remove = useCallback(
+    (tx: Transaction) => {
+      if (!blocked()) setToDelete(tx);
+    },
+    [blocked],
+  );
 
   const applyPaid = useCallback(
     async (tx: Transaction, paid: boolean, extra: { accountId?: string | null; paidAt?: string | null } = {}) => {
@@ -98,7 +126,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
         toast.success(label);
       } catch (error) {
         for (const [key, data] of snapshots) qc.setQueryData(key, data);
-        toast.error(errorMessage(error));
+        toastError(error);
       } finally {
         setSavingPaidId(null);
       }
@@ -108,6 +136,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
 
   const togglePaid = useCallback(
     (tx: Transaction, paid: boolean) => {
+      if (blocked()) return;
       if (tx.creditCardId && tx.type !== 'transfer') {
         toast.info('Compras no cartão são quitadas ao pagar a fatura.');
         return;
@@ -118,7 +147,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
       }
       void applyPaid(tx, paid);
     },
-    [applyPaid],
+    [applyPaid, blocked],
   );
 
   async function confirmDelete(scope: 'one' | 'future' | 'all') {
@@ -129,15 +158,20 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
       toast.success('Lançamento excluído');
       setToDelete(null);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   }
 
-  const anticipate = useCallback((tx: Transaction) => setAnticipateTarget(tx), []);
+  const anticipate = useCallback(
+    (tx: Transaction) => {
+      if (!blocked()) setAnticipateTarget(tx);
+    },
+    [blocked],
+  );
 
   const value = useMemo<TransactionActions>(
-    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId }),
-    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId],
+    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId, readOnlyReason }),
+    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId, readOnlyReason],
   );
 
   const isSeries = Boolean(toDelete?.recurrenceId) && toDelete?.type !== 'transfer';
@@ -266,7 +300,7 @@ function AnticipateDialog({ tx, onClose }: { tx: Transaction | null; onClose: ()
       toast.success(`${moved.length} ${moved.length === 1 ? 'parcela antecipada' : 'parcelas antecipadas'}${where}`);
       onClose();
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   }
 

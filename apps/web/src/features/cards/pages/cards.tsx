@@ -18,15 +18,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { errorMessage } from '@/lib/api';
 import { useCards, useDeleteCard } from '../api';
 import { CardSheet } from '../card-sheet';
 import { CardVisual } from '../card-visual';
 import { PayInvoiceDialog } from '../pay-invoice-dialog';
+import { toastError } from '@/lib/notify';
+import { usePermissions, WriteGate } from '@/features/auth/permissions';
 
 export const INVOICE_TONE = { open: 'brand', closed: 'warning', paid: 'success', overdue: 'danger' } as const;
 
 export default function CardsPage() {
+  const readOnly = !usePermissions().canWrite;
   const cards = useCards();
   const [sheet, setSheet] = useState<{ open: boolean; card?: CreditCard | null }>({ open: false });
   const [toDelete, setToDelete] = useState<CreditCard | null>(null);
@@ -46,9 +48,11 @@ export default function CardsPage() {
         title="Cartões de crédito"
         description="Limites, faturas e compras parceladas em um só lugar."
         actions={
-          <Button onClick={() => setSheet({ open: true, card: null })}>
-            <Plus /> Novo cartão
-          </Button>
+          <WriteGate>
+            <Button onClick={() => setSheet({ open: true, card: null })}>
+              <Plus /> Novo cartão
+            </Button>
+          </WriteGate>
         }
       />
 
@@ -71,7 +75,7 @@ export default function CardsPage() {
             icon={<CardIcon />}
             title="Nenhum cartão cadastrado"
             description="Cadastre seus cartões com dia de fechamento e vencimento para acompanhar as faturas."
-            action={<Button variant="outline" onClick={() => setSheet({ open: true, card: null })}>Adicionar cartão</Button>}
+            action={<WriteGate><Button variant="outline" onClick={() => setSheet({ open: true, card: null })}>Adicionar cartão</Button></WriteGate>}
           />
         </Card>
       ) : (
@@ -104,9 +108,11 @@ export default function CardsPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {inv.unpaidTotal > 0 ? (
-                      <Button size="sm" variant="soft" onClick={() => setPaying(c)}>
-                        Pagar
-                      </Button>
+                      <WriteGate>
+                        <Button size="sm" variant="soft" onClick={() => setPaying(c)}>
+                          Pagar
+                        </Button>
+                      </WriteGate>
                     ) : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -118,9 +124,9 @@ export default function CardsPage() {
                         <DropdownMenuItem icon={<CardIcon />} onSelect={() => navigate(`/cartoes/${c.id}`)}>
                           Ver faturas
                         </DropdownMenuItem>
-                        <DropdownMenuItem icon={<Pencil />} onSelect={() => setSheet({ open: true, card: c })}>Editar</DropdownMenuItem>
+                        <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => setSheet({ open: true, card: c })}>Editar</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
+                        <DropdownMenuItem icon={<Trash2 />} tone="danger" disabled={readOnly} onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -148,7 +154,7 @@ export default function CardsPage() {
             toast.success('Cartão excluído');
             setToDelete(null);
           } catch (error) {
-            toast.error(errorMessage(error));
+            toastError(error);
           }
         }}
       />

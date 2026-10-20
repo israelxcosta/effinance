@@ -18,9 +18,11 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { BankLogo } from '@/components/ui/bank-logo';
 import { cn } from '@/lib/utils';
-import { ApiRequestError, errorMessage } from '@/lib/api';
+import { ApiRequestError } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useSaveTransfer } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 export type TransferMode = 'transfer' | 'investment' | 'redemption';
 
@@ -112,7 +114,7 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
       if (error instanceof ApiRequestError) {
         for (const [key, message] of Object.entries(error.fieldErrors())) setError(key as keyof FormValues, { message });
       }
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -153,9 +155,11 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">
-            Salvar
-          </Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">
+              Salvar
+            </Button>
+          </WriteGate>
         </>
       }
     >

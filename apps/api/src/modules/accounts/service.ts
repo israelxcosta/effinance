@@ -1,7 +1,7 @@
 import { and, asc, eq, or } from 'drizzle-orm';
 import { endOfMonth, type Account, type accountInputSchema } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { accounts, transactions, type AccountRow } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { ConflictError } from '../../lib/errors';
@@ -31,49 +31,49 @@ export function toAccount(row: AccountRow, sums?: AccountMovementSums): Account 
 /** Accounts with current and end-of-month projected balances. */
 export async function listAccountsWithBalances(
   db: DbExecutor,
-  userId: string,
+  workspaceId: string,
   includeArchived = false,
 ): Promise<Account[]> {
   const now = today();
   const rows = await db
     .select()
     .from(accounts)
-    .where(and(eq(accounts.userId, userId), includeArchived ? undefined : eq(accounts.archived, false)))
+    .where(and(eq(accounts.workspaceId, workspaceId), includeArchived ? undefined : eq(accounts.archived, false)))
     .orderBy(asc(accounts.archived), asc(accounts.createdAt));
-  const sums = await accountMovements(db, userId, now, endOfMonth(now));
+  const sums = await accountMovements(db, workspaceId, now, endOfMonth(now));
   return rows.map((r) => toAccount(r, sums.get(r.id)));
 }
 
-export async function listAccounts(db: Database, userId: string, includeArchived = false) {
-  await ensureMaterialized(db, userId);
-  return listAccountsWithBalances(db, userId, includeArchived);
+export async function listAccounts(db: DbExecutor, workspaceId: string, includeArchived = false) {
+  await ensureMaterialized(db, workspaceId);
+  return listAccountsWithBalances(db, workspaceId, includeArchived);
 }
 
-export async function getAccountWithBalance(db: DbExecutor, userId: string, id: string): Promise<Account> {
-  const row = await getAccountOrThrow(db, userId, id);
+export async function getAccountWithBalance(db: DbExecutor, workspaceId: string, id: string): Promise<Account> {
+  const row = await getAccountOrThrow(db, workspaceId, id);
   const now = today();
-  const sums = await accountMovements(db, userId, now, endOfMonth(now));
+  const sums = await accountMovements(db, workspaceId, now, endOfMonth(now));
   return toAccount(row, sums.get(row.id));
 }
 
-export async function createAccount(db: Database, userId: string, input: AccountInput): Promise<Account> {
-  const [row] = await db.insert(accounts).values({ userId, ...input }).returning();
+export async function createAccount(db: DbExecutor, workspaceId: string, input: AccountInput): Promise<Account> {
+  const [row] = await db.insert(accounts).values({ workspaceId, ...input }).returning();
   return toAccount(row!);
 }
 
 export async function updateAccount(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: AccountInput,
 ): Promise<Account> {
-  await getAccountOrThrow(db, userId, id);
+  await getAccountOrThrow(db, workspaceId, id);
   await db.update(accounts).set(input).where(eq(accounts.id, id));
-  return getAccountWithBalance(db, userId, id);
+  return getAccountWithBalance(db, workspaceId, id);
 }
 
-export async function deleteAccount(db: Database, userId: string, id: string): Promise<void> {
-  await getAccountOrThrow(db, userId, id);
+export async function deleteAccount(db: DbExecutor, workspaceId: string, id: string): Promise<void> {
+  await getAccountOrThrow(db, workspaceId, id);
   const [used] = await db
     .select({ id: transactions.id })
     .from(transactions)

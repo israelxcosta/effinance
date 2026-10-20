@@ -10,8 +10,9 @@ import { ColorPicker } from '@/components/ui/color-picker';
 import { CategoryIcon } from '@/components/ui/category-icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Switch } from '@/components/ui/switch';
-import { errorMessage } from '@/lib/api';
 import { useCreateCategory, useUpdateCategory } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 export interface CategorySheetState {
   open: boolean;
@@ -81,7 +82,7 @@ export function CategorySheet({
       }
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -96,7 +97,9 @@ export function CategorySheet({
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={onSubmit} loading={create.isPending || update.isPending} className="min-w-[110px]">Salvar</Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={create.isPending || update.isPending} className="min-w-[110px]">Salvar</Button>
+          </WriteGate>
         </>
       }
     >

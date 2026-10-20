@@ -4,24 +4,22 @@ import { idParams } from '../common/params';
 import { createContact, deleteContact, getContact, listContacts, updateContact } from './service';
 
 export const contactRoutes: FastifyPluginAsyncZod = async (app) => {
-  app.addHook('onRequest', app.authenticate);
-
   app.get('/', { schema: { querystring: contactQuerySchema } }, async (req) =>
-    listContacts(app.db, req.userId, req.query),
+    listContacts(req.db, req.workspaceId, req.query),
   );
 
-  app.get('/:id', { schema: { params: idParams } }, async (req) => getContact(app.db, req.userId, req.params.id));
+  app.get('/:id', { schema: { params: idParams } }, async (req) => getContact(req.db, req.workspaceId, req.params.id));
 
   app.post('/', { schema: { body: contactInputSchema } }, async (req, reply) =>
-    reply.code(201).send(await createContact(app.db, req.userId, req.body)),
+    reply.code(201).send(await createContact(req.db, req.workspaceId, req.body)),
   );
 
   app.put('/:id', { schema: { params: idParams, body: contactInputSchema } }, async (req) =>
-    updateContact(app.db, req.userId, req.params.id, req.body),
+    updateContact(req.db, req.workspaceId, req.params.id, req.body),
   );
 
   app.delete('/:id', { schema: { params: idParams } }, async (req, reply) => {
-    await deleteContact(app.db, req.userId, req.params.id);
+    await deleteContact(req.db, req.workspaceId, req.params.id);
     return reply.code(204).send();
   });
 };

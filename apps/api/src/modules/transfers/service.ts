@@ -8,12 +8,13 @@ import {
   type transferQuerySchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { transactions, type AccountRow } from '../../db/schema';
 import { ValidationError } from '../../lib/errors';
 import { countAll } from '../../lib/sql';
 import { getAccountOrThrow, getTransactionOrThrow } from '../common/ownership';
 import { toTransactions } from '../transactions/mapper';
+import { encryptNotes } from '../transactions/notes';
 import { ensureMaterialized } from '../transactions/series';
 
 type TransferInput = z.output<typeof transferInputSchema>;
@@ -39,10 +40,10 @@ function defaultDescription(kind: TransferKind, from: AccountRow, to: AccountRow
   }
 }
 
-async function buildTransferRow(db: Database, userId: string, input: TransferInput) {
+async function buildTransferRow(db: DbExecutor, workspaceId: string, input: TransferInput) {
   const [from, to] = await Promise.all([
-    getAccountOrThrow(db, userId, input.fromAccountId),
-    getAccountOrThrow(db, userId, input.toAccountId),
+    getAccountOrThrow(db, workspaceId, input.fromAccountId),
+    getAccountOrThrow(db, workspaceId, input.toAccountId),
   ]);
   const kind = deriveTransferKind(from, to);
   return {
@@ -60,41 +61,41 @@ async function buildTransferRow(db: Database, userId: string, input: TransferInp
     subcategoryId: null,
     contactId: null,
     paymentMethod: 'transfer' as const,
-    notes: input.notes,
+    notes: await encryptNotes(workspaceId, input.notes ?? null),
     transferKind: kind,
   };
 }
 
-export async function createTransfer(db: Database, userId: string, input: TransferInput): Promise<Transaction> {
-  const values = await buildTransferRow(db, userId, input);
+export async function createTransfer(db: DbExecutor, workspaceId: string, input: TransferInput): Promise<Transaction> {
+  const values = await buildTransferRow(db, workspaceId, input);
   const [row] = await db
     .insert(transactions)
-    .values({ userId, ...values, recurrenceKind: 'single' })
+    .values({ workspaceId, ...values, recurrenceKind: 'single' })
     .returning();
   const [dto] = await toTransactions(db, [row!]);
   return dto!;
 }
 
 export async function updateTransfer(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: TransferInput,
 ): Promise<Transaction> {
-  const current = await getTransactionOrThrow(db, userId, id);
+  const current = await getTransactionOrThrow(db, workspaceId, id);
   if (current.type !== 'transfer') throw new ValidationError('Este lançamento não é uma transferência');
   if (current.transferKind === 'card_payment') {
     throw new ValidationError('Pagamentos de fatura são gerenciados pela fatura do cartão');
   }
-  const values = await buildTransferRow(db, userId, input);
+  const values = await buildTransferRow(db, workspaceId, input);
   const [row] = await db.update(transactions).set(values).where(eq(transactions.id, id)).returning();
   const [dto] = await toTransactions(db, [row!]);
   return dto!;
 }
 
 /** Deleting an invoice payment reopens the purchases of that invoice. */
-export async function deleteTransfer(db: Database, userId: string, id: string): Promise<void> {
-  const row = await getTransactionOrThrow(db, userId, id);
+export async function deleteTransfer(db: DbExecutor, workspaceId: string, id: string): Promise<void> {
+  const row = await getTransactionOrThrow(db, workspaceId, id);
   if (row.type !== 'transfer') throw new ValidationError('Este lançamento não é uma transferência');
 
   await db.transaction(async (tx) => {
@@ -104,7 +105,7 @@ export async function deleteTransfer(db: Database, userId: string, id: string): 
         .set({ paid: false, paidAt: null })
         .where(
           and(
-            eq(transactions.userId, userId),
+            eq(transactions.workspaceId, workspaceId),
             eq(transactions.type, 'expense'),
             eq(transactions.creditCardId, row.creditCardId),
             eq(transactions.invoiceMonth, row.invoiceMonth),
@@ -116,12 +117,12 @@ export async function deleteTransfer(db: Database, userId: string, id: string): 
 }
 
 export async function listTransfers(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: TransferQuery,
 ): Promise<Paginated<Transaction>> {
-  await ensureMaterialized(db, userId, q.to);
-  const where: SQL[] = [eq(transactions.userId, userId), eq(transactions.type, 'transfer')];
+  await ensureMaterialized(db, workspaceId, q.to);
+  const where: SQL[] = [eq(transactions.workspaceId, workspaceId), eq(transactions.type, 'transfer')];
   if (q.from) where.push(gte(transactions.date, q.from));
   if (q.to) where.push(lte(transactions.date, q.to));
   if (q.kind) where.push(eq(transactions.transferKind, q.kind));

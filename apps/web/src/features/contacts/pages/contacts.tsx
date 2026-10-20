@@ -18,15 +18,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { api, errorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import { initials } from '@/lib/utils';
 import { useContacts, useDeleteContact } from '../api';
 import { ContactSheet } from '../contact-sheet';
+import { toastError } from '@/lib/notify';
+import { usePermissions, WriteGate } from '@/features/auth/permissions';
 
 const PAGE_SIZE = 25;
 
 export default function ContactsPage() {
+  const readOnly = !usePermissions().canWrite;
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState('');
@@ -72,7 +75,7 @@ export default function ContactsPage() {
         overline="Cadastros"
         title="Contatos"
         description="Clientes, fornecedores e pessoas vinculadas às suas contas a pagar e a receber."
-        actions={<Button onClick={() => setSheet({ open: true, contact: null })}><Plus /> Novo contato</Button>}
+        actions={<WriteGate><Button onClick={() => setSheet({ open: true, contact: null })}><Plus /> Novo contato</Button></WriteGate>}
       />
 
       <Card className="overflow-hidden">
@@ -94,7 +97,7 @@ export default function ContactsPage() {
             icon={<Users />}
             title={search ? 'Nenhum contato encontrado' : 'Nenhum contato cadastrado'}
             description="Vincule contatos aos lançamentos para ver totais e evolução por pessoa ou empresa nos relatórios."
-            action={<Button variant="outline" onClick={() => setSheet({ open: true, contact: null })}>Adicionar contato</Button>}
+            action={<WriteGate><Button variant="outline" onClick={() => setSheet({ open: true, contact: null })}>Adicionar contato</Button></WriteGate>}
           />
         ) : (
           <div className="overflow-x-auto">
@@ -134,11 +137,11 @@ export default function ContactsPage() {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem icon={<Pencil />} onSelect={() => setSheet({ open: true, contact: c })}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => setSheet({ open: true, contact: c })}>Editar</DropdownMenuItem>
                           <DropdownMenuItem icon={<Receipt />} onSelect={() => navigate(`/contas-a-pagar?contato=${c.id}&modo=year`)}>Contas a pagar</DropdownMenuItem>
                           <DropdownMenuItem icon={<HandCoins />} onSelect={() => navigate(`/contas-a-receber?contato=${c.id}&modo=year`)}>Contas a receber</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
+                          <DropdownMenuItem icon={<Trash2 />} tone="danger" disabled={readOnly} onSelect={() => setToDelete(c)}>Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -173,7 +176,7 @@ export default function ContactsPage() {
             toast.success('Contato excluído');
             setToDelete(null);
           } catch (error) {
-            toast.error(errorMessage(error));
+            toastError(error);
           }
         }}
       />

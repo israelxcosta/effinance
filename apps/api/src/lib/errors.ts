@@ -35,3 +35,17 @@ export class UnauthorizedError extends AppError {
     super(401, 'unauthorized', message);
   }
 }
+
+/** Authenticated, but the role does not allow it (e.g. a viewer trying to write). */
+export class ForbiddenError extends AppError {
+  constructor(message = 'Você não tem permissão para esta ação') {
+    super(403, 'forbidden', message);
+  }
+}
+
+/** The workspace has no valid subscription: reads still work, writes need a plan. */
+export class SubscriptionRequiredError extends AppError {
+  constructor(message = 'Sua assinatura não está ativa. Assine um plano para voltar a editar.') {
+    super(402, 'subscription_required', message);
+  }
+}

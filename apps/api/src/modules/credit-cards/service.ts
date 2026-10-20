@@ -14,7 +14,7 @@ import {
   type creditCardInputSchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { creditCards, transactions, type CreditCardRow } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { ConflictError, ValidationError } from '../../lib/errors';
@@ -125,36 +125,36 @@ export async function toCreditCards(db: DbExecutor, rows: CreditCardRow[]): Prom
   });
 }
 
-export async function listCreditCards(db: Database, userId: string, includeArchived = false) {
-  await ensureMaterialized(db, userId);
+export async function listCreditCards(db: DbExecutor, workspaceId: string, includeArchived = false) {
+  await ensureMaterialized(db, workspaceId);
   const rows = await db
     .select()
     .from(creditCards)
-    .where(and(eq(creditCards.userId, userId), includeArchived ? undefined : eq(creditCards.archived, false)))
+    .where(and(eq(creditCards.workspaceId, workspaceId), includeArchived ? undefined : eq(creditCards.archived, false)))
     .orderBy(asc(creditCards.archived), asc(creditCards.createdAt));
   return toCreditCards(db, rows);
 }
 
-async function getCreditCard(db: Database, userId: string, id: string): Promise<CreditCard> {
-  const row = await getCardOrThrow(db, userId, id);
+async function getCreditCard(db: DbExecutor, workspaceId: string, id: string): Promise<CreditCard> {
+  const row = await getCardOrThrow(db, workspaceId, id);
   const [card] = await toCreditCards(db, [row]);
   return card!;
 }
 
-async function assertDefaultAccount(db: Database, userId: string, accountId: string | null) {
-  if (accountId) await getAccountOrThrow(db, userId, accountId);
+async function assertDefaultAccount(db: DbExecutor, workspaceId: string, accountId: string | null) {
+  if (accountId) await getAccountOrThrow(db, workspaceId, accountId);
 }
 
-export async function createCreditCard(db: Database, userId: string, input: CreditCardInput) {
-  await assertDefaultAccount(db, userId, input.defaultAccountId);
-  const [row] = await db.insert(creditCards).values({ userId, ...input }).returning();
+export async function createCreditCard(db: DbExecutor, workspaceId: string, input: CreditCardInput) {
+  await assertDefaultAccount(db, workspaceId, input.defaultAccountId);
+  const [row] = await db.insert(creditCards).values({ workspaceId, ...input }).returning();
   const [card] = await toCreditCards(db, [row!]);
   return card!;
 }
 
-export async function updateCreditCard(db: Database, userId: string, id: string, input: CreditCardInput) {
-  const current = await getCardOrThrow(db, userId, id);
-  await assertDefaultAccount(db, userId, input.defaultAccountId);
+export async function updateCreditCard(db: DbExecutor, workspaceId: string, id: string, input: CreditCardInput) {
+  const current = await getCardOrThrow(db, workspaceId, id);
+  await assertDefaultAccount(db, workspaceId, input.defaultAccountId);
   await db.transaction(async (tx) => {
     await tx.update(creditCards).set(input).where(eq(creditCards.id, id));
     if (current.closingDay !== input.closingDay || current.dueDay !== input.dueDay) {
@@ -169,11 +169,11 @@ export async function updateCreditCard(db: Database, userId: string, id: string,
       }
     }
   });
-  return getCreditCard(db, userId, id);
+  return getCreditCard(db, workspaceId, id);
 }
 
-export async function deleteCreditCard(db: Database, userId: string, id: string) {
-  await getCardOrThrow(db, userId, id);
+export async function deleteCreditCard(db: DbExecutor, workspaceId: string, id: string) {
+  await getCardOrThrow(db, workspaceId, id);
   const [used] = await db
     .select({ id: transactions.id })
     .from(transactions)
@@ -184,18 +184,18 @@ export async function deleteCreditCard(db: Database, userId: string, id: string)
 }
 
 export async function listInvoices(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   cardId: string,
   range: { from?: MonthKey; to?: MonthKey },
 ): Promise<InvoiceSummary[]> {
-  const card = await getCardOrThrow(db, userId, cardId);
+  const card = await getCardOrThrow(db, workspaceId, cardId);
   const current = getInvoiceForPurchase(today(), card.closingDay, card.dueDay).month;
   const from = range.from ?? addMonthKey(current, -5);
   const to = range.to ?? addMonthKey(current, 6);
   if (from > to) throw new ValidationError('Período inválido');
 
-  await ensureMaterialized(db, userId, getInvoiceDates(to, card.closingDay, card.dueDay).dueDate);
+  await ensureMaterialized(db, workspaceId, getInvoiceDates(to, card.closingDay, card.dueDay).dueDate);
   const months: MonthKey[] = [];
   for (let m = from; m <= to && months.length < 120; m = addMonthKey(m, 1)) months.push(m);
   const totals = await invoiceTotals(db, [card.id], months);
@@ -203,9 +203,9 @@ export async function listInvoices(
   return months.map((m) => buildInvoiceSummary(card, m, totals.get(`${card.id}:${m}`), now));
 }
 
-export async function getInvoice(db: Database, userId: string, cardId: string, month: MonthKey): Promise<Invoice> {
-  const card = await getCardOrThrow(db, userId, cardId);
-  await ensureMaterialized(db, userId, getInvoiceDates(month, card.closingDay, card.dueDay).dueDate);
+export async function getInvoice(db: DbExecutor, workspaceId: string, cardId: string, month: MonthKey): Promise<Invoice> {
+  const card = await getCardOrThrow(db, workspaceId, cardId);
+  await ensureMaterialized(db, workspaceId, getInvoiceDates(month, card.closingDay, card.dueDay).dueDate);
 
   const [purchases, payments, totals] = await Promise.all([
     db
@@ -243,15 +243,15 @@ export async function getInvoice(db: Database, userId: string, cardId: string, m
 }
 
 export async function payInvoice(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   cardId: string,
   month: MonthKey,
   input: PayInvoiceInput,
 ): Promise<Invoice> {
-  const card = await getCardOrThrow(db, userId, cardId);
-  await getAccountOrThrow(db, userId, input.accountId);
-  await ensureMaterialized(db, userId, getInvoiceDates(month, card.closingDay, card.dueDay).dueDate);
+  const card = await getCardOrThrow(db, workspaceId, cardId);
+  await getAccountOrThrow(db, workspaceId, input.accountId);
+  await ensureMaterialized(db, workspaceId, getInvoiceDates(month, card.closingDay, card.dueDay).dueDate);
 
   const totals = await invoiceTotals(db, [card.id], [month]);
   const unpaid = totals.get(`${card.id}:${month}`)?.unpaidTotal ?? 0;
@@ -262,7 +262,7 @@ export async function payInvoice(
 
   await db.transaction(async (tx) => {
     await tx.insert(transactions).values({
-      userId,
+      workspaceId,
       type: 'transfer',
       transferKind: 'card_payment',
       description: `Fatura ${card.name} — ${formatMonthKey(month)}`,
@@ -290,6 +290,6 @@ export async function payInvoice(
       );
   });
 
-  return getInvoice(db, userId, cardId, month);
+  return getInvoice(db, workspaceId, cardId, month);
 }
 

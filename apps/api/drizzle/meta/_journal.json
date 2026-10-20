@@ -15,6 +15,20 @@
       "when": 1792508826498,
       "tag": "0001_split_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792516184566,
+      "tag": "0002_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792516201439,
+      "tag": "0003_tenant_rls",
+      "breakpoints": true
     }
   ]
 }

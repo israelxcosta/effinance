@@ -7,7 +7,7 @@ import type {
   categoryUpdateSchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { categories, transactions, type CategoryRow } from '../../db/schema';
 import { ConflictError, ValidationError } from '../../lib/errors';
 import { getCategoryOrThrow } from '../common/ownership';
@@ -30,8 +30,8 @@ export function toCategory(row: CategoryRow): Category {
 }
 
 export async function listCategories(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   opts: { type?: CategoryType; includeArchived?: boolean },
 ): Promise<CategoryWithChildren[]> {
   const rows = await db
@@ -39,7 +39,7 @@ export async function listCategories(
     .from(categories)
     .where(
       and(
-        eq(categories.userId, userId),
+        eq(categories.workspaceId, workspaceId),
         opts.type ? eq(categories.type, opts.type) : undefined,
         opts.includeArchived ? undefined : eq(categories.archived, false),
       ),
@@ -53,38 +53,38 @@ export async function listCategories(
   }));
 }
 
-export async function createCategory(db: Database, userId: string, input: CategoryInput): Promise<Category> {
+export async function createCategory(db: DbExecutor, workspaceId: string, input: CategoryInput): Promise<Category> {
   let type = input.type;
   if (input.parentId) {
-    const parent = await getCategoryOrThrow(db, userId, input.parentId);
+    const parent = await getCategoryOrThrow(db, workspaceId, input.parentId);
     if (parent.parentId) throw new ValidationError('Subcategorias não podem ter subcategorias');
     // A subcategory always shares the parent's type.
     type = parent.type;
   }
   const [row] = await db
     .insert(categories)
-    .values({ userId, ...input, type })
+    .values({ workspaceId, ...input, type })
     .returning();
   return toCategory(row!);
 }
 
 export async function updateCategory(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: CategoryUpdate,
 ): Promise<Category> {
-  await getCategoryOrThrow(db, userId, id);
+  await getCategoryOrThrow(db, workspaceId, id);
   const [row] = await db.update(categories).set(input).where(eq(categories.id, id)).returning();
   return toCategory(row!);
 }
 
-export async function deleteCategory(db: Database, userId: string, id: string): Promise<void> {
-  await getCategoryOrThrow(db, userId, id);
+export async function deleteCategory(db: DbExecutor, workspaceId: string, id: string): Promise<void> {
+  await getCategoryOrThrow(db, workspaceId, id);
   const children = await db
     .select({ id: categories.id })
     .from(categories)
-    .where(and(eq(categories.userId, userId), eq(categories.parentId, id)));
+    .where(and(eq(categories.workspaceId, workspaceId), eq(categories.parentId, id)));
   const ids = [id, ...children.map((c) => c.id)];
   const [used] = await db
     .select({ id: transactions.id })
@@ -97,17 +97,17 @@ export async function deleteCategory(db: Database, userId: string, id: string): 
   await db.delete(categories).where(eq(categories.id, id));
 }
 
-/** Creates the default category tree for a new user. */
-export async function seedDefaultCategories(db: DbExecutor, userId: string): Promise<void> {
+/** Creates the default category tree for a new workspace. */
+export async function seedDefaultCategories(db: DbExecutor, workspaceId: string): Promise<void> {
   for (const def of DEFAULT_CATEGORIES) {
     const [parent] = await db
       .insert(categories)
-      .values({ userId, name: def.name, type: def.type, icon: def.icon, color: def.color })
+      .values({ workspaceId, name: def.name, type: def.type, icon: def.icon, color: def.color })
       .returning({ id: categories.id });
     if (def.subcategories?.length) {
       await db.insert(categories).values(
         def.subcategories.map((s) => ({
-          userId,
+          workspaceId,
           parentId: parent!.id,
           name: s.name,
           type: def.type,
@@ -119,11 +119,11 @@ export async function seedDefaultCategories(db: DbExecutor, userId: string): Pro
   }
 }
 
-export async function hasCategories(db: DbExecutor, userId: string) {
+export async function hasCategories(db: DbExecutor, workspaceId: string) {
   const [row] = await db
     .select({ id: categories.id })
     .from(categories)
-    .where(and(eq(categories.userId, userId), isNull(categories.parentId)))
+    .where(and(eq(categories.workspaceId, workspaceId), isNull(categories.parentId)))
     .limit(1);
   return !!row;
 }

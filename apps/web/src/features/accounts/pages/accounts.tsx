@@ -20,12 +20,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { alpha, cn } from '@/lib/utils';
-import { errorMessage } from '@/lib/api';
 import { useAccounts, useDeleteAccount, useSaveAccount } from '../api';
 import { AccountSheet } from '../account-sheet';
 import { useTone } from '@/lib/theme';
+import { toastError } from '@/lib/notify';
+import { usePermissions, WriteGate } from '@/features/auth/permissions';
 
 export default function AccountsPage() {
+  const readOnly = !usePermissions().canWrite;
   const [showArchived, setShowArchived] = useState(false);
   const tone = useTone();
   const accounts = useAccounts({ includeArchived: showArchived });
@@ -49,7 +51,7 @@ export default function AccountsPage() {
       });
       toast.success(a.archived ? 'Conta reativada' : 'Conta arquivada');
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   }
 
@@ -64,9 +66,11 @@ export default function AccountsPage() {
             <label className="mr-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
               <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Mostrar arquivadas" /> Arquivadas
             </label>
-            <Button onClick={() => setSheet({ open: true, account: null })}>
-              <Plus /> Nova conta
-            </Button>
+            <WriteGate>
+              <Button onClick={() => setSheet({ open: true, account: null })}>
+                <Plus /> Nova conta
+              </Button>
+            </WriteGate>
           </>
         }
       />
@@ -92,7 +96,7 @@ export default function AccountsPage() {
             icon={<Landmark />}
             title="Nenhuma conta cadastrada"
             description="Adicione suas contas e carteiras para acompanhar saldos e extratos."
-            action={<Button variant="outline" onClick={() => setSheet({ open: true, account: null })}>Adicionar conta</Button>}
+            action={<WriteGate><Button variant="outline" onClick={() => setSheet({ open: true, account: null })}>Adicionar conta</Button></WriteGate>}
           />
         </Card>
       ) : (
@@ -120,13 +124,13 @@ export default function AccountsPage() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem icon={<Pencil />} onSelect={() => setSheet({ open: true, account: a })}>Editar</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => setSheet({ open: true, account: a })}>Editar</DropdownMenuItem>
                     <DropdownMenuItem icon={<ScrollText />} onSelect={() => navigate(`/extrato?conta=${a.id}`)}>Ver extrato</DropdownMenuItem>
-                    <DropdownMenuItem icon={a.archived ? <ArchiveRestore /> : <Archive />} onSelect={() => void toggleArchive(a)}>
+                    <DropdownMenuItem icon={a.archived ? <ArchiveRestore /> : <Archive />} disabled={readOnly} onSelect={() => void toggleArchive(a)}>
                       {a.archived ? 'Reativar' : 'Arquivar'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem icon={<Trash2 />} tone="danger" onSelect={() => setToDelete(a)}>Excluir</DropdownMenuItem>
+                    <DropdownMenuItem icon={<Trash2 />} tone="danger" disabled={readOnly} onSelect={() => setToDelete(a)}>Excluir</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -160,7 +164,7 @@ export default function AccountsPage() {
             toast.success('Conta excluída');
             setToDelete(null);
           } catch (error) {
-            toast.error(errorMessage(error));
+            toastError(error);
           }
         }}
       />

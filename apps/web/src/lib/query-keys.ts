@@ -21,6 +21,14 @@ export const qk = {
   dashboard: (month: string) => ['dashboard', month] as const,
   report: (name: string, params?: Params) => ['reports', name, params ?? {}] as const,
   search: (q: string) => ['search', q] as const,
+  // SaaS: account security, the active workspace and its subscription.
+  sessions: ['auth', 'sessions'] as const,
+  members: ['workspace', 'members'] as const,
+  invites: ['workspace', 'invites'] as const,
+  audit: (page: number) => ['workspace', 'audit', page] as const,
+  invitePreview: (token: string) => ['invite', token] as const,
+  plans: ['billing', 'plans'] as const,
+  subscription: ['billing', 'subscription'] as const,
 };
 
 /** Everything derived from transactions/balances. Called after any money-moving mutation. */

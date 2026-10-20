@@ -8,8 +8,9 @@ import { Sheet } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { errorMessage } from '@/lib/api';
 import { useSaveContact } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 type FormIn = z.input<typeof contactInputSchema>;
 type FormOut = z.output<typeof contactInputSchema>;
@@ -47,7 +48,7 @@ export function ContactSheet({ open, onOpenChange, contact }: { open: boolean; o
       toast.success(contact ? 'Contato atualizado' : 'Contato criado');
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -71,7 +72,9 @@ export function ContactSheet({ open, onOpenChange, contact }: { open: boolean; o
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          </WriteGate>
         </>
       }
     >

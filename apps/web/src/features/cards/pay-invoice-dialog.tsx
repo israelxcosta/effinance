@@ -5,9 +5,10 @@ import { Modal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { usePayInvoice } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 interface Props {
   open: boolean;
@@ -41,7 +42,7 @@ export function PayInvoiceDialog({ open, onOpenChange, card, invoice }: Props) {
       toast.success('Fatura paga 👍');
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   }
 
@@ -54,7 +55,9 @@ export function PayInvoiceDialog({ open, onOpenChange, card, invoice }: Props) {
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={confirm} loading={pay.isPending}>Confirmar pagamento</Button>
+          <WriteGate>
+            <Button onClick={confirm} loading={pay.isPending}>Confirmar pagamento</Button>
+          </WriteGate>
         </>
       }
     >

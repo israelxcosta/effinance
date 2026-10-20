@@ -11,7 +11,7 @@ import {
   type MonthKey,
   type MonthSummary,
 } from '@effinance/shared';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { categories, creditCards, transactions } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { countAll, sumOf } from '../../lib/sql';
@@ -26,7 +26,7 @@ import { ensureMaterialized } from '../transactions/series';
 /** Competence summaries for each month in [first, last]. */
 export async function monthSummaries(
   db: DbExecutor,
-  userId: string,
+  workspaceId: string,
   first: MonthKey,
   last: MonthKey,
 ): Promise<MonthSummary[]> {
@@ -40,7 +40,7 @@ export async function monthSummaries(
     .from(transactions)
     .where(
       and(
-        eq(transactions.userId, userId),
+        eq(transactions.workspaceId, workspaceId),
         inArray(transactions.type, ['income', 'expense']),
         between(transactions.date, monthRange(first).from, monthRange(last).to),
       ),
@@ -141,13 +141,13 @@ export function computeHealth(input: {
   return { score, label, factors };
 }
 
-export async function getDashboard(db: Database, userId: string, month: MonthKey): Promise<DashboardResponse> {
+export async function getDashboard(db: DbExecutor, workspaceId: string, month: MonthKey): Promise<DashboardResponse> {
   const now = today();
   const { from, to } = monthRange(month);
-  await ensureMaterialized(db, userId, to);
+  await ensureMaterialized(db, workspaceId, to);
 
   const pendingBase = and(
-    eq(transactions.userId, userId),
+    eq(transactions.workspaceId, workspaceId),
     inArray(transactions.type, ['income', 'expense']),
     eq(transactions.paid, false),
     isNull(transactions.creditCardId),
@@ -155,17 +155,17 @@ export async function getDashboard(db: Database, userId: string, month: MonthKey
 
   const [accounts, cardRows, goals, monthlyAll, expenseTotals, incomeTotals, prevExpenseTotals, upcomingRows, overdueRow, upcomingWeekRow, fixedRows, cats] =
     await Promise.all([
-      listAccountsWithBalances(db, userId),
+      listAccountsWithBalances(db, workspaceId),
       db
         .select()
         .from(creditCards)
-        .where(and(eq(creditCards.userId, userId), eq(creditCards.archived, false)))
+        .where(and(eq(creditCards.workspaceId, workspaceId), eq(creditCards.archived, false)))
         .orderBy(asc(creditCards.createdAt)),
-      listGoals(db, userId, false),
-      monthSummaries(db, userId, addMonthKey(month, -6), month),
-      totalsByCategory(db, userId, from, to, 'expense'),
-      totalsByCategory(db, userId, from, to, 'income'),
-      totalsByCategory(db, userId, monthRange(addMonthKey(month, -1)).from, monthRange(addMonthKey(month, -1)).to, 'expense'),
+      listGoals(db, workspaceId, false),
+      monthSummaries(db, workspaceId, addMonthKey(month, -6), month),
+      totalsByCategory(db, workspaceId, from, to, 'expense'),
+      totalsByCategory(db, workspaceId, from, to, 'income'),
+      totalsByCategory(db, workspaceId, monthRange(addMonthKey(month, -1)).from, monthRange(addMonthKey(month, -1)).to, 'expense'),
       db
         .select()
         .from(transactions)
@@ -185,13 +185,13 @@ export async function getDashboard(db: Database, userId: string, month: MonthKey
         .from(transactions)
         .where(
           and(
-            eq(transactions.userId, userId),
+            eq(transactions.workspaceId, workspaceId),
             eq(transactions.recurrenceKind, 'fixed'),
             between(transactions.date, from, to),
           ),
         )
         .orderBy(asc(transactions.date)),
-      db.select().from(categories).where(eq(categories.userId, userId)),
+      db.select().from(categories).where(eq(categories.workspaceId, workspaceId)),
     ]);
 
   const catMap = new Map(cats.map((c) => [c.id, c]));
@@ -207,7 +207,7 @@ export async function getDashboard(db: Database, userId: string, month: MonthKey
     .select({ amount: sumOf(transactions.amount) })
     .from(transactions)
     .where(
-      and(eq(transactions.userId, userId), committedCardDebt(now), isNotNull(transactions.creditCardId)),
+      and(eq(transactions.workspaceId, workspaceId), committedCardDebt(now), isNotNull(transactions.creditCardId)),
     );
   const cardDebt = debtRow?.amount ?? 0;
 

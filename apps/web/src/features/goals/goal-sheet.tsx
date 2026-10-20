@@ -12,9 +12,10 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { Switch } from '@/components/ui/switch';
-import { errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useSaveGoal } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 type FormIn = z.input<typeof goalInputSchema>;
 type FormOut = z.output<typeof goalInputSchema>;
@@ -48,7 +49,7 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
       toast.success(goal ? 'Meta atualizada' : 'Meta criada 🎯');
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -61,7 +62,9 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          </WriteGate>
         </>
       }
     >

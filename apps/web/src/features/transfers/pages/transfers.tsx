@@ -14,6 +14,7 @@ import { useAccounts } from '@/features/accounts/api';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { TransactionRow } from '@/features/transactions/components/transaction-row';
 import { useTransfers } from '../api';
+import { WriteGate } from '@/features/auth/permissions';
 
 type KindFilter = 'all' | TransferKind;
 
@@ -52,15 +53,21 @@ export default function TransfersPage() {
         description="Mova dinheiro entre contas, aplique em investimentos e acompanhe o saldo investido à parte."
         actions={
           <>
-            <Button variant="outline" onClick={() => actions.openTransfer('redemption')}>
-              <TrendingDown /> Resgatar
-            </Button>
-            <Button variant="soft" onClick={() => actions.openTransfer('investment')}>
-              <TrendingUp /> Investir
-            </Button>
-            <Button onClick={() => actions.openTransfer('transfer')}>
-              <ArrowLeftRight /> Transferir
-            </Button>
+            <WriteGate>
+              <Button variant="outline" onClick={() => actions.openTransfer('redemption')}>
+                <TrendingDown /> Resgatar
+              </Button>
+            </WriteGate>
+            <WriteGate>
+              <Button variant="soft" onClick={() => actions.openTransfer('investment')}>
+                <TrendingUp /> Investir
+              </Button>
+            </WriteGate>
+            <WriteGate>
+              <Button onClick={() => actions.openTransfer('transfer')}>
+                <ArrowLeftRight /> Transferir
+              </Button>
+            </WriteGate>
           </>
         }
       />
@@ -108,9 +115,11 @@ export default function TransfersPage() {
                 title="Nenhuma movimentação no período"
                 description="Transfira entre contas ou aplique em uma conta de investimento."
                 action={
-                  <Button variant="outline" onClick={() => actions.openTransfer('transfer')}>
-                    Nova transferência
-                  </Button>
+                  <WriteGate>
+                    <Button variant="outline" onClick={() => actions.openTransfer('transfer')}>
+                      Nova transferência
+                    </Button>
+                  </WriteGate>
                 }
               />
             ) : (

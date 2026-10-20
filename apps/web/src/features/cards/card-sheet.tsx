@@ -12,9 +12,10 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Switch } from '@/components/ui/switch';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { BankPicker } from '@/components/ui/bank-picker';
-import { errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useSaveCard } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 type FormIn = z.input<typeof creditCardInputSchema>;
 type FormOut = z.output<typeof creditCardInputSchema>;
@@ -51,7 +52,7 @@ export function CardSheet({ open, onOpenChange, card }: { open: boolean; onOpenC
       toast.success(card ? 'Cartão atualizado' : 'Cartão criado');
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -65,7 +66,9 @@ export function CardSheet({ open, onOpenChange, card }: { open: boolean; onOpenC
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">Salvar</Button>
+          </WriteGate>
         </>
       }
     >

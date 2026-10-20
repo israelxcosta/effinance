@@ -18,12 +18,15 @@ import {
   type TransactionRow,
 } from '../../db/schema';
 import { today } from '../../lib/clock';
+import { decryptNotes } from './notes';
 
 export interface RefMaps {
   categories: Map<string, CategoryRow>;
   accounts: Map<string, AccountRow>;
   cards: Map<string, CreditCardRow>;
   contacts: Map<string, { id: string; name: string }>;
+  /** Decrypted notes by transaction id. */
+  notes: Map<string, string | null>;
 }
 
 function collect(rows: TransactionRow[], pick: (r: TransactionRow) => (string | null)[]): string[] {
@@ -32,20 +35,21 @@ function collect(rows: TransactionRow[], pick: (r: TransactionRow) => (string | 
   return [...set];
 }
 
-/** Loads only the referenced entities (rows already belong to the user). */
+/** Loads only the referenced entities (rows already belong to the workspace). */
 export async function loadRefMaps(db: DbExecutor, rows: TransactionRow[]): Promise<RefMaps> {
   const categoryIds = collect(rows, (r) => [r.categoryId, r.subcategoryId]);
   const accountIds = collect(rows, (r) => [r.accountId, r.toAccountId]);
   const cardIds = collect(rows, (r) => [r.creditCardId]);
   const contactIds = collect(rows, (r) => [r.contactId]);
 
-  const [cats, accs, cards, conts] = await Promise.all([
+  const [cats, accs, cards, conts, notes] = await Promise.all([
     categoryIds.length ? db.select().from(categories).where(inArray(categories.id, categoryIds)) : [],
     accountIds.length ? db.select().from(accounts).where(inArray(accounts.id, accountIds)) : [],
     cardIds.length ? db.select().from(creditCards).where(inArray(creditCards.id, cardIds)) : [],
     contactIds.length
       ? db.select({ id: contacts.id, name: contacts.name }).from(contacts).where(inArray(contacts.id, contactIds))
       : [],
+    Promise.all(rows.map(async (r) => [r.id, await decryptNotes(r.workspaceId, r.notes)] as const)),
   ]);
 
   return {
@@ -53,6 +57,7 @@ export async function loadRefMaps(db: DbExecutor, rows: TransactionRow[]): Promi
     accounts: new Map(accs.map((a) => [a.id, a])),
     cards: new Map(cards.map((c) => [c.id, c])),
     contacts: new Map(conts.map((c) => [c.id, c])),
+    notes: new Map(notes),
   };
 }
 
@@ -103,7 +108,7 @@ export function toTransaction(row: TransactionRow, refs: RefMaps, now: string = 
     subcategoryId: row.subcategoryId,
     contactId: row.contactId,
     paymentMethod: row.paymentMethod,
-    notes: row.notes,
+    notes: refs.notes.get(row.id) ?? null,
     transferKind: row.transferKind,
     recurrenceId: row.recurrenceId,
     recurrenceKind: row.recurrenceKind,

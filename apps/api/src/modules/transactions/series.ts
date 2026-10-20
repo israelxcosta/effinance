@@ -39,7 +39,7 @@ export function invoiceMonthFor(card: CreditCardRow | null | undefined, date: IS
 }
 
 export function occurrenceRow(
-  userId: string,
+  workspaceId: string,
   series: Pick<RecurrenceRow, 'id' | 'kind' | 'frequency'>,
   template: RecurrenceTemplate,
   index: number,
@@ -47,7 +47,7 @@ export function occurrenceRow(
   card: CreditCardRow | null,
 ): NewTransactionRow {
   return {
-    userId,
+    workspaceId,
     type: template.type,
     description: template.description,
     amount: template.amount,
@@ -90,7 +90,7 @@ export async function materializeSeries(
   let date: ISODate = occurrenceDate(series.startDate, series.frequency as Frequency, index);
   const max = series.totalOccurrences ?? Number.POSITIVE_INFINITY;
   while (index < max && date <= until && rows.length < 1000) {
-    rows.push(occurrenceRow(series.userId, series, series.template, index, date, resolvedCard));
+    rows.push(occurrenceRow(series.workspaceId, series, series.template, index, date, resolvedCard));
     index += 1;
     date = occurrenceDate(series.startDate, series.frequency as Frequency, index);
   }
@@ -105,15 +105,15 @@ export async function materializeSeries(
 }
 
 /**
- * Makes sure every open-ended series of the user has rows up to the horizon derived from `until`.
+ * Makes sure every open-ended series of the workspace has rows up to the horizon derived from `until`.
  * Cheap when nothing is pending (single indexed query).
  */
-export async function ensureMaterialized(db: DbExecutor, userId: string, until?: ISODate): Promise<void> {
+export async function ensureMaterialized(db: DbExecutor, workspaceId: string, until?: ISODate): Promise<void> {
   const limit = materializationHorizon(until);
   const pending = await db
     .select()
     .from(recurrences)
-    .where(and(eq(recurrences.userId, userId), isNotNull(recurrences.nextDate), lte(recurrences.nextDate, limit)));
+    .where(and(eq(recurrences.workspaceId, workspaceId), isNotNull(recurrences.nextDate), lte(recurrences.nextDate, limit)));
   if (pending.length === 0) return;
 
   const cardIds = [...new Set(pending.map((s) => s.template.creditCardId).filter((v): v is string => !!v))];

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { LogOut, Moon, Settings, Sun, UserRound } from 'lucide-react';
+import { WORKSPACE_KIND_LABELS } from '@effinance/shared';
 import { cn, initials } from '@/lib/utils';
 import { useTheme } from '@/lib/theme';
 import { useAuth } from '@/features/auth/auth-context';
@@ -12,12 +14,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { WorkspaceMenuItems, WorkspaceSheet } from '@/features/workspaces/workspace-switcher';
+import { WORKSPACE_KIND_ICONS } from '@/features/workspaces/kind-icon';
 import { NAV_ITEMS, SETTINGS_ITEM } from './nav';
 
 export function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, workspace, logout } = useAuth();
   const { resolved, toggle } = useTheme();
   const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
+  const KindIcon = workspace ? WORKSPACE_KIND_ICONS[workspace.kind] : null;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[76px] flex-col items-center border-r border-border bg-bg-subtle py-5 lg:flex">
@@ -35,18 +41,31 @@ export function Sidebar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex size-10 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-soft-fg ring-2 ring-surface transition-transform hover:scale-105"
-              aria-label="Menu do usuário"
+              className="relative flex size-10 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-soft-fg ring-2 ring-surface transition-transform hover:scale-105"
+              aria-label={`Menu do usuário — espaço ${workspace?.name ?? ''}`}
             >
               {initials(user?.name)}
+              {/* Shared workspaces get a small badge so the active one is visible at a glance. */}
+              {KindIcon && workspace?.kind !== 'personal' ? (
+                <span className="absolute -right-1 -bottom-1 flex size-[18px] items-center justify-center rounded-full bg-primary text-primary-fg ring-2 ring-bg-subtle">
+                  <KindIcon className="size-2.5" aria-hidden />
+                </span>
+              ) : null}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" sideOffset={12}>
+          <DropdownMenuContent side="right" align="end" sideOffset={12} className="w-72">
             <DropdownMenuLabel>Conta</DropdownMenuLabel>
             <div className="px-2.5 pb-2">
-              <p className="text-sm font-semibold">{user?.name}</p>
-              <p className="text-xs text-muted">{user?.email}</p>
+              <p className="truncate text-sm font-semibold">{user?.name}</p>
+              <p className="truncate text-xs text-muted">{user?.email}</p>
+              {workspace ? (
+                <p className="mt-1.5 truncate text-xs text-muted">
+                  Espaço atual: <span className="font-semibold text-fg">{workspace.name}</span> · {WORKSPACE_KIND_LABELS[workspace.kind]}
+                </p>
+              ) : null}
             </div>
+            <DropdownMenuSeparator />
+            <WorkspaceMenuItems onCreate={() => setCreating(true)} />
             <DropdownMenuSeparator />
             <DropdownMenuItem icon={<UserRound />} onSelect={() => navigate('/configuracoes')}>
               Perfil
@@ -71,6 +90,7 @@ export function Sidebar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <WorkspaceSheet open={creating} onOpenChange={setCreating} />
     </aside>
   );
 }

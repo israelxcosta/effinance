@@ -12,8 +12,9 @@ import { MoneyInput } from '@/components/ui/money-input';
 import { Switch } from '@/components/ui/switch';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { BankPicker } from '@/components/ui/bank-picker';
-import { errorMessage } from '@/lib/api';
 import { useSaveAccount } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 type FormIn = z.input<typeof accountInputSchema>;
 type FormOut = z.output<typeof accountInputSchema>;
@@ -48,7 +49,7 @@ export function AccountSheet({ open, onOpenChange, account }: { open: boolean; o
       toast.success(account ? 'Conta atualizada' : 'Conta criada');
       onOpenChange(false);
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   });
 
@@ -64,9 +65,11 @@ export function AccountSheet({ open, onOpenChange, account }: { open: boolean; o
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">
-            Salvar
-          </Button>
+          <WriteGate>
+            <Button onClick={onSubmit} loading={save.isPending} className="min-w-[110px]">
+              Salvar
+            </Button>
+          </WriteGate>
         </>
       }
     >

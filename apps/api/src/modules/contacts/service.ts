@@ -7,46 +7,80 @@ import {
   type contactQuerySchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { contacts, type ContactRow } from '../../db/schema';
+import { getCipher } from '../../lib/crypto/keyring';
+import type { FieldCipher } from '../../lib/crypto/field-cipher';
 import { countAll, likePattern } from '../../lib/sql';
 import { getContactOrThrow } from '../common/ownership';
 
 type ContactInput = z.output<typeof contactInputSchema>;
 type ContactQuery = z.output<typeof contactQuerySchema>;
 
-export function toContact(row: ContactRow): Contact {
+/** Personal data stored encrypted with the workspace key. Name, city and state stay searchable. */
+export const CONTACT_ENCRYPTED_FIELDS = [
+  'document',
+  'email',
+  'phone',
+  'zipCode',
+  'street',
+  'number',
+  'complement',
+  'district',
+  'notes',
+] as const satisfies readonly (keyof ContactRow & keyof ContactInput)[];
+
+const TABLE = 'contacts';
+
+/** Blind index of a CPF/CNPJ (digits only) for exact search. */
+export function documentIndex(cipher: FieldCipher, digits: string): Promise<string> {
+  return cipher.blindIndex(`document:${digits}`);
+}
+
+export async function toContact(cipher: FieldCipher, row: ContactRow): Promise<Contact> {
+  const plain = await cipher.decryptFields(TABLE, row, CONTACT_ENCRYPTED_FIELDS);
   return {
-    id: row.id,
-    name: row.name,
-    document: row.document,
-    email: row.email,
-    phone: row.phone,
-    zipCode: row.zipCode,
-    street: row.street,
-    number: row.number,
-    complement: row.complement,
-    district: row.district,
-    city: row.city,
-    state: row.state,
-    notes: row.notes,
-    createdAt: row.createdAt.toISOString(),
+    id: plain.id,
+    name: plain.name,
+    document: plain.document,
+    email: plain.email,
+    phone: plain.phone,
+    zipCode: plain.zipCode,
+    street: plain.street,
+    number: plain.number,
+    complement: plain.complement,
+    district: plain.district,
+    city: plain.city,
+    state: plain.state,
+    notes: plain.notes,
+    createdAt: plain.createdAt.toISOString(),
   };
 }
 
-export async function listContacts(db: Database, userId: string, q: ContactQuery): Promise<Paginated<Contact>> {
+/** Encrypted columns (+ document blind index) for an insert/update. */
+export async function encryptContactInput(cipher: FieldCipher, input: ContactInput) {
+  const encrypted = await cipher.encryptFields(TABLE, input, CONTACT_ENCRYPTED_FIELDS);
+  const digits = input.document ? onlyDigits(input.document) : '';
+  return { ...encrypted, documentHash: digits ? await documentIndex(cipher, digits) : null };
+}
+
+/**
+ * Search: name (partial) or CPF/CNPJ (exact, through the blind index). Encrypted fields such as
+ * e-mail and phone are not searchable.
+ */
+export async function listContacts(db: DbExecutor, workspaceId: string, q: ContactQuery): Promise<Paginated<Contact>> {
+  const cipher = await getCipher(workspaceId);
   let search;
   if (q.search) {
-    const pattern = likePattern(q.search);
     const digits = onlyDigits(q.search);
     search = or(
-      ilike(contacts.name, pattern),
-      ilike(contacts.email, pattern),
-      digits ? ilike(contacts.document, likePattern(digits)) : undefined,
-      digits ? ilike(contacts.phone, likePattern(digits)) : undefined,
+      ilike(contacts.name, likePattern(q.search)),
+      digits.length === 11 || digits.length === 14
+        ? eq(contacts.documentHash, await documentIndex(cipher, digits))
+        : undefined,
     );
   }
-  const where = and(eq(contacts.userId, userId), search);
+  const where = and(eq(contacts.workspaceId, workspaceId), search);
   const [rows, [count]] = await Promise.all([
     db
       .select()
@@ -57,26 +91,40 @@ export async function listContacts(db: Database, userId: string, q: ContactQuery
       .offset((q.page - 1) * q.pageSize),
     db.select({ total: countAll() }).from(contacts).where(where),
   ]);
-  return { items: rows.map(toContact), total: count?.total ?? 0, page: q.page, pageSize: q.pageSize };
+  return {
+    items: await Promise.all(rows.map((r) => toContact(cipher, r))),
+    total: count?.total ?? 0,
+    page: q.page,
+    pageSize: q.pageSize,
+  };
 }
 
-export async function getContact(db: Database, userId: string, id: string) {
-  return toContact(await getContactOrThrow(db, userId, id));
+export async function getContact(db: DbExecutor, workspaceId: string, id: string) {
+  return toContact(await getCipher(workspaceId), await getContactOrThrow(db, workspaceId, id));
 }
 
-export async function createContact(db: Database, userId: string, input: ContactInput) {
-  const [row] = await db.insert(contacts).values({ userId, ...input }).returning();
-  return toContact(row!);
+export async function createContact(db: DbExecutor, workspaceId: string, input: ContactInput) {
+  const cipher = await getCipher(workspaceId);
+  const [row] = await db
+    .insert(contacts)
+    .values({ workspaceId, ...(await encryptContactInput(cipher, input)) })
+    .returning();
+  return toContact(cipher, row!);
 }
 
-export async function updateContact(db: Database, userId: string, id: string, input: ContactInput) {
-  await getContactOrThrow(db, userId, id);
-  const [row] = await db.update(contacts).set(input).where(eq(contacts.id, id)).returning();
-  return toContact(row!);
+export async function updateContact(db: DbExecutor, workspaceId: string, id: string, input: ContactInput) {
+  await getContactOrThrow(db, workspaceId, id);
+  const cipher = await getCipher(workspaceId);
+  const [row] = await db
+    .update(contacts)
+    .set(await encryptContactInput(cipher, input))
+    .where(eq(contacts.id, id))
+    .returning();
+  return toContact(cipher, row!);
 }
 
 /** Transactions keep existing without the contact (FK is ON DELETE SET NULL). */
-export async function deleteContact(db: Database, userId: string, id: string) {
-  await getContactOrThrow(db, userId, id);
+export async function deleteContact(db: DbExecutor, workspaceId: string, id: string) {
+  await getContactOrThrow(db, workspaceId, id);
   await db.delete(contacts).where(eq(contacts.id, id));
 }

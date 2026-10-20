@@ -8,8 +8,9 @@ import { Field, Input } from '@/components/ui/input';
 import { MoneyInput } from '@/components/ui/money-input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
-import { errorMessage } from '@/lib/api';
 import { useAddContribution, useDeleteContribution, useGoalContributions } from './api';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
@@ -41,7 +42,7 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
       setAmount(0);
       setNote('');
     } catch (error) {
-      toast.error(errorMessage(error));
+      toastError(error);
     }
   }
 
@@ -74,7 +75,9 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
             <Input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
           </Field>
         </div>
-        <Button onClick={submit} loading={add.isPending}>{mode === 'deposit' ? 'Guardar dinheiro' : 'Registrar retirada'}</Button>
+        <WriteGate>
+          <Button onClick={submit} loading={add.isPending}>{mode === 'deposit' ? 'Guardar dinheiro' : 'Registrar retirada'}</Button>
+        </WriteGate>
 
         <div className="border-t border-border pt-4">
           <p className="eyebrow mb-2 text-muted">Histórico</p>
@@ -102,7 +105,7 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
                       try {
                         await del.mutateAsync({ goalId: c.goalId, contributionId: c.id });
                       } catch (error) {
-                        toast.error(errorMessage(error));
+                        toastError(error);
                       }
                     }}
                   >

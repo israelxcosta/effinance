@@ -6,7 +6,7 @@ import {
   type statementQuerySchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { accounts, transactions, type AccountRow, type TransactionRow } from '../../db/schema';
 import { getAccountWithBalance } from '../accounts/service';
 import { accountMovements } from '../accounts/balances';
@@ -18,13 +18,13 @@ import { today } from '../../lib/clock';
 type StatementQuery = z.output<typeof statementQuerySchema>;
 
 /** Accounts that make up "saldo em contas": not investment, included in total, not archived. */
-export async function cashAccounts(db: DbExecutor, userId: string): Promise<AccountRow[]> {
+export async function cashAccounts(db: DbExecutor, workspaceId: string): Promise<AccountRow[]> {
   return db
     .select()
     .from(accounts)
     .where(
       and(
-        eq(accounts.userId, userId),
+        eq(accounts.workspaceId, workspaceId),
         ne(accounts.type, 'investment'),
         eq(accounts.includeInTotal, true),
         eq(accounts.archived, false),
@@ -41,19 +41,19 @@ export function effectOn(row: TransactionRow, ids: Set<string>): number {
 }
 
 /** Paid balance of a set of accounts at the end of `date` (initial balances included). */
-export async function balanceAt(db: DbExecutor, userId: string, set: AccountRow[], date: string) {
-  const sums = await accountMovements(db, userId, date);
+export async function balanceAt(db: DbExecutor, workspaceId: string, set: AccountRow[], date: string) {
+  const sums = await accountMovements(db, workspaceId, date);
   return set.reduce((acc, a) => acc + a.initialBalance + (sums.get(a.id)?.realized ?? 0), 0);
 }
 
-export async function getStatement(db: Database, userId: string, q: StatementQuery): Promise<StatementResponse> {
-  await ensureMaterialized(db, userId, q.to);
+export async function getStatement(db: DbExecutor, workspaceId: string, q: StatementQuery): Promise<StatementResponse> {
+  await ensureMaterialized(db, workspaceId, q.to);
 
-  const set = q.accountId ? [await getAccountOrThrow(db, userId, q.accountId)] : await cashAccounts(db, userId);
+  const set = q.accountId ? [await getAccountOrThrow(db, workspaceId, q.accountId)] : await cashAccounts(db, workspaceId);
   const ids = new Set(set.map((a) => a.id));
-  const account = q.accountId ? await getAccountWithBalance(db, userId, q.accountId) : null;
+  const account = q.accountId ? await getAccountWithBalance(db, workspaceId, q.accountId) : null;
 
-  const openingBalance = set.length ? await balanceAt(db, userId, set, addDays(q.from, -1)) : 0;
+  const openingBalance = set.length ? await balanceAt(db, workspaceId, set, addDays(q.from, -1)) : 0;
 
   const rows =
     set.length === 0
@@ -63,7 +63,7 @@ export async function getStatement(db: Database, userId: string, q: StatementQue
           .from(transactions)
           .where(
             and(
-              eq(transactions.userId, userId),
+              eq(transactions.workspaceId, workspaceId),
               or(inArray(transactions.accountId, [...ids]), inArray(transactions.toAccountId, [...ids])),
               or(
                 sql`${transactions.paid} and coalesce(${transactions.paidAt}, ${transactions.date}) between ${q.from} and ${q.to}`,

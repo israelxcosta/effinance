@@ -47,6 +47,7 @@ import { HealthCard } from '../components/health-card';
 import { InsightCard } from '../components/insight-card';
 import { InsightsTab } from '../components/insights-tab';
 import { categoryListHref } from '@/features/transactions/links';
+import { WriteGate } from '@/features/auth/permissions';
 
 type Tab = 'dashboard' | 'insights';
 
@@ -209,7 +210,7 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
                   icon={<ChartPie />}
                   title="Nenhuma despesa neste período"
                   description="Registre uma despesa ou selecione outro período para visualizar a distribuição por categoria."
-                  action={<Button variant="outline" size="sm" onClick={() => actions.openTransaction({ type: 'expense' })}>Adicionar despesa</Button>}
+                  action={<WriteGate><Button variant="outline" size="sm" onClick={() => actions.openTransaction({ type: 'expense' })}>Adicionar despesa</Button></WriteGate>}
                 />
               )}
             </div>
@@ -481,9 +482,11 @@ function FixedList({ title, type, items, loading }: { title: string; type: 'inco
             title={type === 'expense' ? 'Nenhum gasto fixo cadastrado' : 'Nenhuma receita fixa cadastrada'}
             description={type === 'expense' ? 'Cadastre aluguel, assinaturas e contas mensais para prever o mês com precisão.' : 'Cadastre salário, aluguéis recebidos e outras entradas recorrentes.'}
             action={
-              <Button variant="outline" size="sm" onClick={() => actions.openTransaction({ type })}>
-                <Plus /> {type === 'expense' ? 'Adicionar gasto fixo' : 'Adicionar receita fixa'}
-              </Button>
+              <WriteGate>
+                <Button variant="outline" size="sm" onClick={() => actions.openTransaction({ type })}>
+                  <Plus /> {type === 'expense' ? 'Adicionar gasto fixo' : 'Adicionar receita fixa'}
+                </Button>
+              </WriteGate>
             }
           />
         )}

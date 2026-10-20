@@ -26,6 +26,7 @@ import { CardVisual } from '../card-visual';
 import { CardSheet } from '../card-sheet';
 import { PayInvoiceDialog } from '../pay-invoice-dialog';
 import { INVOICE_TONE } from './cards';
+import { WriteGate } from '@/features/auth/permissions';
 
 export default function CardDetailPage() {
   const { id = '' } = useParams();
@@ -72,10 +73,14 @@ export default function CardDetailPage() {
           <Link to="/cartoes"><ArrowLeft /> Cartões</Link>
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setEditing(true)}><Pencil /> Editar</Button>
-          <Button onClick={() => actions.openTransaction({ type: 'expense', defaults: { source: `card:${card.id}` } })}>
-            <Plus /> Nova compra
-          </Button>
+          <WriteGate>
+            <Button variant="outline" onClick={() => setEditing(true)}><Pencil /> Editar</Button>
+          </WriteGate>
+          <WriteGate>
+            <Button onClick={() => actions.openTransaction({ type: 'expense', defaults: { source: `card:${card.id}` } })}>
+              <Plus /> Nova compra
+            </Button>
+          </WriteGate>
         </div>
       </div>
 
@@ -138,7 +143,7 @@ export default function CardDetailPage() {
           {inv ? (
             <div className="flex items-center gap-3">
               <Badge tone={INVOICE_TONE[inv.status]} size="md">{INVOICE_STATUS_LABELS[inv.status]}</Badge>
-              {inv.unpaidTotal > 0 ? <Button onClick={() => setPaying(inv)}>Pagar {formatBRL(inv.unpaidTotal)}</Button> : null}
+              {inv.unpaidTotal > 0 ? <WriteGate><Button onClick={() => setPaying(inv)}>Pagar {formatBRL(inv.unpaidTotal)}</Button></WriteGate> : null}
             </div>
           ) : null}
         </div>

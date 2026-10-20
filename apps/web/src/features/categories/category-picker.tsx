@@ -7,6 +7,7 @@ import { inputClasses } from '@/components/ui/input';
 import { CategoryIcon } from '@/components/ui/category-icon';
 import { useCategories } from './api';
 import { CategorySheet, type CategorySheetState } from './category-sheet';
+import { usePermissions } from '@/features/auth/permissions';
 
 export interface CategoryValue {
   categoryId: string;
@@ -68,6 +69,7 @@ export function CategoryPicker({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [sheet, setSheet] = useState<CategorySheetState>({ open: false, type });
+  const { canWrite } = usePermissions();
   const listRef = useRef<HTMLDivElement>(null);
   const categories = useCategories({ type });
 
@@ -217,16 +219,18 @@ export function CategoryPicker({
                 ))
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                setSheet({ open: true, type, category: null, parent: null });
-              }}
-              className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm font-semibold text-brand-text transition-colors hover:bg-bg-subtle"
-            >
-              <Plus className="size-4" /> Nova categoria
-            </button>
+            {canWrite ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setSheet({ open: true, type, category: null, parent: null });
+                }}
+                className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm font-semibold text-brand-text transition-colors hover:bg-bg-subtle"
+              >
+                <Plus className="size-4" /> Nova categoria
+              </button>
+            ) : null}
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

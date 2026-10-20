@@ -105,6 +105,9 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
   const actions = useTransactionActions();
   const signed = amount ?? (tx.type === 'expense' ? -tx.amount : tx.amount);
   const isCardPurchase = Boolean(tx.creditCardId) && tx.type !== 'transfer';
+  // Read-only workspaces (viewer / inactive subscription): the row is informational only.
+  const readOnly = Boolean(actions.readOnlyReason);
+  const Main = readOnly ? 'div' : 'button';
   return (
     <div className="@container">
     <div
@@ -123,13 +126,18 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
             paid={tx.paid}
             kind={tx.type}
             loading={actions.savingPaidId === tx.id}
+            disabled={Boolean(actions.readOnlyReason)}
+            disabledReason={actions.readOnlyReason ?? undefined}
             onToggle={(paid) => actions.togglePaid(tx, paid)}
           />
         )
       ) : (
         <PaidToggle paid={tx.paid} kind="transfer" disabled disabledReason={tx.paid ? 'Efetivada' : 'Agendada'} onToggle={() => undefined} />
       )}
-      <button type="button" onClick={() => actions.edit(tx)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+      <Main
+        {...(readOnly ? {} : { type: 'button' as const, onClick: () => actions.edit(tx) })}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+      >
         <TxIcon tx={tx} />
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
@@ -153,7 +161,7 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
             ) : null}
           </span>
         </span>
-      </button>
+      </Main>
       <div className="hidden w-44 min-w-0 @3xl:block">
         <SourceLabel tx={tx} />
       </div>
@@ -176,6 +184,8 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
 export function RowMenu({ tx }: { tx: Transaction }) {
   const actions = useTransactionActions();
   const isCardPurchase = Boolean(tx.creditCardId) && tx.type !== 'transfer';
+  // Every item changes data; keep the column width so rows stay aligned.
+  if (actions.readOnlyReason) return <span className="size-8 shrink-0" aria-hidden />;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

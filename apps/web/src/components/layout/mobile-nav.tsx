@@ -3,6 +3,8 @@ import { NavLink, useNavigate } from 'react-router';
 import { ArrowLeftRight, Bell, LogOut, Menu, Minus, Plus, Search, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
+import { WriteGate } from '@/features/auth/permissions';
+import { WorkspaceList, WorkspaceSheet } from '@/features/workspaces/workspace-switcher';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { Sheet } from '@/components/ui/sheet';
 import {
@@ -20,6 +22,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   // Counts what the link opens: overdue payables.
   const overdue = useOverdueBills().data?.filter((t) => t.type === 'expense').length ?? 0;
   const items = NAV_ITEMS.filter((i) => i.mobile);
@@ -39,15 +42,17 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
           </NavLink>
         ))}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Nova transação"
-              className="mx-2 -mt-6 flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-lg ring-4 ring-bg"
-            >
-              <Plus className="size-6" />
-            </button>
-          </DropdownMenuTrigger>
+          <WriteGate>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Nova transação"
+                className="mx-2 -mt-6 flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-lg ring-4 ring-bg disabled:opacity-50"
+              >
+                <Plus className="size-6" />
+              </button>
+            </DropdownMenuTrigger>
+          </WriteGate>
           <DropdownMenuContent align="center" side="top" sideOffset={10}>
             <DropdownMenuItem icon={<Plus className="text-success" />} onSelect={() => actions.openTransaction({ type: 'income' })}>
               Receita
@@ -77,6 +82,15 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
       </nav>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen} title="Menu" description="Todas as seções do Effinance">
         <div className="flex flex-col gap-1">
+          <p className="eyebrow px-3 pb-1 text-subtle">Espaço</p>
+          <WorkspaceList
+            onSwitched={() => setMenuOpen(false)}
+            onCreate={() => {
+              setMenuOpen(false);
+              setCreating(true);
+            }}
+          />
+          <span className="my-1 h-px bg-border" aria-hidden />
           {/* Search and alerts: on desktop they live in the floating quick-action bar. */}
           <button
             type="button"
@@ -127,6 +141,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
           </button>
         </div>
       </Sheet>
+      <WorkspaceSheet open={creating} onOpenChange={setCreating} />
     </>
   );
 }

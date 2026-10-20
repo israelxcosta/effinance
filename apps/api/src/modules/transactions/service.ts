@@ -13,7 +13,7 @@ import {
   type transactionUpdateSchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
-import type { Database, DbExecutor } from '../../db/client';
+import type { DbExecutor } from '../../db/client';
 import { creditCards, recurrences, transactions, type NewTransactionRow, type RecurrenceTemplate } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { ValidationError } from '../../lib/errors';
@@ -24,6 +24,7 @@ import {
   validateTransactionRefs,
 } from '../common/ownership';
 import { toTransactions } from './mapper';
+import { encryptNotes } from './notes';
 import {
   ensureMaterialized,
   invoiceMonthFor,
@@ -65,9 +66,9 @@ export function overdueCondition(now: string): SQL {
   ))`;
 }
 
-function buildFilters(userId: string, q: TransactionQuery): SQL[] {
+function buildFilters(workspaceId: string, q: TransactionQuery): SQL[] {
   const now = today();
-  const where: SQL[] = [eq(transactions.userId, userId)];
+  const where: SQL[] = [eq(transactions.workspaceId, workspaceId)];
   if (q.type) where.push(eq(transactions.type, q.type));
   if (q.from) where.push(gte(transactions.date, q.from));
   if (q.to) where.push(lte(transactions.date, q.to));
@@ -85,18 +86,19 @@ function buildFilters(userId: string, q: TransactionQuery): SQL[] {
   if (q.recurrenceKind) where.push(eq(transactions.recurrenceKind, q.recurrenceKind));
   if (q.search) {
     const pattern = likePattern(q.search);
-    where.push(or(ilike(transactions.description, pattern), ilike(transactions.notes, pattern))!);
+    // Notes are encrypted, so only the description is searchable.
+    where.push(ilike(transactions.description, pattern));
   }
   return where;
 }
 
 export async function listTransactions(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   q: TransactionQuery,
 ): Promise<TransactionListResponse> {
-  await ensureMaterialized(db, userId, q.to);
-  const where = and(...buildFilters(userId, q));
+  await ensureMaterialized(db, workspaceId, q.to);
+  const where = and(...buildFilters(workspaceId, q));
   const now = today();
 
   const order =
@@ -149,8 +151,8 @@ export async function listTransactions(
   };
 }
 
-export async function getTransaction(db: Database, userId: string, id: string): Promise<Transaction> {
-  const row = await getTransactionOrThrow(db, userId, id);
+export async function getTransaction(db: DbExecutor, workspaceId: string, id: string): Promise<Transaction> {
+  const row = await getTransactionOrThrow(db, workspaceId, id);
   const [dto] = await toTransactions(db, [row]);
   return dto!;
 }
@@ -160,8 +162,8 @@ export async function getTransaction(db: Database, userId: string, id: string): 
 // ---------------------------------------------------------------------------
 
 export async function createTransaction(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   input: TransactionInputParsed,
 ): Promise<Transaction[]> {
   // A category split becomes one linked transaction (or series) per part.
@@ -169,13 +171,14 @@ export async function createTransaction(
     { categoryId: input.categoryId, subcategoryId: input.subcategoryId, amount: input.amount },
   ];
   let card: Awaited<ReturnType<typeof validateTransactionRefs>>['card'] = null;
-  for (const part of parts) ({ card } = await validateTransactionRefs(db, userId, { ...input, ...part }));
+  for (const part of parts) ({ card } = await validateTransactionRefs(db, workspaceId, { ...input, ...part }));
   const splitGroupId = input.splits ? globalThis.crypto.randomUUID() : null;
+  input = { ...input, notes: await encryptNotes(workspaceId, input.notes) };
 
   const ids = await db.transaction(async (tx) => {
     const created: string[] = [];
     for (const part of parts) {
-      created.push(...(await insertTransaction(tx, userId, { ...input, ...part }, card, splitGroupId)));
+      created.push(...(await insertTransaction(tx, workspaceId, { ...input, ...part }, card, splitGroupId)));
     }
     return created;
   });
@@ -191,7 +194,7 @@ export async function createTransaction(
 /** Inserts a single transaction or a whole series (installments, recurring, fixed). Returns ids. */
 async function insertTransaction(
   tx: DbExecutor,
-  userId: string,
+  workspaceId: string,
   input: TransactionInputParsed,
   card: Awaited<ReturnType<typeof validateTransactionRefs>>['card'],
   splitGroupId: string | null,
@@ -218,7 +221,7 @@ async function insertTransaction(
     const [row] = await tx
       .insert(transactions)
       .values({
-        userId,
+        workspaceId,
         ...template,
         date: input.date,
         invoiceMonth: invoiceMonthFor(card, input.date),
@@ -247,7 +250,7 @@ async function insertTransaction(
     const [series] = await tx
       .insert(recurrences)
       .values({
-        userId,
+        workspaceId,
         kind: input.recurrenceKind,
         frequency,
         startDate: input.date,
@@ -259,7 +262,7 @@ async function insertTransaction(
       .returning();
     const dates = buildOccurrenceDates(input.date, frequency, count);
     const rows: NewTransactionRow[] = dates.map((date, i) => ({
-      ...occurrenceRow(userId, series!, template, i, date, card),
+      ...occurrenceRow(workspaceId, series!, template, i, date, card),
       amount: amounts[i]!,
       ...(input.recurrenceKind === 'installment' ? { installmentNumber: i + 1, installmentTotal: count } : {}),
       ...(i === 0 ? paidFields(date) : {}),
@@ -272,7 +275,7 @@ async function insertTransaction(
   const [series] = await tx
     .insert(recurrences)
     .values({
-      userId,
+      workspaceId,
       kind: input.recurrenceKind,
       frequency,
       startDate: input.date,
@@ -321,13 +324,13 @@ function pickSeriesPatch(input: TransactionUpdate): SeriesPatch {
 }
 
 export async function updateTransaction(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: TransactionUpdate,
   scope: SeriesScope,
 ): Promise<Transaction> {
-  const row = await getTransactionOrThrow(db, userId, id);
+  const row = await getTransactionOrThrow(db, workspaceId, id);
   if (row.type === 'transfer') {
     throw new ValidationError('Use a tela de transferências para editar este lançamento');
   }
@@ -344,7 +347,9 @@ export async function updateTransaction(
   if (input.categoryId !== undefined && input.subcategoryId === undefined && input.categoryId !== row.categoryId) {
     merged.subcategoryId = null;
   }
-  const { card } = await validateTransactionRefs(db, userId, merged);
+  const { card } = await validateTransactionRefs(db, workspaceId, merged);
+  // Encrypted once: the same ciphertext goes to this row, the series template and other occurrences.
+  input = { ...input, notes: await encryptNotes(workspaceId, input.notes) };
 
   const date = input.date ?? row.date;
   const paid = input.paid ?? row.paid;
@@ -397,16 +402,16 @@ export async function updateTransaction(
     }
   });
 
-  return getTransaction(db, userId, id);
+  return getTransaction(db, workspaceId, id);
 }
 
 export async function setPaid(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: SetPaidInput,
 ): Promise<Transaction> {
-  const row = await getTransactionOrThrow(db, userId, id);
+  const row = await getTransactionOrThrow(db, workspaceId, id);
   if (row.transferKind === 'card_payment') {
     throw new ValidationError('Pagamentos de fatura são gerenciados pela fatura do cartão');
   }
@@ -418,22 +423,22 @@ export async function setPaid(
     if (row.creditCardId) {
       throw new ValidationError('Compras no cartão são quitadas pelo pagamento da fatura');
     }
-    await getAccountOrThrow(db, userId, input.accountId);
+    await getAccountOrThrow(db, workspaceId, input.accountId);
     if (row.type !== 'transfer') patch.accountId = input.accountId;
   }
 
   await db.update(transactions).set(patch).where(eq(transactions.id, row.id));
-  return getTransaction(db, userId, id);
+  return getTransaction(db, workspaceId, id);
 }
 
 export async function deleteTransaction(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   scope: SeriesScope,
 ): Promise<void> {
-  const row = await getTransactionOrThrow(db, userId, id);
-  if (row.type === 'transfer') return deleteTransfer(db, userId, id);
+  const row = await getTransactionOrThrow(db, workspaceId, id);
+  if (row.type === 'transfer') return deleteTransfer(db, workspaceId, id);
 
   await db.transaction(async (tx) => {
     if (scope === 'one' || !row.recurrenceId) {
@@ -472,12 +477,12 @@ export async function deleteTransaction(
  * purchases made on that date, i.e. charged in the current open invoice.
  */
 export async function anticipateInstallments(
-  db: Database,
-  userId: string,
+  db: DbExecutor,
+  workspaceId: string,
   id: string,
   input: AnticipateInstallmentsInput,
 ): Promise<Transaction[]> {
-  const row = await getTransactionOrThrow(db, userId, id);
+  const row = await getTransactionOrThrow(db, workspaceId, id);
   if (row.recurrenceKind !== 'installment' || !row.recurrenceId || row.installmentNumber === null) {
     throw new ValidationError('Só é possível antecipar parcelas de uma compra parcelada');
   }
@@ -487,7 +492,7 @@ export async function anticipateInstallments(
     [card] = await db
       .select()
       .from(creditCards)
-      .where(and(eq(creditCards.id, row.creditCardId), eq(creditCards.userId, userId)));
+      .where(and(eq(creditCards.id, row.creditCardId), eq(creditCards.workspaceId, workspaceId)));
   }
 
   const pending = await db
@@ -495,7 +500,7 @@ export async function anticipateInstallments(
     .from(transactions)
     .where(
       and(
-        eq(transactions.userId, userId),
+        eq(transactions.workspaceId, workspaceId),
         eq(transactions.recurrenceId, row.recurrenceId),
         eq(transactions.paid, false),
         gt(transactions.installmentNumber, row.installmentNumber),

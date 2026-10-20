@@ -29,7 +29,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ApiRequestError, errorMessage } from '@/lib/api';
+import { ApiRequestError } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useCards } from '@/features/cards/api';
 import { CategoryPicker } from '@/features/categories/category-picker';
@@ -37,6 +37,8 @@ import { useContactOptions } from '@/features/contacts/api';
 import { useCreateTransaction, useUpdateTransaction } from './api';
 import { ScopeDialog } from './scope-dialog';
 import { SplitEditor, evenSplit, newSplitRow, validateSplits, type SplitRow, type SplitRowErrors } from './components/split-editor';
+import { toastError } from '@/lib/notify';
+import { WriteGate } from '@/features/auth/permissions';
 
 export type TxKind = 'income' | 'expense';
 
@@ -259,7 +261,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
         setError(field, { message });
       }
     }
-    toast.error(errorMessage(error));
+    toastError(error);
   }
 
   async function runUpdate(input: TransactionUpdateInput, scope: SeriesScope) {
@@ -333,9 +335,11 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button onClick={onSubmit} loading={busy} className="min-w-[110px]">
-              Salvar
-            </Button>
+            <WriteGate>
+              <Button onClick={onSubmit} loading={busy} className="min-w-[110px]">
+                Salvar
+              </Button>
+            </WriteGate>
           </>
         }
       >

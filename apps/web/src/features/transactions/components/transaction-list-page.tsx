@@ -19,6 +19,7 @@ import { useContactOptions } from '@/features/contacts/api';
 import { useTransactions } from '../api';
 import { useTransactionActions } from '../transaction-actions';
 import { TransactionRow } from './transaction-row';
+import { WriteGate } from '@/features/auth/permissions';
 
 const PAGE_SIZE = 50;
 
@@ -109,9 +110,11 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
             : 'Acompanhe recebimentos previstos, parcelas e receitas fixas. Marque 👍 quando receber.'
         }
         actions={
-          <Button onClick={() => actions.openTransaction({ type })}>
-            <Plus /> {labels.new}
-          </Button>
+          <WriteGate>
+            <Button onClick={() => actions.openTransaction({ type })}>
+              <Plus /> {labels.new}
+            </Button>
+          </WriteGate>
         }
       />
 
@@ -236,9 +239,11 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
                   : 'Cadastre salário, aluguéis recebidos e outras entradas recorrentes.'
               }
               action={
-                <Button variant="outline" onClick={() => actions.openTransaction({ type })}>
-                  {labels.new}
-                </Button>
+                <WriteGate>
+                  <Button variant="outline" onClick={() => actions.openTransaction({ type })}>
+                    {labels.new}
+                  </Button>
+                </WriteGate>
               }
             />
           ) : (

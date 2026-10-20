@@ -1,6 +1,10 @@
 import { Suspense, useEffect, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { useAuth } from '@/features/auth/auth-context';
+import { VIEWER_REASON } from '@/features/auth/permissions';
+import { SubscriptionBanner } from '@/features/billing/subscription-banner';
+import { onAccessError } from '@/lib/api';
 import { TransactionActionsProvider } from '@/features/transactions/transaction-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from './sidebar';
@@ -11,9 +15,29 @@ import { IS_DEMO } from '@/lib/demo';
 import { DemoBanner } from './demo-banner';
 
 export function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, workspace, loading, refreshMe } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const role = workspace?.role;
+
+  // 402/403 from any request: explain once (deduplicated toast) and refresh the session state,
+  // since the subscription or the member's role may have changed since it was loaded.
+  useEffect(() => {
+    onAccessError((kind, error) => {
+      void refreshMe();
+      if (kind === 'subscription_required') {
+        toast.error('Assinatura necessária', {
+          id: 'subscription-required',
+          description: 'O espaço está em modo somente leitura. Assine um plano para voltar a criar e editar.',
+          action: role === 'owner' ? { label: 'Assinar', onClick: () => navigate('/configuracoes?aba=assinatura') } : undefined,
+        });
+      } else {
+        toast.error(role === 'viewer' ? VIEWER_REASON : error.message, { id: 'forbidden' });
+      }
+    });
+    return () => onAccessError(null);
+  }, [navigate, refreshMe, role]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -40,6 +64,7 @@ export function AppShell() {
         <div className="lg:pl-[76px]">
           <main className="mx-auto max-w-[1440px] px-4 pt-6 pb-28 sm:px-6 lg:pt-8 lg:pb-32">
             <DemoBanner />
+            <SubscriptionBanner key={workspace?.id} />
             <Suspense fallback={<PageLoader />}>
               <Outlet />
             </Suspense>
