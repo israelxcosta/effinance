@@ -42,7 +42,8 @@
 | `danger-soft`    | `#FDECEC` | fundo de "Pior 👎"                           |
 | `warning`        | `#B7791F` | alertas                                     |
 | `warning-soft`   | `#FEF6DA` | banner de aviso                             |
-| `chart-expense`  | `#D4D4D8` | barra de despesa (listrada)                 |
+| `chart-expense`  | `#F2A3A5` | barra de despesa (listrada, vermelho suave) |
+| `chart-neutral`  | `#D4D4D8` | série neutra (ex.: período anterior)        |
 
 ### Modo escuro
 
@@ -56,7 +57,7 @@ rampa de cinzas (mesma ordem claro→escuro), então gradientes e utilitários d
 | `surface` | `#171717` | `text-subtle` | `#6F6E6A` |
 | `surface-muted` | `#1E1E1D` | `primary` | `#F2F1EE` com texto `#121211` |
 | `border` | `#282827` | `primary-soft` | `#262625` |
-| `border-strong` | `#393937` | gráfico receita/despesa | `#E2E1DD` / `#4A4947` |
+| `border-strong` | `#393937` | gráfico receita/despesa | `#E2E1DD` / `#A8474B` |
 
 Cores escolhidas pelo usuário muito escuras (ex.: o azul-marinho padrão de categorias e metas) são
 clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem legíveis.
@@ -110,6 +111,7 @@ clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem 
 | Card               | `surface`, borda, raio xl, padding 20–24; header com título H2 + subtítulo small muted + ação à direita |
 | KpiCard            | rótulo small + ícone info; valor Display; rodapé `surface-muted` com seta (TrendingUp/Down) colorida, "% vs mês anterior" e chevron |
 | Input / Select     | altura 44, raio md, borda `border`, foco: borda `brand-500` + anel 3px `brand-500/15` |
+| Select (lista)     | nunca o menu nativo: lista própria (Radix) com raio xl, borda, sombra lg, padding 6px; itens com raio lg, destaque `bg-subtle` no hover/teclado, item escolhido em negrito com ✓; grupos com rótulo overline e divisor |
 | MoneyInput         | prefixo "R$" muted, digitação da direita para a esquerda (centavos), tabular-nums |
 | Sheet (lateral)    | 440px, raio 2xl à esquerda, header (título H2 + subtítulo muted + X), corpo rolável, rodapé fixo com `Cancelar` (ghost) e `Salvar` (primary) |
 | PaidToggle         | botão 👍/👎: pendente (padrão) = `ThumbsDown` em `danger-soft`/`danger`; pago = `ThumbsUp` em `success-soft`/`success`; animação de "pop" ao alternar |

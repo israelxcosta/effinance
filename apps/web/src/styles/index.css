@@ -47,8 +47,10 @@
 
   --app-chart-income: var(--brand-300);
   --app-chart-income-strong: var(--brand-700);
-  --app-chart-expense: #d4d4d8;
-  --app-chart-expense-strong: #8b8f97;
+  --app-chart-expense: #f2a3a5;
+  --app-chart-expense-strong: #e5484d;
+  /* Neutral series (e.g. the earlier period in comparisons). */
+  --app-chart-neutral: #d4d4d8;
   --app-chart-grid: #e7e7e3;
   /* Ordered data series (e.g. fixed / installments / variable) and single-series accents. */
   --app-chart-1: var(--brand-800);
@@ -108,8 +110,9 @@
 
   --app-chart-income: #e2e1dd;
   --app-chart-income-strong: #f2f1ee;
-  --app-chart-expense: #4a4947;
-  --app-chart-expense-strong: #8a8985;
+  --app-chart-expense: #a8474b;
+  --app-chart-expense-strong: #ef6b6e;
+  --app-chart-neutral: #4a4947;
   --app-chart-grid: #262625;
   --app-chart-1: #f2f1ee;
   --app-chart-2: #a3a19c;

@@ -7,6 +7,7 @@ export const CHART_COLORS = {
   incomeStrong: 'var(--app-chart-income-strong)',
   expense: 'var(--app-chart-expense)',
   expenseStrong: 'var(--app-chart-expense-strong)',
+  neutral: 'var(--app-chart-neutral)',
   grid: 'var(--app-chart-grid)',
   axis: 'var(--app-subtle)',
   brand: 'var(--app-primary)',
@@ -36,18 +37,33 @@ export const moneyAxisFormatter = (cents: number) => {
 
 /**
  * Diagonal stripe patterns (Graniq-style hatched bars). Render inside a chart's <defs>.
- * ids: stripe-income, stripe-expense, stripe-income-projected, stripe-expense-projected
+ * Use as `fill="url(#stripe-income)"`; ids and colors are listed in STRIPES.
  */
+const STRIPES = {
+  'stripe-income': CHART_COLORS.income,
+  'stripe-expense': CHART_COLORS.expense,
+  'stripe-neutral': CHART_COLORS.neutral,
+  'stripe-brand': CHART_COLORS.incomeStrong,
+  'stripe-success': CHART_COLORS.success,
+  'stripe-danger': CHART_COLORS.danger,
+} as const;
+
 export function StripeDefs() {
   return (
     <defs>
-      <Stripe id="stripe-income" color={CHART_COLORS.income} />
-      <Stripe id="stripe-expense" color={CHART_COLORS.expense} />
-      <Stripe id="stripe-brand" color={CHART_COLORS.incomeStrong} />
-      <Stripe id="stripe-success" color={CHART_COLORS.success} />
-      <Stripe id="stripe-danger" color={CHART_COLORS.danger} />
+      {Object.entries(STRIPES).map(([id, color]) => (
+        <Stripe key={id} id={id} color={color} />
+      ))}
     </defs>
   );
+}
+
+/** Solid color behind a series fill, resolving `url(#stripe-…)` patterns (for tooltips). */
+function seriesColor(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const pattern = /^url\(#([\w-]+)\)$/.exec(value);
+  if (!pattern) return value;
+  return STRIPES[pattern[1] as keyof typeof STRIPES];
 }
 
 function Stripe({ id, color }: { id: string; color: string }) {
@@ -92,7 +108,7 @@ export function MoneyTooltip({ active, label, payload, names, footer, hideZero }
       <div className="flex flex-col gap-1">
         {rows.map((p, i) => {
           const key = String(p.name ?? p.dataKey ?? i);
-          const color = typeof p.color === 'string' && !p.color.startsWith('url') ? p.color : typeof p.fill === 'string' && !p.fill.startsWith('url') ? p.fill : undefined;
+          const color = seriesColor(p.fill) ?? seriesColor(p.color);
           return (
             <div key={key + i} className="flex items-center justify-between gap-4">
               <span className="flex items-center gap-1.5 text-muted">

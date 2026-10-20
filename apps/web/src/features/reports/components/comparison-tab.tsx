@@ -109,7 +109,7 @@ export function ComparisonTab() {
           <Card className="p-5">
             <CardHeader title="Por categoria" subtitle="Período A × Período B" icon={<GitCompareArrows />} />
             <div className="mt-3 flex gap-4">
-              <LegendDot color={CHART_COLORS.expense} label="Período A" striped />
+              <LegendDot color={CHART_COLORS.neutral} label="Período A" striped />
               <LegendDot color={CHART_COLORS.incomeStrong} label="Período B" />
             </div>
             <div className="mt-2 h-72">
@@ -125,7 +125,7 @@ export function ComparisonTab() {
                     <XAxis dataKey="name" {...axisProps} interval={0} angle={chartData.length > 6 ? -20 : 0} textAnchor={chartData.length > 6 ? 'end' : 'middle'} height={chartData.length > 6 ? 56 : 30} />
                     <YAxis {...axisProps} tickFormatter={moneyAxisFormatter} width={56} />
                     <Tooltip cursor={{ fill: 'var(--app-bg-subtle)' }} content={<MoneyTooltip names={{ a: 'Período A', b: 'Período B' }} />} />
-                    <Bar dataKey="a" name="a" fill="url(#stripe-expense)" radius={[6, 6, 6, 6]} maxBarSize={26} />
+                    <Bar dataKey="a" name="a" fill="url(#stripe-neutral)" radius={[6, 6, 6, 6]} maxBarSize={26} />
                     <Bar dataKey="b" name="b" fill={CHART_COLORS.incomeStrong} radius={[6, 6, 6, 6]} maxBarSize={26} />
                   </BarChart>
                 </ResponsiveContainer>
