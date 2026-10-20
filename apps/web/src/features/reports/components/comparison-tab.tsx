@@ -9,7 +9,6 @@ import {
   formatPercent,
   percentChange,
   startOfMonth,
-  todayISO,
   type CategoryType,
   type PeriodTotals,
 } from '@effinance/shared';
@@ -22,22 +21,24 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { axisProps, CHART_COLORS, LegendDot, moneyAxisFormatter, MoneyTooltip, StripeDefs } from '@/components/charts/chart-utils';
+import { useActiveMonth } from '@/lib/active-month';
 import { cn } from '@/lib/utils';
 import { useComparisonReport } from '../api';
 
 type Range = { from: string; to: string };
 
 const QUICK = {
-  'prev-month': 'Mês anterior × mês atual',
-  'last-year': 'Mesmo mês do ano passado × mês atual',
-  'prev-quarter': 'Trimestre anterior × últimos 3 meses',
-  'prev-semester': 'Semestre anterior × últimos 6 meses',
+  'prev-month': 'Mês anterior × mês selecionado',
+  'last-year': 'Mesmo mês do ano anterior × mês selecionado',
+  'prev-quarter': 'Trimestre anterior × 3 meses até o selecionado',
+  'prev-semester': 'Semestre anterior × 6 meses até o selecionado',
   custom: 'Personalizado',
 } as const;
 type Quick = keyof typeof QUICK;
 
-function quickRanges(q: Exclude<Quick, 'custom'>): { a: Range; b: Range } {
-  const t = todayISO();
+/** Anchored on the active month (dashboard), so "selecionado" is the month the user is looking at. */
+function quickRanges(q: Exclude<Quick, 'custom'>, month: string): { a: Range; b: Range } {
+  const t = `${month}-01`;
   const cur = { from: startOfMonth(t), to: endOfMonth(t) };
   switch (q) {
     case 'prev-month':
@@ -52,10 +53,11 @@ function quickRanges(q: Exclude<Quick, 'custom'>): { a: Range; b: Range } {
 }
 
 export function ComparisonTab() {
+  const [activeMonth] = useActiveMonth();
   const [quick, setQuick] = useState<Quick>('prev-month');
-  const [custom, setCustom] = useState(() => quickRanges('prev-month'));
+  const [custom, setCustom] = useState(() => quickRanges('prev-month', activeMonth));
   const [type, setType] = useState<CategoryType>('expense');
-  const ranges = quick === 'custom' ? custom : quickRanges(quick);
+  const ranges = quick === 'custom' ? custom : quickRanges(quick, activeMonth);
   const report = useComparisonReport({ aFrom: ranges.a.from, aTo: ranges.a.to, bFrom: ranges.b.from, bTo: ranges.b.to, type });
   const r = report.data;
 

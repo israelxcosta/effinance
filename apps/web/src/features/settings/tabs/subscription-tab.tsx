@@ -27,6 +27,7 @@ import { useAuth } from '@/features/auth/auth-context';
 import { usePermissions } from '@/features/auth/permissions';
 import { daysUntil } from '@/features/billing/subscription-banner';
 import { useCancelSubscription, useCheckout, useDevActivate, usePlans, useSubscription } from '@/features/billing/api';
+import { Cell, TabGrid } from './layout';
 
 const STATUS_TONE: Record<SubscriptionStatus, 'brand' | 'success' | 'warning' | 'danger' | 'neutral'> = {
   trialing: 'brand',
@@ -50,18 +51,24 @@ export function SubscriptionTab() {
   if (subscription.isError) return <ErrorState error={subscription.error} onRetry={() => subscription.refetch()} />;
 
   return (
-    <>
-      <CurrentPlanCard sub={subscription.data} />
-      {plans.isError ? (
-        <ErrorState error={plans.error} onRetry={() => plans.refetch()} />
-      ) : (
-        <PlansCard sub={subscription.data} plans={plans.data} />
-      )}
-      <p className="flex items-center gap-2 text-xs text-muted">
-        <Lock className="size-3.5 shrink-0" aria-hidden />
-        Pagamento processado com segurança pelo Mercado Pago. O Effinance não armazena dados do seu cartão.
-      </p>
-    </>
+    <TabGrid>
+      <Cell wide>
+        <CurrentPlanCard sub={subscription.data} />
+      </Cell>
+      <Cell wide>
+        {plans.isError ? (
+          <ErrorState error={plans.error} onRetry={() => plans.refetch()} />
+        ) : (
+          <PlansCard sub={subscription.data} plans={plans.data} />
+        )}
+      </Cell>
+      <Cell wide>
+        <p className="flex items-center gap-2 text-xs text-muted">
+          <Lock className="size-3.5 shrink-0" aria-hidden />
+          Pagamento processado com segurança pelo Mercado Pago. O Effinance não armazena dados do seu cartão.
+        </p>
+      </Cell>
+    </TabGrid>
   );
 }
 

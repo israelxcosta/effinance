@@ -1,15 +1,16 @@
 import { useSearchParams } from 'react-router';
 import { ArrowLeftRight, PiggyBank, TrendingDown, TrendingUp } from 'lucide-react';
-import { formatBRL, todayISO, type TransferKind } from '@effinance/shared';
+import { formatBRL, type TransferKind } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { BankLogo } from '@/components/ui/bank-logo';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState, MiniStat, PageHeader } from '@/components/ui/misc';
 import { PeriodNavigator } from '@/components/ui/period-navigator';
+import { useScreenPeriod } from '@/lib/active-month';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton';
-import { periodRange, type PeriodMode, type PeriodValue } from '@/lib/period';
+import { periodRange } from '@/lib/period';
 import { useAccounts } from '@/features/accounts/api';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { TransactionRow } from '@/features/transactions/components/transaction-row';
@@ -22,8 +23,6 @@ export default function TransfersPage() {
   const [params, setParams] = useSearchParams();
   const actions = useTransactionActions();
   const kind = (params.get('tipo') as KindFilter) || 'all';
-  const period: PeriodValue = { mode: (params.get('modo') as PeriodMode) || 'month', anchor: params.get('data') || todayISO() };
-  const range = periodRange(period);
 
   function update(patch: Record<string, string | null>) {
     const next = new URLSearchParams(params);
@@ -33,6 +32,8 @@ export default function TransfersPage() {
     }
     setParams(next, { replace: true });
   }
+  const { period, setPeriod } = useScreenPeriod(params, update);
+  const range = periodRange(period);
 
   const accounts = useAccounts();
   const transfers = useTransfers({ from: range.from, to: range.to, kind: kind === 'all' ? undefined : kind, pageSize: 200 });
@@ -86,7 +87,7 @@ export default function TransfersPage() {
               <PeriodNavigator
                 value={period}
                 modes={['week', 'month', 'year']}
-                onChange={(v) => update({ modo: v.mode === 'month' ? null : v.mode, data: v.anchor === todayISO() ? null : v.anchor })}
+                onChange={setPeriod}
               />
               <SegmentedControl
                 ariaLabel="Tipo"

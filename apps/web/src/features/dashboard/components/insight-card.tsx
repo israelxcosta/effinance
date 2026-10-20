@@ -25,7 +25,7 @@ export function InsightCard({ insights, loading, className }: { insights: Insigh
           <Sparkles className="size-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-[15px] font-semibold">Effi Insights</p>
+          <p className="text-[15px] font-semibold">Insights</p>
           <p className="text-xs text-white/65">{list.length ? `${list.length} análise(s) do período` : 'Análises automáticas'}</p>
         </div>
         {list.length > 1 ? (

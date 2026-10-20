@@ -1,18 +1,19 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { ArrowDownLeft, ArrowUpRight, ScrollText } from 'lucide-react';
-import { ACCOUNT_TYPE_LABELS, formatBRL, todayISO, type StatementEntry } from '@effinance/shared';
+import { ACCOUNT_TYPE_LABELS, formatBRL, type StatementEntry } from '@effinance/shared';
 import { Card } from '@/components/ui/card';
 import { BankLogo } from '@/components/ui/bank-logo';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState, Money, PageHeader } from '@/components/ui/misc';
 import { PeriodNavigator } from '@/components/ui/period-navigator';
+import { useScreenPeriod } from '@/lib/active-month';
 import { Select } from '@/components/ui/select';
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { dayHeader, periodRange, type PeriodMode, type PeriodValue } from '@/lib/period';
+import { dayHeader, periodRange } from '@/lib/period';
 import { useAccounts } from '@/features/accounts/api';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { TransactionRow } from '@/features/transactions/components/transaction-row';
@@ -24,11 +25,6 @@ export default function StatementPage() {
   const actions = useTransactionActions();
   const accountId = params.get('conta') ?? '';
   const includePending = params.get('previstos') !== '0';
-  const period: PeriodValue = {
-    mode: (params.get('modo') as PeriodMode) || 'month',
-    anchor: params.get('data') || todayISO(),
-  };
-  const range = periodRange(period);
 
   function update(patch: Record<string, string | null>) {
     const next = new URLSearchParams(params);
@@ -38,6 +34,8 @@ export default function StatementPage() {
     }
     setParams(next, { replace: true });
   }
+  const { period, setPeriod } = useScreenPeriod(params, update);
+  const range = periodRange(period);
 
   const accounts = useAccounts();
   const statement = useStatement({ accountId: accountId || undefined, from: range.from, to: range.to, includePending });
@@ -85,7 +83,7 @@ export default function StatementPage() {
           </div>
           <PeriodNavigator
             value={period}
-            onChange={(v) => update({ modo: v.mode === 'month' ? null : v.mode, data: v.anchor === todayISO() ? null : v.anchor })}
+            onChange={setPeriod}
           />
         </div>
         <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-muted">

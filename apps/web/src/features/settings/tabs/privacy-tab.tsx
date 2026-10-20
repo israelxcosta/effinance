@@ -19,17 +19,31 @@ import { usePermissions } from '@/features/auth/permissions';
 import { PasswordInput } from '@/features/auth/pages/login';
 import { useSwitchWorkspace } from '@/features/workspaces/workspace-switcher';
 import { exportWorkspaceData, useAuditLog, useDeleteWorkspace } from '@/features/workspaces/api';
+import { Cell, TabGrid } from './layout';
 
 export function PrivacyTab() {
   const { isOwner } = usePermissions();
   const { workspace } = useAuth();
+  const canDeleteWorkspace = isOwner && workspace?.kind !== 'personal';
   return (
-    <>
-      <ExportCard />
-      {isOwner ? <AuditCard /> : null}
-      {isOwner && workspace?.kind !== 'personal' ? <DeleteWorkspaceCard /> : null}
-      <DeleteAccountCard />
-    </>
+    <TabGrid>
+      <Cell wide>
+        <ExportCard />
+      </Cell>
+      {isOwner ? (
+        <Cell wide>
+          <AuditCard />
+        </Cell>
+      ) : null}
+      {canDeleteWorkspace ? (
+        <Cell>
+          <DeleteWorkspaceCard />
+        </Cell>
+      ) : null}
+      <Cell wide={!canDeleteWorkspace}>
+        <DeleteAccountCard />
+      </Cell>
+    </TabGrid>
   );
 }
 

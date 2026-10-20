@@ -41,15 +41,24 @@ import {
   useUpdateMemberRole,
 } from '@/features/workspaces/api';
 import { WORKSPACE_KIND_ICONS } from '@/features/workspaces/kind-icon';
+import { Cell, TabGrid } from './layout';
 
 export function MembersTab() {
   const { isOwner } = usePermissions();
   return (
-    <>
-      <WorkspaceCard />
-      <MembersCard />
-      {isOwner ? <InvitesCard /> : null}
-    </>
+    <TabGrid>
+      <Cell wide>
+        <WorkspaceCard />
+      </Cell>
+      <Cell wide={!isOwner}>
+        <MembersCard />
+      </Cell>
+      {isOwner ? (
+        <Cell>
+          <InvitesCard />
+        </Cell>
+      ) : null}
+    </TabGrid>
   );
 }
 

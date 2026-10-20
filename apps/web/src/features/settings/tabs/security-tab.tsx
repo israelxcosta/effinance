@@ -24,15 +24,24 @@ import { useAuth } from '@/features/auth/auth-context';
 import { useChangePassword, useMfaDisable, useMfaEnable, useMfaSetup, useRevokeSession, useSessions } from '@/features/auth/api';
 import { PasswordChecklist } from '@/features/auth/password-checklist';
 import { PasswordInput } from '@/features/auth/pages/login';
+import { Cell, TabGrid } from './layout';
 
 export function SecurityTab() {
   return (
-    <>
-      <ChangePasswordCard />
-      <TwoFactorCard />
-      <SessionsCard />
-      <LogoutCard />
-    </>
+    <TabGrid>
+      <Cell>
+        <ChangePasswordCard />
+      </Cell>
+      <Cell>
+        <TwoFactorCard />
+      </Cell>
+      <Cell wide>
+        <SessionsCard />
+      </Cell>
+      <Cell wide>
+        <LogoutCard />
+      </Cell>
+    </TabGrid>
   );
 }
 

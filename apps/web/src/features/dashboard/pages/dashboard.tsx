@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
@@ -21,7 +21,6 @@ import {
   formatMonthKey,
   formatPercent,
   percentChange,
-  todayISO,
   type DashboardResponse,
   type Transaction,
 } from '@effinance/shared';
@@ -48,12 +47,13 @@ import { InsightCard } from '../components/insight-card';
 import { InsightsTab } from '../components/insights-tab';
 import { categoryListHref } from '@/features/transactions/links';
 import { WriteGate } from '@/features/auth/permissions';
+import { useActiveMonth } from '@/lib/active-month';
 
 type Tab = 'dashboard' | 'insights';
 
 export default function DashboardPage() {
   const [params, setParams] = useSearchParams();
-  const month = params.get('mes') ?? todayISO().slice(0, 7);
+  const [month, setActiveMonth] = useActiveMonth();
   const tab = (params.get('aba') as Tab) || 'dashboard';
   const dashboard = useDashboard(month);
   const d = dashboard.data;
@@ -67,11 +67,19 @@ export default function DashboardPage() {
     setParams(next, { replace: true });
   }
 
+  // `?mes=` (old links) seeds the active month, which every other screen follows.
+  const linkedMonth = params.get('mes');
+  useEffect(() => {
+    if (!linkedMonth) return;
+    setActiveMonth(linkedMonth);
+    update({ mes: null });
+  }, [linkedMonth]);
+
   const year = Number(month.slice(0, 4));
   const monthIndex = Number(month.slice(5, 7));
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 3 + i);
-  const setMonth = (y: number, m: number) => update({ mes: `${y}-${String(m).padStart(2, '0')}` === todayISO().slice(0, 7) ? null : `${y}-${String(m).padStart(2, '0')}` });
+  const setMonth = (y: number, m: number) => setActiveMonth(`${y}-${String(m).padStart(2, '0')}`);
 
   return (
     <div className="flex flex-col gap-5">
@@ -312,27 +320,34 @@ function SummaryBox({
   const good = invert ? !up : up;
   return (
     <div className="flex flex-col rounded-xl border border-border p-5">
-      <p className="text-[13px] font-medium text-muted">{label}</p>
-      <div className="tabular mt-1 text-[28px] font-bold tracking-tight">{value === undefined ? <Skeleton className="h-9 w-40" /> : formatBRL(value)}</div>
-      <p className="mt-1 text-xs text-muted">
-        {change === undefined || change === null ? (
-          'Sem base de comparação'
-        ) : (
-          <>
-            <span className={cn('font-semibold', good ? 'text-success' : 'text-danger')}>
-              {up ? '+' : ''}
-              {formatPercent(change)}
-            </span>{' '}
-            vs mês anterior
-          </>
-        )}
-      </p>
+      {/* Label and comparison on the left, total on the right (vertically centered). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium text-muted">{label}</p>
+          <p className="mt-1 text-xs text-muted">
+            {change === undefined || change === null ? (
+              'Sem base de comparação'
+            ) : (
+              <>
+                <span className={cn('font-semibold', good ? 'text-success' : 'text-danger')}>
+                  {up ? '+' : ''}
+                  {formatPercent(change)}
+                </span>{' '}
+                vs mês anterior
+              </>
+            )}
+          </p>
+        </div>
+        <div className="tabular ml-auto text-right text-[28px] font-bold tracking-tight">
+          {value === undefined ? <Skeleton className="h-9 w-40" /> : formatBRL(value)}
+        </div>
+      </div>
       <div className="mt-4 flex flex-col gap-2">
         {pills.map((p) => (
           <StatPill key={p.label} label={p.label} value={p.value === undefined ? '—' : formatBRL(p.value)} tone={p.tone} />
         ))}
       </div>
-      <div className="mt-auto flex items-center justify-between border-t border-border pt-3 text-[13px]">
+      <div className="mt-auto flex items-center justify-between border-t border-border px-3 pt-3 text-[13px]">
         <span className="text-muted">{footerLabel}</span>
         <span className={cn('tabular font-semibold', (footerValue ?? 0) < 0 ? 'text-danger' : 'text-brand-text')}>
           {footerValue === undefined ? '—' : formatBRL(footerValue)}

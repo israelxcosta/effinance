@@ -27,6 +27,7 @@ import { CardSheet } from '../card-sheet';
 import { PayInvoiceDialog } from '../pay-invoice-dialog';
 import { INVOICE_TONE } from './cards';
 import { WriteGate } from '@/features/auth/permissions';
+import { isCurrentMonth, setActiveMonth, useActiveMonth } from '@/lib/active-month';
 
 export default function CardDetailPage() {
   const { id = '' } = useParams();
@@ -34,9 +35,16 @@ export default function CardDetailPage() {
   const actions = useTransactionActions();
   const cards = useCards({ includeArchived: true });
   const card = cards.data?.find((c) => c.id === id);
-  const month = params.get('fatura') ?? card?.currentInvoice.month ?? '';
+  const [activeMonth] = useActiveMonth();
+  // In the current month the open invoice is shown; another active month shows the invoice due in it.
+  const month = params.get('fatura') ?? (card ? (isCurrentMonth(activeMonth) ? card.currentInvoice.month : activeMonth) : '');
   const invoice = useInvoice(card ? id : undefined, month);
-  const range = useMemo(() => (card ? { from: addMonthKey(card.currentInvoice.month, -5), to: addMonthKey(card.currentInvoice.month, 6) } : { from: '', to: '' }), [card]);
+  const range = useMemo(() => {
+    if (!card) return { from: '', to: '' };
+    const from = addMonthKey(card.currentInvoice.month, -5);
+    const to = addMonthKey(card.currentInvoice.month, 6);
+    return { from: activeMonth < from ? activeMonth : from, to: activeMonth > to ? activeMonth : to };
+  }, [card, activeMonth]);
   const invoices = useInvoices(card ? id : undefined, range);
   const [editing, setEditing] = useState(false);
   const [paying, setPaying] = useState<InvoiceSummary | null>(null);
@@ -54,8 +62,11 @@ export default function CardDetailPage() {
   }
 
   const setMonth = (m: string) => {
+    // Choosing an invoice moves the active month to its due month (dashboard and reports follow).
+    setActiveMonth(m);
     const next = new URLSearchParams(params);
-    next.set('fatura', m);
+    next.delete('fatura');
+    if (isCurrentMonth(m) && m !== card.currentInvoice.month) next.set('fatura', m);
     setParams(next, { replace: true });
   };
   const usage = card.limit ? card.usedLimit / card.limit : 0;

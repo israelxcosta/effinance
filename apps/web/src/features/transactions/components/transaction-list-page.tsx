@@ -8,10 +8,11 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState, MiniStat, PageHeader } from '@/components/ui/misc';
 import { Input } from '@/components/ui/input';
 import { PeriodNavigator } from '@/components/ui/period-navigator';
+import { useScreenPeriod } from '@/lib/active-month';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { periodRange, type PeriodMode, type PeriodValue } from '@/lib/period';
+import { periodRange } from '@/lib/period';
 import { useAccounts } from '@/features/accounts/api';
 import { useCards } from '@/features/cards/api';
 import { useCategories } from '@/features/categories/api';
@@ -37,10 +38,6 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
   const actions = useTransactionActions();
   const isExpense = type === 'expense';
 
-  const period: PeriodValue = {
-    mode: (params.get('modo') as PeriodMode) || 'month',
-    anchor: params.get('data') || todayISO(),
-  };
   const status = (params.get('status') as TransactionStatus) || 'all';
   const categoryId = params.get('categoria') ?? '';
   const contactId = params.get('contato') ?? '';
@@ -58,6 +55,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
     if (!('pagina' in patch)) next.delete('pagina');
     setParams(next, { replace: true });
   }
+  const { period, setPeriod } = useScreenPeriod(params, update);
 
   useEffect(() => {
     if ((params.get('busca') ?? '') !== search) update({ busca: search || null });
@@ -138,7 +136,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
             <PeriodNavigator
               value={period}
               modes={['day', 'week', 'month', 'year']}
-              onChange={(v) => update({ modo: v.mode === 'month' ? null : v.mode, data: v.anchor === todayISO() ? null : v.anchor })}
+              onChange={setPeriod}
             />
           )}
           <SegmentedControl

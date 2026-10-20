@@ -25,7 +25,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex max-w-4xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <PageHeader
         overline="Conta"
         title="Configurações"

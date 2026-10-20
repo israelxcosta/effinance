@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { GitCompareArrows, LayoutDashboard, Tags, Users, Waves } from 'lucide-react';
 import { PageHeader } from '@/components/ui/misc';
@@ -7,16 +8,29 @@ import { CategoriesTab } from '../components/categories-tab';
 import { ComparisonTab } from '../components/comparison-tab';
 import { ContactsTab } from '../components/contacts-tab';
 import { OverviewTab } from '../components/overview-tab';
-import { PeriodFilter, presetRange, PRESETS, type Preset } from '../components/period-filter';
+import { useActiveMonth } from '@/lib/active-month';
+import { PeriodFilter, presetRange, type ReportPeriod } from '../components/period-filter';
 
 type Tab = 'overview' | 'categories' | 'contacts' | 'comparison' | 'cashflow';
+
+/**
+ * Each report keeps its own period while the app is open. The default ("Mês") follows the
+ * active month and moving it moves the active month everywhere; multi-month choices stay local.
+ */
+const savedPeriods = new Map<Tab, ReportPeriod>();
 
 export default function ReportsPage() {
   const [params, setParams] = useSearchParams();
   const tab = (params.get('aba') as Tab) || 'overview';
-  const presetParam = params.get('periodo') as Preset | null;
-  const preset: Preset = presetParam && presetParam in PRESETS ? presetParam : 'last-6';
-  const range = presetRange(preset, { from: params.get('de'), to: params.get('ate') });
+  const [activeMonth, setActiveMonth] = useActiveMonth();
+  const [periods, setPeriods] = useState(() => new Map(savedPeriods));
+  const period = periods.get(tab) ?? { preset: 'month' };
+  const range = presetRange(period, activeMonth);
+
+  function setPeriod(next: ReportPeriod) {
+    savedPeriods.set(tab, next);
+    setPeriods(new Map(savedPeriods));
+  }
 
   function update(patch: Record<string, string | null>) {
     const next = new URLSearchParams(params);
@@ -35,14 +49,7 @@ export default function ReportsPage() {
         description="Evolução, projeções, comparações e fluxo de caixa para decidir com contexto."
         actions={
           tab !== 'comparison' ? (
-            <PeriodFilter
-              preset={preset}
-              from={range.from}
-              to={range.to}
-              onChange={(p, r) =>
-                update({ periodo: p === 'last-6' ? null : p, de: p === 'custom' ? (r?.from ?? range.from) : null, ate: p === 'custom' ? (r?.to ?? range.to) : null })
-              }
-            />
+            <PeriodFilter value={period} activeMonth={activeMonth} onChange={setPeriod} onMonthChange={setActiveMonth} />
           ) : null
         }
       />
