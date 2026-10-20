@@ -1,5 +1,6 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
+  anticipateInstallmentsSchema,
   seriesScopeQuerySchema,
   setPaidSchema,
   transactionInputSchema,
@@ -8,6 +9,7 @@ import {
 } from '@effinance/shared';
 import { idParams } from '../common/params';
 import {
+  anticipateInstallments,
   createTransaction,
   deleteTransaction,
   getTransaction,
@@ -39,6 +41,10 @@ export const transactionRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch('/:id/paid', { schema: { params: idParams, body: setPaidSchema } }, async (req) =>
     setPaid(app.db, req.userId, req.params.id, req.body),
+  );
+
+  app.post('/:id/anticipate', { schema: { params: idParams, body: anticipateInstallmentsSchema } }, async (req) =>
+    anticipateInstallments(app.db, req.userId, req.params.id, req.body),
   );
 
   app.delete(

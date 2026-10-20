@@ -173,3 +173,38 @@ describe('credit cards', () => {
     expect(byAccount.periods.find((p: any) => p.key === '2026-11').pendingOutflow).toBe(30000);
   });
 });
+
+describe('anticipate installments', () => {
+  it('moves the last unpaid installments into the current invoice', async () => {
+    // today = 2026-10-20 → Nubank (closes 3, due 10) receives today's purchases in invoice 2026-11
+    const created = await buy(nubankCard, '2026-09-15', 100000, { recurrenceKind: 'installment', installments: 10 });
+    expect(created.status).toBe(201);
+    const second = created.body.find((t: any) => t.installmentNumber === 2);
+
+    const res = await c.post(`/transactions/${second.id}/anticipate`, { count: 3 });
+    expect(res.status).toBe(200);
+    expect(res.body.map((t: any) => [t.installmentNumber, t.date, t.invoiceMonth])).toEqual([
+      [8, '2026-10-20', '2026-11'],
+      [9, '2026-10-20', '2026-11'],
+      [10, '2026-10-20', '2026-11'],
+    ]);
+
+    const invoice = await c.get(`/credit-cards/${nubankCard}/invoices/2026-11`);
+    const numbers = invoice.body.transactions.map((t: any) => t.installmentNumber).sort((a: number, b: number) => a - b);
+    expect(numbers).toEqual([2, 8, 9, 10]);
+    expect(invoice.body.total).toBe(40000);
+
+    // without count: every remaining future installment after #2 (3..7) is anticipated
+    const rest = await c.post(`/transactions/${second.id}/anticipate`, {});
+    expect(rest.body.map((t: any) => t.installmentNumber)).toEqual([3, 4, 5, 6, 7]);
+    const none = await c.post(`/transactions/${second.id}/anticipate`, {});
+    expect(none.status).toBe(422);
+  });
+
+  it('only applies to installment purchases', async () => {
+    const single = await buy(nubankCard, '2026-10-15', 5000);
+    const res = await c.post(`/transactions/${single.body[0].id}/anticipate`, {});
+    expect(res.status).toBe(422);
+    expect(res.body.message).toBe('Só é possível antecipar parcelas de uma compra parcelada');
+  });
+});

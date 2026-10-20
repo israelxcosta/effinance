@@ -62,8 +62,9 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 /**
  * single      → lançamento único
  * installment → parcelado (N parcelas geradas na criação)
- * recurring   → recorrente na frequência escolhida (com ou sem quantidade definida)
- * fixed       → fixa mensal, sem fim; gerada mês a mês (aparece em relatórios/projeções)
+ * recurring   → recorrente na frequência escolhida, com quantidade definida
+ * fixed       → recorrente sem fim (na frequência escolhida, mensal por padrão); gerada a cada
+ *               período e presente em relatórios/projeções. Na interface é "Recorrente" sem quantidade.
  */
 export const RECURRENCE_KINDS = ['single', 'installment', 'recurring', 'fixed'] as const;
 export type RecurrenceKind = (typeof RECURRENCE_KINDS)[number];
@@ -72,7 +73,7 @@ export const RECURRENCE_KIND_LABELS: Record<RecurrenceKind, string> = {
   single: 'Única',
   installment: 'Parcelada',
   recurring: 'Recorrente',
-  fixed: 'Fixa mensal',
+  fixed: 'Fixa',
 };
 
 export const FREQUENCIES = ['weekly', 'monthly', 'semiannual', 'annual'] as const;

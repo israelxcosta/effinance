@@ -3,6 +3,7 @@ import {
   buildOccurrenceDates,
   minISO,
   splitInstallments,
+  type AnticipateInstallmentsInput,
   type SeriesScope,
   type SetPaidInput,
   type Transaction,
@@ -228,7 +229,8 @@ async function insertTransaction(
     return [row!.id];
   }
 
-  const frequency = input.recurrenceKind === 'fixed' ? 'monthly' : input.frequency;
+  // 'fixed' = open-ended repetition in the chosen frequency (monthly by default).
+  const frequency = input.frequency;
   const count =
     input.recurrenceKind === 'installment'
       ? input.installments!
@@ -462,6 +464,60 @@ export async function deleteTransaction(
     await tx.update(recurrences).set({ nextDate: null }).where(eq(recurrences.id, row.recurrenceId));
     await cleanupSeries(tx, row.recurrenceId);
   });
+}
+
+/**
+ * Anticipates installments: the last `count` unpaid installments after this one (all by default)
+ * are moved to `date` (default today). On a card they are re-assigned to the invoice that receives
+ * purchases made on that date, i.e. charged in the current open invoice.
+ */
+export async function anticipateInstallments(
+  db: Database,
+  userId: string,
+  id: string,
+  input: AnticipateInstallmentsInput,
+): Promise<Transaction[]> {
+  const row = await getTransactionOrThrow(db, userId, id);
+  if (row.recurrenceKind !== 'installment' || !row.recurrenceId || row.installmentNumber === null) {
+    throw new ValidationError('Só é possível antecipar parcelas de uma compra parcelada');
+  }
+  const date = input.date ?? today();
+  let card = null;
+  if (row.creditCardId) {
+    [card] = await db
+      .select()
+      .from(creditCards)
+      .where(and(eq(creditCards.id, row.creditCardId), eq(creditCards.userId, userId)));
+  }
+
+  const pending = await db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        eq(transactions.recurrenceId, row.recurrenceId),
+        eq(transactions.paid, false),
+        gt(transactions.installmentNumber, row.installmentNumber),
+        gt(transactions.date, date),
+      ),
+    )
+    .orderBy(desc(transactions.installmentNumber));
+  if (pending.length === 0) throw new ValidationError('Não há parcelas futuras a antecipar');
+
+  const chosen = pending.slice(0, input.count ?? pending.length);
+  const invoiceMonth = invoiceMonthFor(card, date);
+  await db
+    .update(transactions)
+    .set({ date, invoiceMonth, updatedAt: new Date() })
+    .where(inArray(transactions.id, chosen.map((t) => t.id)));
+
+  const moved = await db
+    .select()
+    .from(transactions)
+    .where(inArray(transactions.id, chosen.map((t) => t.id)))
+    .orderBy(asc(transactions.installmentNumber));
+  return toTransactions(db, moved);
 }
 
 /** Removes a series that no longer has occurrences nor anything left to generate. */

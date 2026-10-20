@@ -96,7 +96,7 @@ describe('demo api (PGlite)', () => {
   });
 
   it('registers new users with default categories', async () => {
-    const reg = await call('POST', '/auth/register', { name: 'Teste', email: 'teste@demo.app', password: 'senha12345' });
+    const reg = await call('POST', '/auth/register', { name: 'Teste', email: 'teste@demo.app', password: 'senha12345', acceptTerms: true });
     expect(reg.status).toBe(201);
     const cats = await call('GET', '/categories');
     expect(cats.body.length).toBeGreaterThan(5);

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { formatBRL, todayISO, type Transaction, type TransactionListResponse } from '@effinance/shared';
+import { formatBRL, formatMonthKey, todayISO, type Transaction, type TransactionListResponse } from '@effinance/shared';
 import { ConfirmDialog, Modal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { errorMessage } from '@/lib/api';
 import { useAccounts } from '@/features/accounts/api';
 import { useDeleteTransfer } from '@/features/transfers/api';
 import { TransferSheet, type TransferMode, type TransferSheetState } from '@/features/transfers/transfer-sheet';
-import { useDeleteTransaction, useSetPaid } from './api';
+import { useAnticipateInstallments, useDeleteTransaction, useSetPaid } from './api';
 import { ScopeDialog } from './scope-dialog';
 import { TransactionSheet, type TransactionSheetState, type TxKind } from './transaction-sheet';
 
@@ -26,6 +26,8 @@ interface TransactionActions {
   duplicate: (tx: Transaction) => void;
   remove: (tx: Transaction) => void;
   togglePaid: (tx: Transaction, paid: boolean) => void;
+  /** Moves future installments of an installment purchase to today / the current invoice. */
+  anticipate: (tx: Transaction) => void;
   /** Id of the transaction whose paid status is being saved. */
   savingPaidId: string | null;
 }
@@ -41,6 +43,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
   const [transferSheet, setTransferSheet] = useState<TransferSheetState>(CLOSED_TRANSFER);
   const [toDelete, setToDelete] = useState<Transaction | null>(null);
   const [payTarget, setPayTarget] = useState<Transaction | null>(null);
+  const [anticipateTarget, setAnticipateTarget] = useState<Transaction | null>(null);
   const [savingPaidId, setSavingPaidId] = useState<string | null>(null);
   const txSheetUsed = useStickyTrue(txSheet.open);
   const transferSheetUsed = useStickyTrue(transferSheet.open);
@@ -130,9 +133,11 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
     }
   }
 
+  const anticipate = useCallback((tx: Transaction) => setAnticipateTarget(tx), []);
+
   const value = useMemo<TransactionActions>(
-    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, savingPaidId }),
-    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, savingPaidId],
+    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId }),
+    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId],
   );
 
   const isSeries = Boolean(toDelete?.recurrenceId) && toDelete?.type !== 'transfer';
@@ -154,6 +159,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
         open={Boolean(toDelete) && isSeries}
         onOpenChange={(o) => !o && setToDelete(null)}
         action="delete"
+        kind={toDelete?.recurrenceKind}
         loading={deleteTx.isPending}
         onConfirm={(scope) => void confirmDelete(scope)}
       />
@@ -177,6 +183,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
           void applyPaid(tx, true, { accountId, paidAt });
         }}
       />
+      <AnticipateDialog tx={anticipateTarget} onClose={() => setAnticipateTarget(null)} />
     </Ctx.Provider>
   );
 }
@@ -238,6 +245,66 @@ function PayWithAccountDialog({
         <Field label={income ? 'Recebido em' : 'Pago em'}>
           <Input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/** Anticipates the last N future installments to today (on a card: the current open invoice). */
+function AnticipateDialog({ tx, onClose }: { tx: Transaction | null; onClose: () => void }) {
+  const anticipate = useAnticipateInstallments();
+  const remaining = tx?.installmentTotal && tx.installmentNumber ? tx.installmentTotal - tx.installmentNumber : 0;
+  const [count, setCount] = useState(String(remaining));
+  const n = Math.min(Math.max(Number(count) || 0, 0), remaining);
+  const isCard = Boolean(tx?.creditCardId);
+
+  async function confirm() {
+    if (!tx || n < 1) return;
+    try {
+      const moved = await anticipate.mutateAsync({ id: tx.id, input: { count: n } });
+      const where = isCard && moved[0]?.invoiceMonth ? ` para a fatura de ${formatMonthKey(moved[0].invoiceMonth, 'short')}` : ' para hoje';
+      toast.success(`${moved.length} ${moved.length === 1 ? 'parcela antecipada' : 'parcelas antecipadas'}${where}`);
+      onClose();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  }
+
+  return (
+    <Modal
+      open={Boolean(tx)}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+        else setCount(String(remaining));
+      }}
+      title="Antecipar parcelas"
+      description={tx ? `${tx.description} · parcela ${tx.installmentNumber}/${tx.installmentTotal}` : undefined}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => void confirm()} loading={anticipate.isPending} disabled={n < 1}>
+            Antecipar {n > 0 ? `${n} ${n === 1 ? 'parcela' : 'parcelas'}` : ''}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <p className="text-[13px] leading-relaxed text-muted">
+          {isCard
+            ? `As parcelas escolhidas saem dos próximos meses e entram na fatura atual do ${tx?.creditCard?.name ?? 'cartão'}.`
+            : 'As parcelas escolhidas saem dos próximos meses e passam a vencer hoje.'}{' '}
+          Como nos bancos, as últimas parcelas são antecipadas primeiro.
+        </p>
+        <Field label="Quantas parcelas antecipar?" hint={`Até ${remaining} ${remaining === 1 ? 'parcela futura' : 'parcelas futuras'}`}>
+          <Input type="number" min={1} max={remaining} inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} />
+        </Field>
+        {tx && n > 0 ? (
+          <p className="rounded-md bg-primary-soft px-3 py-2 text-[13px] font-semibold text-primary-soft-fg">
+            {n}x de {formatBRL(tx.amount)} · total {formatBRL(tx.amount * n)}
+          </p>
+        ) : null}
       </div>
     </Modal>
   );

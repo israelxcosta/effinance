@@ -51,6 +51,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 | PUT | `/api/transactions/:id?scope=one\|future\|all` | `transactionUpdateSchema` | `Transaction` |
 | PATCH | `/api/transactions/:id/paid` | `setPaidSchema` | `Transaction` |
 | DELETE | `/api/transactions/:id?scope=one\|future\|all` | — | 204 |
+| POST | `/api/transactions/:id/anticipate` | `anticipateInstallmentsSchema` | `Transaction[]` — parcelas antecipadas |
 | GET | `/api/transfers` | `transferQuerySchema` | `Paginated<Transaction>` |
 | POST | `/api/transfers` | `transferInputSchema` | `Transaction` (201) — `transferKind` derivado (aplicação/resgate) |
 | PUT | `/api/transfers/:id` | `transferInputSchema` | `Transaction` |
@@ -73,16 +74,24 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
   parte. Transferir para conta de investimento = `investment` (aplicação); o inverso = `redemption`.
 - **Parcelado**: N lançamentos criados de uma vez (`installmentNumber/Total`); com
   `installmentAmountMode = total` o valor é dividido e os centavos restantes vão para a 1ª parcela.
-- **Recorrente**: frequência semanal/mensal/semestral/anual, com quantidade definida ou sem fim.
+- **Antecipação de parcelas** (`count` opcional, padrão todas; `date` opcional, padrão hoje): move as
+  últimas `count` parcelas pendentes posteriores a esta para `date`. No cartão, entram na fatura que
+  recebe compras feitas nessa data (a fatura aberta atual). Só para `installment`; 422 se não houver
+  parcelas futuras pendentes.
+- **Recorrente**: frequência semanal/mensal/semestral/anual, com quantidade definida (`recurring`).
+  Sem quantidade (vazio ou 0 na interface) vira `fixed`.
 - **Divisão por categoria** (`splits`, 2–10 partes): o valor é distribuído entre categorias e a soma
   das partes deve ser igual ao total. Cria uma transação (ou série) por parte, com os mesmos dados
   (data, conta, status, repetição) e um `splitGroupId` em comum; relatórios por categoria somam cada
   parte na sua categoria. Cada parte pode ser editada ou excluída individualmente.
-- **Fixa mensal**: série mensal sem fim. Séries sem fim são materializadas sob demanda até o fim do
+- **Fixa** (`fixed`): série sem fim na frequência escolhida (mensal por padrão). Séries sem fim são
+  materializadas sob demanda até o fim do
   período consultado (mínimo hoje + 12 meses; teto hoje + 5 anos), então aparecem em extratos,
   relatórios e projeções de qualquer mês.
 - **Escopo de edição/exclusão** em séries: `one` (só esta), `future` (esta e as próximas), `all`.
-  Ocorrências já pagas não são alteradas por `future`/`all`. Excluir `future` encerra a série.
+  Edição: ocorrências já pagas não são alteradas por `future`/`all`. Exclusão: `future` remove esta e
+  as próximas pendentes e encerra a série (anteriores ficam no histórico); `all` remove a série
+  inteira, inclusive as pagas.
 - **Vencido**: pendente com data anterior a hoje; compras no cartão só vencem quando a fatura
   delas vence (não pela data da compra).
 - **Fatura**: identificada pelo mês de vencimento. Compra entra na primeira fatura cujo fechamento é

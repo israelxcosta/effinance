@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const [show, setShow] = useState(false);
   const form = useForm<RegisterForm, unknown, z.output<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: '', email: '', password: '' },
+    defaultValues: { name: '', email: '', password: '', acceptTerms: false as unknown as true },
   });
 
   if (loading) return <FullPageLoader />;
@@ -57,9 +57,18 @@ export default function RegisterPage() {
         <Field label="E-mail" error={form.formState.errors.email?.message}>
           <Input type="email" autoComplete="email" placeholder="voce@email.com" {...form.register('email')} />
         </Field>
-        <Field label="Senha" hint="Mínimo de 8 caracteres" error={form.formState.errors.password?.message}>
+        <Field label="Senha" hint="Mínimo de 10 caracteres, com letras e números" error={form.formState.errors.password?.message}>
           <PasswordInput show={show} onToggle={() => setShow((s) => !s)} autoComplete="new-password" {...form.register('password')} />
         </Field>
+        <div className="flex flex-col gap-1">
+          <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-muted">
+            <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--app-primary)]" {...form.register('acceptTerms')} />
+            <span>Li e aceito os Termos de uso e a Política de privacidade.</span>
+          </label>
+          {form.formState.errors.acceptTerms ? (
+            <p className="text-xs text-danger">{form.formState.errors.acceptTerms.message}</p>
+          ) : null}
+        </div>
         <Button type="submit" size="lg" className="mt-2 w-full" loading={form.formState.isSubmitting}>
           Criar conta
         </Button>

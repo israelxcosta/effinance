@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
-import { CalendarClock, Infinity as InfinityIcon, Layers, Repeat, Split, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Infinity as InfinityIcon, Layers, Repeat, Split, ThumbsDown, ThumbsUp } from 'lucide-react';
 import {
   FREQUENCIES,
   FREQUENCY_LABELS,
@@ -64,7 +64,7 @@ interface FormValues {
   contactId: string;
   notes: string;
   repeat: boolean;
-  recurrenceKind: 'installment' | 'recurring' | 'fixed';
+  recurrenceKind: 'installment' | 'recurring';
   frequency: Frequency;
   installments: string;
   installmentAmountMode: 'total' | 'per_installment';
@@ -226,11 +226,12 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
       type: v.type,
       ...commonPayload(v),
       ...(splits ? { categoryId: null, subcategoryId: null, splits } : {}),
-      recurrenceKind: v.repeat ? v.recurrenceKind : 'single',
-      frequency: v.repeat && v.recurrenceKind !== 'fixed' ? v.frequency : 'monthly',
+      // Recurring without a quantity (empty or 0) repeats with no end — stored as 'fixed'.
+      recurrenceKind: !v.repeat ? 'single' : v.recurrenceKind === 'recurring' && !(Number(v.occurrences) > 0) ? 'fixed' : v.recurrenceKind,
+      frequency: v.repeat ? v.frequency : 'monthly',
       installments: v.repeat && v.recurrenceKind === 'installment' ? Number(v.installments) || null : null,
       installmentAmountMode: v.installmentAmountMode,
-      occurrences: v.repeat && v.recurrenceKind === 'recurring' && v.occurrences ? Number(v.occurrences) : null,
+      occurrences: v.repeat && v.recurrenceKind === 'recurring' && Number(v.occurrences) > 0 ? Number(v.occurrences) : null,
     };
     const parsed = transactionInputSchema.safeParse(payload);
     if (!parsed.success) return applyIssues(parsed.error.issues);
@@ -541,7 +542,6 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                         options={[
                           { value: 'installment', label: 'Parcelado', icon: <Layers /> },
                           { value: 'recurring', label: 'Recorrente', icon: <Repeat /> },
-                          { value: 'fixed', label: 'Fixa mensal', icon: <CalendarClock /> },
                         ]}
                       />
                     )}
@@ -591,6 +591,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                   ) : null}
 
                   {values.recurrenceKind === 'recurring' ? (
+                    <>
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Frequência">
                         <Select {...register('frequency')}>
@@ -601,17 +602,18 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                           ))}
                         </Select>
                       </Field>
-                      <Field label="Repetir" hint="Vazio = sem fim" error={formState.errors.occurrences?.message}>
-                        <Input type="number" min={2} max={360} inputMode="numeric" placeholder="Sem fim" {...register('occurrences')} />
+                      <Field label="Quantidade" hint="Vazio ou 0 = sem fim" error={formState.errors.occurrences?.message}>
+                        <Input type="number" min={0} max={360} inputMode="numeric" placeholder="Sem fim" {...register('occurrences')} />
                       </Field>
                     </div>
-                  ) : null}
-
-                  {values.recurrenceKind === 'fixed' ? (
-                    <p className="flex items-start gap-2 text-[13px] leading-relaxed text-muted">
-                      <InfinityIcon className="mt-0.5 size-4 shrink-0 text-brand-text" />
-                      Lançamento mensal sem data de término. Ele é gerado todo mês e aparece nos relatórios e projeções.
-                    </p>
+                    {!(Number(values.occurrences) > 0) ? (
+                      <p className="flex items-start gap-2 text-[13px] leading-relaxed text-muted">
+                        <InfinityIcon className="mt-0.5 size-4 shrink-0 text-brand-text" />
+                        Sem quantidade, o lançamento é fixo: repete sem data de término e aparece nos relatórios e
+                        projeções. Para encerrar, exclua a partir do mês desejado.
+                      </p>
+                    ) : null}
+                    </>
                   ) : null}
                 </div>
               ) : null}
@@ -629,6 +631,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
         open={scopeOpen}
         onOpenChange={setScopeOpen}
         action="edit"
+        kind={state.transaction?.recurrenceKind}
         loading={update.isPending}
         onConfirm={(scope) => pendingUpdate && void runUpdate(pendingUpdate, scope)}
       />
@@ -676,7 +679,7 @@ function SeriesInfo({ tx }: { tx: Transaction }) {
     tx.recurrenceKind === 'installment'
       ? `Parcela ${tx.installmentNumber}/${tx.installmentTotal}`
       : tx.recurrenceKind === 'fixed'
-        ? 'Repete todo mês, sem fim'
+        ? `Repete ${tx.frequency && tx.frequency !== 'monthly' ? FREQUENCY_LABELS[tx.frequency].toLowerCase() : 'todo mês'}, sem fim`
         : `${tx.frequency ? FREQUENCY_LABELS[tx.frequency] : ''}${tx.occurrenceNumber ? ` · ocorrência ${tx.occurrenceNumber}` : ''}`;
   return (
     <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-[13px] text-primary-soft-fg">

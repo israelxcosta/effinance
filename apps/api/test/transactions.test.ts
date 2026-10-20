@@ -372,3 +372,20 @@ describe('category split', () => {
     expect((await listRange('2026-10-01', '2026-10-31')).total).toBe(0);
   });
 });
+
+describe('open-ended repetition (fixed) honors the frequency', () => {
+  it('creates an endless annual series', async () => {
+    const res = await c.post('/transactions', {
+      type: 'expense',
+      description: 'IPVA',
+      amount: 150000,
+      date: '2026-03-10',
+      accountId: account,
+      recurrenceKind: 'fixed',
+      frequency: 'annual',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.every((t: any) => t.recurrenceKind === 'fixed' && t.frequency === 'annual')).toBe(true);
+    expect(res.body.map((t: any) => t.date).slice(0, 2)).toEqual(['2026-03-10', '2027-03-10']);
+  });
+});

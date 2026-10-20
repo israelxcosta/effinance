@@ -79,7 +79,7 @@ export async function seedDemo(db: Database) {
 
   // --- user (recreated) -----------------------------------------------------
   await db.delete(users).where(eq(users.email, DEMO_EMAIL));
-  const user = await register(db, { name: 'Marina Costa', email: DEMO_EMAIL, password: DEMO_PASSWORD });
+  const user = await register(db, { name: 'Marina Costa', email: DEMO_EMAIL, password: DEMO_PASSWORD, acceptTerms: true });
   const userId = user.id;
 
   const cats = await db.select().from(categories).where(eq(categories.userId, userId));

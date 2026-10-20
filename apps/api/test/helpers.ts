@@ -65,7 +65,7 @@ export async function registerUser(app: App, name = 'Usuária Teste'): Promise<C
   const res = await app.inject({
     method: 'POST',
     url: '/api/auth/register',
-    payload: { name, email: `user${counter}-${Date.now()}@teste.com`, password: 'senha-segura-123' },
+    payload: { name, email: `user${counter}-${Date.now()}@teste.com`, password: 'senha-segura-123', acceptTerms: true },
   });
   if (res.statusCode !== 201) throw new Error(`register failed: ${res.body}`);
   const { token, user } = res.json();

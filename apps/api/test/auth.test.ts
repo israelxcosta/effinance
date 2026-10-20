@@ -18,7 +18,7 @@ describe('auth', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { name: 'Ana', email: 'Ana@Exemplo.com', password: '12345678' },
+      payload: { name: 'Ana', email: 'Ana@Exemplo.com', password: 'senha-forte-123', acceptTerms: true },
     });
     expect(res.statusCode).toBe(201);
     const body = res.json();
@@ -47,7 +47,7 @@ describe('auth', () => {
   });
 
   it('rejects duplicates, wrong passwords and missing auth', async () => {
-    const payload = { name: 'Bia', email: 'bia@exemplo.com', password: '12345678' };
+    const payload = { name: 'Bia', email: 'bia@exemplo.com', password: 'senha-forte-123', acceptTerms: true };
     expect((await app.inject({ method: 'POST', url: '/api/auth/register', payload })).statusCode).toBe(201);
     expect((await app.inject({ method: 'POST', url: '/api/auth/register', payload })).statusCode).toBe(409);
 
@@ -62,7 +62,7 @@ describe('auth', () => {
     const ok = await app.inject({
       method: 'POST',
       url: '/api/auth/login',
-      payload: { email: 'BIA@exemplo.com', password: '12345678' },
+      payload: { email: 'BIA@exemplo.com', password: 'senha-forte-123', acceptTerms: true },
     });
     expect(ok.statusCode).toBe(200);
 

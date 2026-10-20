@@ -332,6 +332,17 @@ export const transactionInputSchema = transactionBaseSchema
 export type TransactionInput = z.input<typeof transactionInputSchema>;
 export type TransactionInputParsed = z.output<typeof transactionInputSchema>;
 
+/**
+ * Anticipates installments of an installment purchase: the LAST `count` unpaid installments after
+ * this one (all of them by default) move to `date` (default: today). On a credit card they land in
+ * the invoice that receives purchases made on that date (the current open invoice).
+ */
+export const anticipateInstallmentsSchema = z.object({
+  count: z.int().min(1, { message: 'Antecipe ao menos 1 parcela' }).max(360).optional(),
+  date: isoDateSchema.optional(),
+});
+export type AnticipateInstallmentsInput = z.input<typeof anticipateInstallmentsSchema>;
+
 export const seriesScopeQuerySchema = z.object({
   scope: z.enum(SERIES_SCOPES).default('one'),
 });

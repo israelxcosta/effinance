@@ -1,4 +1,4 @@
-import { CreditCard, Copy, Ellipsis, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { Copy, CreditCard, Ellipsis, FastForward, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import {
   FREQUENCY_LABELS,
   TRANSFER_KIND_LABELS,
@@ -30,7 +30,8 @@ export function SeriesBadge({ tx }: { tx: Transaction }) {
         {tx.installmentNumber}/{tx.installmentTotal}
       </Badge>
     );
-  if (tx.recurrenceKind === 'fixed') return <Badge tone="brand">Fixa</Badge>;
+  if (tx.recurrenceKind === 'fixed')
+    return <Badge tone="brand">{tx.frequency && tx.frequency !== 'monthly' ? `Fixa · ${FREQUENCY_LABELS[tx.frequency]}` : 'Fixa'}</Badge>;
   if (tx.recurrenceKind === 'recurring')
     return <Badge tone="neutral">{tx.frequency ? FREQUENCY_LABELS[tx.frequency] : 'Recorrente'}</Badge>;
   return null;
@@ -207,6 +208,11 @@ export function RowMenu({ tx }: { tx: Transaction }) {
               : tx.type === 'income'
                 ? 'Marcar como recebido'
                 : 'Marcar como pago'}
+          </DropdownMenuItem>
+        ) : null}
+        {tx.recurrenceKind === 'installment' && (tx.installmentNumber ?? 0) < (tx.installmentTotal ?? 0) ? (
+          <DropdownMenuItem icon={<FastForward />} onSelect={() => actions.anticipate(tx)}>
+            Antecipar parcelas
           </DropdownMenuItem>
         ) : null}
         {tx.transferKind !== 'card_payment' ? (

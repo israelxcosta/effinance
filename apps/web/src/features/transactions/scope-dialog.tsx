@@ -1,45 +1,82 @@
 import { useEffect, useState } from 'react';
-import { SERIES_SCOPE_LABELS, SERIES_SCOPES, type SeriesScope } from '@effinance/shared';
+import { SERIES_SCOPES, type RecurrenceKind, type SeriesScope } from '@effinance/shared';
 import { Modal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const EDIT_HINTS: Record<SeriesScope, string> = {
-  one: 'Altera apenas esta ocorrência.',
-  future: 'Altera esta e as próximas ocorrências ainda não pagas.',
-  all: 'Altera todas as ocorrências não pagas da série.',
-};
+type ScopeCopy = Record<SeriesScope, { label: string; hint: string }>;
 
-const DELETE_HINTS: Record<SeriesScope, string> = {
-  one: 'Exclui apenas esta ocorrência.',
-  future: 'Exclui esta e as próximas, encerrando a série.',
-  all: 'Exclui todas as ocorrências da série.',
+/** Wording per kind of series: installments vs. repetitions (recurring / fixed without end). */
+const COPY: Record<'edit' | 'delete', Record<'installment' | 'repeat', ScopeCopy>> = {
+  delete: {
+    installment: {
+      one: { label: 'Somente esta parcela', hint: 'As outras parcelas continuam.' },
+      future: {
+        label: 'Esta e as próximas parcelas',
+        hint: 'Exclui esta parcela e as seguintes ainda não pagas. As anteriores continuam.',
+      },
+      all: { label: 'Todas as parcelas', hint: 'Exclui a compra parcelada inteira, inclusive parcelas já pagas.' },
+    },
+    repeat: {
+      one: { label: 'Somente este lançamento', hint: 'Os demais períodos continuam.' },
+      future: {
+        label: 'Deste em diante (encerrar)',
+        hint: 'Exclui este e os próximos ainda não pagos e encerra a repetição. Os anteriores ficam no histórico.',
+      },
+      all: { label: 'Todos, inclusive os anteriores', hint: 'Exclui a série inteira, inclusive os já pagos.' },
+    },
+  },
+  edit: {
+    installment: {
+      one: { label: 'Somente esta parcela', hint: 'Altera apenas esta parcela.' },
+      future: { label: 'Esta e as próximas parcelas', hint: 'Altera esta e as próximas parcelas ainda não pagas.' },
+      all: { label: 'Todas as parcelas', hint: 'Altera todas as parcelas não pagas.' },
+    },
+    repeat: {
+      one: { label: 'Somente este lançamento', hint: 'Altera apenas este período.' },
+      future: { label: 'Deste em diante', hint: 'Altera este e os próximos ainda não pagos.' },
+      all: { label: 'Todos da série', hint: 'Altera todos os lançamentos não pagos da série.' },
+    },
+  },
 };
 
 interface ScopeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   action: 'edit' | 'delete';
+  /** Kind of the series the transaction belongs to (adjusts the wording). */
+  kind?: RecurrenceKind;
   loading?: boolean;
   onConfirm: (scope: SeriesScope) => void;
 }
 
 /** Asks which occurrences of a series an edit/delete applies to. */
-export function ScopeDialog({ open, onOpenChange, action, loading, onConfirm }: ScopeDialogProps) {
+export function ScopeDialog({ open, onOpenChange, action, kind, loading, onConfirm }: ScopeDialogProps) {
   const [scope, setScope] = useState<SeriesScope>('one');
   useEffect(() => {
     if (open) setScope('one');
   }, [open]);
 
+  const group = kind === 'installment' ? 'installment' : 'repeat';
+  const copy = COPY[action][group];
+  const title =
+    action === 'edit'
+      ? 'Aplicar alteração em…'
+      : group === 'installment'
+        ? 'Excluir compra parcelada'
+        : 'Excluir lançamento que se repete';
+
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={action === 'edit' ? 'Aplicar alteração em…' : 'Excluir lançamento recorrente'}
+      title={title}
       description={
         action === 'edit'
-          ? 'Este lançamento faz parte de uma série.'
-          : 'Este lançamento faz parte de uma série. O que deseja excluir?'
+          ? group === 'installment'
+            ? 'Este lançamento é uma parcela de uma compra parcelada.'
+            : 'Este lançamento se repete em outros períodos.'
+          : 'O que deseja excluir?'
       }
       footer={
         <>
@@ -74,10 +111,8 @@ export function ScopeDialog({ open, onOpenChange, action, loading, onConfirm }: 
               {scope === s ? <span className="size-2 rounded-full bg-primary" /> : null}
             </span>
             <span>
-              <span className="block text-sm font-semibold text-fg">{SERIES_SCOPE_LABELS[s]}</span>
-              <span className="block text-xs text-muted">
-                {action === 'delete' ? DELETE_HINTS[s] : EDIT_HINTS[s]}
-              </span>
+              <span className="block text-sm font-semibold text-fg">{copy[s].label}</span>
+              <span className="block text-xs text-muted">{copy[s].hint}</span>
             </span>
           </button>
         ))}

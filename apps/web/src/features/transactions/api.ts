@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AnticipateInstallmentsInput,
   SeriesScope,
   SetPaidInput,
   Transaction,
@@ -42,6 +43,15 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: ({ id, scope }: { id: string; scope: SeriesScope }) =>
       api<void>(`/transactions/${id}`, { method: 'DELETE', query: { scope } }),
+    onSuccess: () => invalidateFinancialData(qc),
+  });
+}
+
+export function useAnticipateInstallments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AnticipateInstallmentsInput }) =>
+      api<Transaction[]>(`/transactions/${id}/anticipate`, { method: 'POST', body: input }),
     onSuccess: () => invalidateFinancialData(qc),
   });
 }
