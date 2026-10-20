@@ -1,6 +1,7 @@
 // Demo data shared by the CLI seed (`pnpm --filter @effinance/api db:seed`) and the in-browser
-// demo build. Idempotent — the demo user is removed and recreated with ~8 months of history.
-// Keep this module free of Node-only imports: it also runs in the browser (PGlite).
+// demo build. Idempotent — the demo users and their workspaces are removed and recreated: Marina's
+// personal workspace (in trial) with ~8 months of history, and "Família Costa" (Família plan) shared
+// with Rafael. Keep this module free of Node-only imports: it also runs in the browser (PGlite).
 
 import { and, eq, inArray, lte, sql } from 'drizzle-orm';
 import {
@@ -15,9 +16,12 @@ import {
   type ISODate,
   type TransactionInput,
 } from '@effinance/shared';
-import type { Database } from './client';
-import { accounts, categories, transactions, users } from './schema';
+import type { DbExecutor } from './client';
+import { accounts, categories, subscriptions, transactions, users, workspaceMembers, workspaces } from './schema';
+import { withTenant } from '../lib/tenant';
 import { register } from '../modules/auth/service';
+import { seedDefaultCategories } from '../modules/categories/service';
+import { createWorkspace } from '../modules/workspaces/service';
 import { createAccount } from '../modules/accounts/service';
 import { createCreditCard, payInvoice } from '../modules/credit-cards/service';
 import { createContact } from '../modules/contacts/service';
@@ -27,6 +31,9 @@ import { createTransfer } from '../modules/transfers/service';
 
 export const DEMO_EMAIL = 'demo@effinance.app';
 export const DEMO_PASSWORD = 'demo12345';
+/** Second member of the shared "Família Costa" workspace. */
+export const DEMO_PARTNER_EMAIL = 'rafael@effinance.app';
+export const FAMILY_WORKSPACE_NAME = 'Família Costa';
 
 /** Deterministic PRNG so every seed run produces the same numbers. */
 function mulberry32(seed: number) {
@@ -64,7 +71,7 @@ function makeCnpj(base: string): string {
   return d.join('');
 }
 
-export async function seedDemo(db: Database) {
+async function seedPersonal(db: DbExecutor, workspaceId: string): Promise<number> {
   const today = todayISO();
   const rand = mulberry32(20261020);
   const between = (min: number, max: number) => Math.round(min + rand() * (max - min));
@@ -77,12 +84,7 @@ export async function seedDemo(db: Database) {
   const months: string[] = [];
   for (let m = firstMonth; m <= currentMonth; m = addMonthKey(m, 1)) months.push(m);
 
-  // --- user (recreated) -----------------------------------------------------
-  await db.delete(users).where(eq(users.email, DEMO_EMAIL));
-  const user = await register(db, { name: 'Marina Costa', email: DEMO_EMAIL, password: DEMO_PASSWORD, acceptTerms: true });
-  const userId = user.id;
-
-  const cats = await db.select().from(categories).where(eq(categories.userId, userId));
+  const cats = await db.select().from(categories).where(eq(categories.workspaceId, workspaceId));
   const cat = (name: string, sub?: string) => {
     const parent = cats.find((c) => c.name === name && !c.parentId);
     if (!parent) throw new Error(`category ${name} not found`);
@@ -92,9 +94,9 @@ export async function seedDemo(db: Database) {
   };
 
   // --- accounts & cards -----------------------------------------------------
-  const [wallet] = await db.select().from(accounts).where(eq(accounts.userId, userId));
+  const [wallet] = await db.select().from(accounts).where(eq(accounts.workspaceId, workspaceId));
   await db.update(accounts).set({ initialBalance: 30000 }).where(eq(accounts.id, wallet!.id));
-  const nubank = await createAccount(db, userId, {
+  const nubank = await createAccount(db, workspaceId, {
     name: 'Nubank',
     type: 'checking',
     bank: 'nubank',
@@ -104,7 +106,7 @@ export async function seedDemo(db: Database) {
     includeInTotal: true,
     archived: false,
   });
-  const itau = await createAccount(db, userId, {
+  const itau = await createAccount(db, workspaceId, {
     name: 'Itaú Personnalité',
     type: 'checking',
     bank: 'itau',
@@ -114,7 +116,7 @@ export async function seedDemo(db: Database) {
     includeInTotal: true,
     archived: false,
   });
-  const xp = await createAccount(db, userId, {
+  const xp = await createAccount(db, workspaceId, {
     name: 'XP Investimentos',
     type: 'investment',
     bank: 'xp',
@@ -125,7 +127,7 @@ export async function seedDemo(db: Database) {
     archived: false,
   });
 
-  const nuCard = await createCreditCard(db, userId, {
+  const nuCard = await createCreditCard(db, workspaceId, {
     name: 'Nubank Mastercard',
     bank: 'nubank',
     brand: 'mastercard',
@@ -136,7 +138,7 @@ export async function seedDemo(db: Database) {
     defaultAccountId: nubank.id,
     archived: false,
   });
-  const itauCard = await createCreditCard(db, userId, {
+  const itauCard = await createCreditCard(db, workspaceId, {
     name: 'Itaú Visa Infinite',
     bank: 'itau',
     brand: 'visa',
@@ -149,7 +151,7 @@ export async function seedDemo(db: Database) {
   });
 
   // --- contacts -------------------------------------------------------------
-  const contact = async (input: Parameters<typeof createContact>[2]) => (await createContact(db, userId, input)).id;
+  const contact = async (input: Parameters<typeof createContact>[2]) => (await createContact(db, workspaceId, input)).id;
   const blank = {
     email: null,
     phone: null,
@@ -225,7 +227,7 @@ export async function seedDemo(db: Database) {
   });
 
   // --- helpers --------------------------------------------------------------
-  const create = (input: TransactionInput) => createTransaction(db, userId, transactionInputSchema.parse(input));
+  const create = (input: TransactionInput) => createTransaction(db, workspaceId, transactionInputSchema.parse(input));
   /** Marks every account-based occurrence of a series due before today as paid on its due date. */
   const settlePast = async (recurrenceId: string | null | undefined, inclusive = false) => {
     if (!recurrenceId) return;
@@ -447,7 +449,7 @@ export async function seedDemo(db: Database) {
     // Moving money around: salary share to Nubank and the monthly investment.
     const moveDate = dayIn(month, 6);
     if (moveDate <= today) {
-      await createTransfer(db, userId, {
+      await createTransfer(db, workspaceId, {
         fromAccountId: itau.id,
         toAccountId: nubank.id,
         amount: 300000,
@@ -456,7 +458,7 @@ export async function seedDemo(db: Database) {
         notes: null,
         paid: true,
       });
-      await createTransfer(db, userId, {
+      await createTransfer(db, workspaceId, {
         fromAccountId: nubank.id,
         toAccountId: xp.id,
         amount: 100000,
@@ -501,7 +503,7 @@ export async function seedDemo(db: Database) {
   });
 
   // One-off redemption from investments three months ago.
-  await createTransfer(db, userId, {
+  await createTransfer(db, workspaceId, {
     fromAccountId: xp.id,
     toAccountId: itau.id,
     amount: 200000,
@@ -575,14 +577,14 @@ export async function seedDemo(db: Database) {
       .sort();
     for (const m of monthsToPay) {
       const due = getInvoiceDates(m, card.closingDay, card.dueDay).dueDate;
-      await payInvoice(db, userId, card.id, m, { accountId: card.defaultAccountId!, date: due });
+      await payInvoice(db, workspaceId, card.id, m, { accountId: card.defaultAccountId!, date: due });
     }
   }
 
   // --- goals -----------------------------------------------------------------
   const goal = async (input: Parameters<typeof createGoal>[2], contributions: [ISODate, number][]) => {
-    const g = await createGoal(db, userId, input);
-    for (const [date, amount] of contributions) await addContribution(db, userId, g.id, { amount, date, note: null });
+    const g = await createGoal(db, workspaceId, input);
+    for (const [date, amount] of contributions) await addContribution(db, workspaceId, g.id, { amount, date, note: null });
   };
   const monthly = (amount: number, day = 7) =>
     months.filter((m) => dayIn(m, day) <= today).map((m) => [dayIn(m, day), amount] as [ISODate, number]);
@@ -642,6 +644,119 @@ export async function seedDemo(db: Database) {
   const [count] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })
     .from(transactions)
-    .where(inArray(transactions.userId, [userId]));
-  return { userId, transactions: count?.n ?? 0 };
+    .where(inArray(transactions.workspaceId, [workspaceId]));
+  return count?.n ?? 0;
+}
+
+/** Removes the demo users and every workspace they own (data cascades). */
+async function removeDemoUsers(db: DbExecutor) {
+  const demoUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.email, [DEMO_EMAIL, DEMO_PARTNER_EMAIL]));
+  if (demoUsers.length === 0) return;
+  const ids = demoUsers.map((u) => u.id);
+  const owned = await db
+    .select({ id: workspaceMembers.workspaceId })
+    .from(workspaceMembers)
+    .where(and(inArray(workspaceMembers.userId, ids), eq(workspaceMembers.role, 'owner')));
+  if (owned.length) await db.delete(workspaces).where(inArray(workspaces.id, owned.map((w) => w.id)));
+  await db.delete(users).where(inArray(users.id, ids));
+}
+
+/** Shared household workspace on the Família plan, with Rafael as editor. */
+async function seedFamily(db: DbExecutor, ownerId: string, partnerId: string): Promise<string> {
+  const workspaceId = await db.transaction((tx) =>
+    createWorkspace(tx, { name: FAMILY_WORKSPACE_NAME, kind: 'family', ownerId }),
+  );
+  const periodEnd = new Date();
+  periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
+  await db
+    .update(subscriptions)
+    .set({ planCode: 'family_monthly', status: 'active', provider: 'fake', trialEndsAt: null, currentPeriodEnd: periodEnd })
+    .where(eq(subscriptions.workspaceId, workspaceId));
+  await db.insert(workspaceMembers).values({ workspaceId, userId: partnerId, role: 'editor' });
+
+  await withTenant(db, workspaceId, async (tx) => {
+    await seedDefaultCategories(tx, workspaceId);
+    const cats = await tx.select().from(categories).where(eq(categories.workspaceId, workspaceId));
+    const find = (name: string, sub?: string) => {
+      const parent = cats.find((c) => c.name === name && !c.parentId)!;
+      const child = sub ? cats.find((c) => c.parentId === parent.id && c.name === sub) : undefined;
+      return { categoryId: parent.id, subcategoryId: child?.id ?? null };
+    };
+    const joint = await createAccount(tx, workspaceId, {
+      name: 'Conta conjunta',
+      type: 'checking',
+      bank: 'inter',
+      color: '#FF7A00',
+      icon: 'house',
+      initialBalance: 450000,
+      includeInTotal: true,
+      archived: false,
+    });
+    const today = todayISO();
+    const month = monthKey(today);
+    const base = { accountId: joint.id, creditCardId: null, contactId: null, paymentMethod: 'pix' as const, notes: null };
+    const fixed = (description: string, amount: number, day: number, cat: ReturnType<typeof find>) =>
+      createTransaction(
+        tx,
+        workspaceId,
+        transactionInputSchema.parse({
+          ...base,
+          ...cat,
+          type: 'expense',
+          description,
+          amount,
+          date: `${addMonthKey(month, -2)}-${String(day).padStart(2, '0')}`,
+          paid: false,
+          recurrenceKind: 'fixed',
+          frequency: 'monthly',
+        }),
+      );
+    await fixed('Aluguel', 280000, 5, find('Moradia'));
+    await fixed('Condomínio', 65000, 10, find('Moradia'));
+    await fixed('Escola das crianças', 190000, 8, find('Educação'));
+    await createTransaction(
+      tx,
+      workspaceId,
+      transactionInputSchema.parse({
+        ...base,
+        ...find('Alimentação'),
+        type: 'expense',
+        description: 'Compras do mês',
+        amount: 98000,
+        date: addDays(today, -3),
+        paid: true,
+      }),
+    );
+    // Past occurrences of the fixed bills are already paid.
+    await tx
+      .update(transactions)
+      .set({ paid: true, paidAt: sql`${transactions.date}` })
+      .where(and(eq(transactions.workspaceId, workspaceId), lte(transactions.date, today)));
+  });
+  return workspaceId;
+}
+
+export async function seedDemo(db: DbExecutor) {
+  await removeDemoUsers(db);
+  const { user, workspaceId } = await register(db, {
+    name: 'Marina Costa',
+    email: DEMO_EMAIL,
+    password: DEMO_PASSWORD,
+    acceptTerms: true,
+  });
+  const n = await withTenant(db, workspaceId, (tx) => seedPersonal(tx, workspaceId));
+  const partner = await register(db, {
+    name: 'Rafael Costa',
+    email: DEMO_PARTNER_EMAIL,
+    password: DEMO_PASSWORD,
+    acceptTerms: true,
+  });
+  const familyId = await seedFamily(db, user.id, partner.user.id);
+  // Marina opens her personal workspace; Rafael opens the family one.
+  await db.update(users).set({ lastWorkspaceId: workspaceId }).where(eq(users.id, user.id));
+  await db.update(users).set({ lastWorkspaceId: familyId }).where(eq(users.id, partner.user.id));
+  return { userId: user.id, workspaceId, familyWorkspaceId: familyId, transactions: n };
 }

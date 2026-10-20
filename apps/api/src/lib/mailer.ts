@@ -1,6 +1,7 @@
 // Outgoing e-mail. `console` logs the message (development), `memory` keeps it for tests, `webhook`
 // POSTs it as JSON to an endpoint you control (e.g. a Lambda or an e-mail service integration), and
-// `ses` sends through Amazon SES v2 (production on AWS).
+// `ses` sends through Amazon SES v2 (production on AWS; see mailer-ses.ts, kept apart so the browser
+// demo never bundles the AWS SDK).
 
 export interface MailMessage {
   to: string;
@@ -52,27 +53,4 @@ export class WebhookMailer implements Mailer {
     });
     if (!res.ok) throw new Error(`Mail webhook respondeu ${res.status}`);
   }
-}
-
-export async function createSesMailer(options: { from: string; region?: string }): Promise<Mailer> {
-  const { SESv2Client, SendEmailCommand } = await import('@aws-sdk/client-sesv2');
-  const client = new SESv2Client(options.region ? { region: options.region } : {});
-  return {
-    name: 'ses',
-    delivers: true,
-    async send(message) {
-      await client.send(
-        new SendEmailCommand({
-          FromEmailAddress: options.from,
-          Destination: { ToAddresses: [message.to] },
-          Content: {
-            Simple: {
-              Subject: { Data: message.subject, Charset: 'UTF-8' },
-              Body: { Text: { Data: message.text, Charset: 'UTF-8' } },
-            },
-          },
-        }),
-      );
-    },
-  };
 }

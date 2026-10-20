@@ -131,8 +131,10 @@ describe('contacts', () => {
       state: 'SP',
     });
 
-    const found = await c.get('/contacts?search=529982');
-    expect(found.body.total).toBe(1);
+    // CPF/CNPJ is encrypted: search is exact (blind index), partial digits do not match.
+    expect((await c.get('/contacts?search=529.982.247-25')).body.total).toBe(1);
+    expect((await c.get('/contacts?search=529982')).body.total).toBe(0);
+    expect((await c.get(`/contacts/${ok.body.id}`)).body.email).toBe('joao@exemplo.com');
     const byName = await c.get('/contacts?search=silva');
     expect(byName.body.items[0].id).toBe(ok.body.id);
 

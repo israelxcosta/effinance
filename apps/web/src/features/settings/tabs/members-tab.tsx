@@ -26,7 +26,7 @@ import { SkeletonRows } from '@/components/ui/skeleton';
 import { copyText } from '@/lib/clipboard';
 import { formatDateTime } from '@/lib/datetime';
 import { toastError } from '@/lib/notify';
-import { initials } from '@/lib/utils';
+import { cn, initials } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { usePermissions } from '@/features/auth/permissions';
 import { useSubscription } from '@/features/billing/api';
@@ -66,13 +66,13 @@ function WorkspaceCard() {
   return (
     <Card className="p-6">
       <CardHeader title="Espaço" subtitle="Cada espaço tem dados, membros e assinatura próprios." />
-      <div className="mt-5 flex flex-wrap items-end gap-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-[14px] bg-primary-soft text-primary-soft-fg">
+      <div className="mt-5 flex items-start gap-4">
+        <span className={cn('flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-primary-soft text-primary-soft-fg', isOwner && 'sm:mt-[26px]')}>
           <Icon className="size-5" />
         </span>
         {isOwner ? (
           <form
-            className="flex min-w-0 flex-1 flex-wrap items-end gap-2"
+            className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={async (e) => {
               e.preventDefault();
               if (!trimmed || trimmed === workspace.name) return;
@@ -84,16 +84,16 @@ function WorkspaceCard() {
               }
             }}
           >
-            <Field label="Nome do espaço" className="min-w-[220px] flex-1" hint={WORKSPACE_KIND_LABELS[workspace.kind]}>
+            <Field label={`Nome do espaço (${WORKSPACE_KIND_LABELS[workspace.kind]})`} className="min-w-0 flex-1">
               <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
             </Field>
-            <Button type="submit" variant="outline" className="mb-[22px]" loading={rename.isPending} disabled={!trimmed || trimmed === workspace.name}>
+            <Button type="submit" variant="outline" className="self-start sm:self-auto" loading={rename.isPending} disabled={!trimmed || trimmed === workspace.name}>
               Salvar
             </Button>
           </form>
         ) : (
-          <div>
-            <p className="font-semibold">{workspace.name}</p>
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{workspace.name}</p>
             <p className="text-xs text-muted">
               {WORKSPACE_KIND_LABELS[workspace.kind]} · você é {MEMBER_ROLE_LABELS[workspace.role].toLowerCase()}
             </p>

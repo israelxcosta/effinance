@@ -30,7 +30,14 @@ describe('auth', () => {
 
     const me = await app.inject({ method: 'GET', url: '/api/auth/me', cookies: { effinance_token: cookie!.value } });
     expect(me.statusCode).toBe(200);
-    expect(me.json().email).toBe('ana@exemplo.com');
+    expect(me.json().user).toMatchObject({ email: 'ana@exemplo.com', mfaEnabled: false });
+    expect(me.json().workspace).toMatchObject({
+      name: 'Pessoal',
+      kind: 'personal',
+      role: 'owner',
+      subscription: { status: 'trialing', canWrite: true, planCode: null },
+    });
+    expect(me.json().workspaces).toHaveLength(1);
 
     const cats = await app.inject({
       method: 'GET',

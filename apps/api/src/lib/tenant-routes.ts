@@ -5,6 +5,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { assertCanWrite, isMutation } from '../modules/workspaces/access';
+import { getCipher } from './crypto/keyring';
 import { withTenant } from './tenant';
 
 export interface TenantRoutesOptions {
@@ -20,7 +21,10 @@ export const tenantRoutes: FastifyPluginAsync<TenantRoutesOptions> = async (app,
   });
   app.addHook('onRoute', (route: RouteOptions) => {
     const handler = route.handler as Handler;
-    route.handler = function tenantHandler(this: unknown, req: FastifyRequest, reply: FastifyReply) {
+    route.handler = async function tenantHandler(this: unknown, req: FastifyRequest, reply: FastifyReply) {
+      // Unwrap the data key before opening the transaction: no key-provider call (KMS) while holding
+      // a connection, and no lookup on the system connection from inside it (single-connection PGlite).
+      await getCipher(req.workspaceId);
       return withTenant(app.db, req.workspaceId, async (tx) => {
         req.db = tx;
         return handler.call(this, req, reply);

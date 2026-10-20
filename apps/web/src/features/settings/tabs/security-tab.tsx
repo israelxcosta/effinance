@@ -231,7 +231,7 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
               <div className="min-w-0 text-[13px] text-muted">
                 <p>Não consegue escanear? Digite esta chave no aplicativo:</p>
                 <div className="mt-2 flex items-center gap-2">
-                  <code className="tabular rounded-md bg-bg-subtle px-2.5 py-1.5 text-[13px] font-semibold tracking-wider break-all text-fg">
+                  <code className="tabular rounded-md bg-bg-subtle px-2.5 py-1.5 text-[13px] font-semibold tracking-wider text-fg">
                     {formatSecret(data.secret)}
                   </code>
                   <CopyButton text={data.secret} label="Copiar chave" />

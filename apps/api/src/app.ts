@@ -51,6 +51,15 @@ export async function buildApp(options: BuildAppOptions = {}) {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  // Bodiless POSTs (refresh, logout, cancel…) may still say application/json: treat "" as no body.
+  // The default parser stays in charge otherwise (it rejects __proto__/constructor poisoning).
+  const jsonParser = app.getDefaultJsonParser('error', 'error');
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    if (body === '') return done(null, undefined);
+    jsonParser(req, String(body), done);
+  });
+
   const { db, client } = createDb();
   app.decorate('db', db);
   configureKeyring({ provider: await createKeyProvider(env, (m) => app.log.warn(m)), db });

@@ -1,6 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { env } from '../env';
+import { configureKeyring } from '../lib/crypto/keyring';
+import { createKeyProvider } from '../setup';
+import { backfillEncryption, needsBackfill } from './backfill';
 import { createDb } from './client';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +15,11 @@ export async function runMigrations(url?: string) {
   const { db, client } = createDb(url);
   try {
     await migrate(db, { migrationsFolder });
+    if (await needsBackfill(db)) {
+      configureKeyring({ provider: await createKeyProvider(env), db });
+      const result = await backfillEncryption(db);
+      console.log(`✔ encryption backfill: ${result.workspaces} workspaces, ${result.rows} rows encrypted`);
+    }
   } finally {
     await client.end();
   }

@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { monthKey, todayISO } from '@effinance/shared';
 import { demoFetch } from './fetch';
-import { DEMO_EMAIL, DEMO_PASSWORD } from './server';
+import { DEMO_EMAIL, DEMO_PARTNER_EMAIL, DEMO_PASSWORD, getDemoServer } from './server';
 
 async function call(method: string, path: string, body?: unknown) {
   const res = await demoFetch(`/api${path}`, { method, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -25,7 +25,11 @@ describe('demo api (PGlite)', () => {
     expect(bad).toMatchObject({ status: 401, body: { error: 'unauthorized' } });
     const ok = await call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
     expect(ok.status).toBe(200);
-    expect((await call('GET', '/auth/me')).body.email).toBe(DEMO_EMAIL);
+    const me = (await call('GET', '/auth/me')).body;
+    expect(me.user.email).toBe(DEMO_EMAIL);
+    expect(me.workspace).toMatchObject({ name: 'Pessoal', kind: 'personal', role: 'owner' });
+    expect(me.workspace.subscription).toMatchObject({ status: 'trialing', canWrite: true });
+    expect(me.workspaces.map((w: { name: string }) => w.name)).toEqual(['Pessoal', 'Família Costa']);
   });
 
   it('serves dashboard, statement and every report', async () => {
@@ -95,10 +99,56 @@ describe('demo api (PGlite)', () => {
     expect(split.body[0].splitGroupId).toBe(split.body[1].splitGroupId);
   });
 
+  it('keeps workspaces isolated with RLS and encrypts personal data in PGlite', async () => {
+    const { client } = await getDemoServer();
+    const me = (await call('GET', '/auth/me')).body;
+    const family = me.workspaces.find((w: { kind: string }) => w.kind === 'family');
+
+    const personalAccounts = (await call('GET', '/accounts')).body.map((a: { name: string }) => a.name);
+    const switched = await call('POST', '/auth/switch-workspace', { workspaceId: family.id });
+    expect(switched.body.workspace).toMatchObject({ name: 'Família Costa', role: 'owner', subscription: { status: 'active' } });
+    const familyAccounts = (await call('GET', '/accounts')).body.map((a: { name: string }) => a.name);
+    expect(familyAccounts).toContain('Conta conjunta');
+    expect(familyAccounts).not.toEqual(expect.arrayContaining(personalAccounts.filter((n: string) => n !== 'Carteira')));
+    const members = (await call('GET', '/workspaces/current/members')).body;
+    expect(members.map((m: { email: string }) => m.email)).toEqual([DEMO_EMAIL, DEMO_PARTNER_EMAIL]);
+
+    // The tenant role only sees the workspace pinned in the transaction.
+    const visible = await client.transaction(async (tx) => {
+      await tx.query(`select set_config('role', 'effinance_app', true), set_config('app.workspace_id', $1, true)`, [family.id]);
+      return (await tx.query<{ n: number }>('select count(distinct workspace_id)::int as n from accounts')).rows[0]!.n;
+    });
+    expect(visible).toBe(1);
+
+    const invite = await call('POST', '/workspaces/current/invites', { email: 'amiga@demo.app', role: 'viewer' });
+    expect(invite.status).toBe(201);
+    expect(invite.body.inviteUrl).toContain('/convite/');
+
+    await call('POST', '/auth/switch-workspace', { workspaceId: me.workspace.id });
+    const contacts = (await client.query<{ email: string | null }>('select email from contacts where email is not null')).rows;
+    expect(contacts.length).toBeGreaterThan(0);
+    expect(contacts.every((c) => c.email!.startsWith('v1.'))).toBe(true);
+    const plain = (await call('GET', '/contacts')).body.items.find((c: { email: string | null }) => c.email);
+    expect(plain.email).toContain('@');
+  });
+
+  it('runs the fake checkout and activates a plan', async () => {
+    const checkout = await call('POST', '/billing/checkout', { planCode: 'individual_monthly' });
+    expect(checkout.body.checkoutUrl).toContain('#/configuracoes?aba=assinatura&simular=individual_monthly');
+    const active = await call('POST', '/billing/dev/activate', { planCode: 'individual_monthly' });
+    expect(active.body).toMatchObject({ status: 'active', canWrite: true, plan: { code: 'individual_monthly' } });
+    expect((await call('GET', '/billing/plans')).body).toHaveLength(4);
+  });
+
   it('registers new users with default categories', async () => {
     const reg = await call('POST', '/auth/register', { name: 'Teste', email: 'teste@demo.app', password: 'senha12345', acceptTerms: true });
     expect(reg.status).toBe(201);
     const cats = await call('GET', '/categories');
     expect(cats.body.length).toBeGreaterThan(5);
+    const sessions = await call('GET', '/auth/sessions');
+    expect(sessions.body).toEqual([expect.objectContaining({ current: true })]);
+    expect((await call('POST', '/auth/logout')).status).toBe(204);
+    expect((await call('GET', '/auth/me')).status).toBe(401);
+    expect((await call('POST', '/auth/refresh')).status).toBe(401);
   });
 });

@@ -4,7 +4,8 @@
 import { createAwsKmsKeyProvider } from './lib/crypto/aws-kms';
 import { fromBase64, sha256Hex, type Bytes } from './lib/crypto/encoding';
 import { LocalKeyProvider, type KeyProvider } from './lib/crypto/key-provider';
-import { ConsoleMailer, MemoryMailer, WebhookMailer, createSesMailer, type Mailer } from './lib/mailer';
+import { ConsoleMailer, MemoryMailer, WebhookMailer, type Mailer } from './lib/mailer';
+import { createSesMailer } from './lib/mailer-ses';
 import type { Platform } from './lib/platform';
 import { FakeBillingProvider } from './modules/billing/providers/fake';
 import { MercadoPagoProvider } from './modules/billing/providers/mercadopago';

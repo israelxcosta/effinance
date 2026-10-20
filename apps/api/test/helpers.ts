@@ -9,17 +9,20 @@ export async function createTestApp(): Promise<App> {
 }
 
 export async function resetDb(app: App) {
-  await app.db.execute(sql`truncate table users restart identity cascade`);
+  await app.db.execute(sql`truncate table users, workspaces, billing_events restart identity cascade`);
 }
 
 export interface Client {
   token: string;
   userId: string;
+  email: string;
+  /** Last refresh token received in a cookie. */
+  refreshToken: string | null;
   get<T = any>(url: string): Promise<Res<T>>;
   post<T = any>(url: string, body?: unknown): Promise<Res<T>>;
   put<T = any>(url: string, body?: unknown): Promise<Res<T>>;
   patch<T = any>(url: string, body?: unknown): Promise<Res<T>>;
-  del<T = any>(url: string): Promise<Res<T>>;
+  del<T = any>(url: string, body?: unknown): Promise<Res<T>>;
 }
 
 export interface Res<T> {
@@ -38,38 +41,53 @@ function wrap<T>(raw: LightMyRequestResponse): Res<T> {
   return { status: raw.statusCode, body, raw };
 }
 
-export function clientFor(app: App, token: string, userId = ''): Client {
-  const call = async (method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, payload?: unknown) =>
-    wrap<any>(
-      await app.inject({
-        method,
-        url: `/api${url}`,
-        headers: { authorization: `Bearer ${token}` },
-        ...(payload !== undefined ? { payload: payload as object } : {}),
-      }),
-    );
-  return {
+/** Picks up new session cookies (switch workspace, refresh) so the client follows them. */
+export function absorbCookies(client: Pick<Client, 'token' | 'refreshToken'>, raw: LightMyRequestResponse) {
+  for (const c of raw.cookies) {
+    if (c.name === 'effinance_token' && c.value) client.token = c.value;
+    if (c.name === 'effinance_refresh' && c.value) client.refreshToken = c.value;
+  }
+}
+
+export function clientFor(app: App, token: string, userId = '', email = '', refreshToken: string | null = null): Client {
+  const call = async (method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, payload?: unknown) => {
+    const raw = await app.inject({
+      method,
+      url: `/api${url}`,
+      headers: { authorization: `Bearer ${client.token}` },
+      ...(payload !== undefined ? { payload: payload as object } : {}),
+    });
+    absorbCookies(client, raw);
+    return wrap<any>(raw);
+  };
+  const client: Client = {
     token,
     userId,
+    email,
+    refreshToken,
     get: (url) => call('GET', url),
     post: (url, body) => call('POST', url, body ?? {}),
     put: (url, body) => call('PUT', url, body ?? {}),
     patch: (url, body) => call('PATCH', url, body ?? {}),
-    del: (url) => call('DELETE', url),
+    del: (url, body) => call('DELETE', url, body),
   };
+  return client;
 }
 
 let counter = 0;
-export async function registerUser(app: App, name = 'Usuária Teste'): Promise<Client> {
+export const TEST_PASSWORD = 'senha-segura-123';
+
+export async function registerUser(app: App, name = 'Usuária Teste', email?: string): Promise<Client> {
   counter += 1;
   const res = await app.inject({
     method: 'POST',
     url: '/api/auth/register',
-    payload: { name, email: `user${counter}-${Date.now()}@teste.com`, password: 'senha-segura-123', acceptTerms: true },
+    payload: { name, email: email ?? `user${counter}-${Date.now()}@teste.com`, password: TEST_PASSWORD, acceptTerms: true },
   });
   if (res.statusCode !== 201) throw new Error(`register failed: ${res.body}`);
   const { token, user } = res.json();
-  return clientFor(app, token, user.id);
+  const refresh = res.cookies.find((c) => c.name === 'effinance_refresh')?.value ?? null;
+  return clientFor(app, token, user.id, user.email, refresh);
 }
 
 /** Creates a plain checking account and returns its id. */

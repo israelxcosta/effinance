@@ -6,10 +6,13 @@ export async function demoFetch(input: string, init: RequestInit = {}): Promise<
   const { router } = await getDemoServer();
   const method = (init.method ?? 'GET').toUpperCase();
   const body = typeof init.body === 'string' && init.body ? JSON.parse(init.body) : undefined;
-  const result = await router.handle(method, input, body);
-  if (result.status === 204 || result.body === undefined) return new Response(null, { status: result.status });
+  const headers: Record<string, string> = {};
+  if (typeof navigator !== 'undefined' && navigator.userAgent) headers['user-agent'] = navigator.userAgent;
+  const result = await router.handle(method, input, body, headers);
+  const responseHeaders = { ...result.headers };
+  if (result.status === 204 || result.body === undefined) return new Response(null, { status: result.status, headers: responseHeaders });
   return new Response(JSON.stringify(result.body), {
     status: result.status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...responseHeaders, 'Content-Type': 'application/json' },
   });
 }

@@ -257,10 +257,12 @@ function PlansCard({ sub, plans }: { sub: Subscription; plans: Plan[] | undefine
                       {h}
                     </li>
                   ))}
-                  <li className="flex items-start gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
-                    {plan.maxMembers === 1 ? 'Uso individual' : `Até ${plan.maxMembers} membros`}
-                  </li>
+                  {plan.highlights.some((h) => /membro/i.test(h)) ? null : (
+                    <li className="flex items-start gap-2">
+                      <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />
+                      {plan.maxMembers === 1 ? 'Uso individual' : `Até ${plan.maxMembers} membros`}
+                    </li>
+                  )}
                 </ul>
                 <div className="mt-5">
                   {!isOwner && !current ? (
