@@ -90,3 +90,103 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 - **Relatórios por competência** (categorias, contatos, comparação, visão geral) usam `date` e
   incluem compras no cartão; **fluxo de caixa** usa a data efetiva e só movimentos de contas, com
   faturas pendentes projetadas no vencimento.
+
+---
+
+# SaaS: workspaces, segurança e assinaturas
+
+Contrato em `packages/shared/src/saas.ts`.
+
+## Modelo de isolamento
+
+- **Workspace = assinante (tenant).** Todo dado financeiro (categorias, contas, cartões, metas e
+  aportes, contatos, séries e lançamentos) pertence a um workspace (`workspace_id`). Um usuário pode
+  participar de vários workspaces (o pessoal, criado no cadastro, e de família/empresa) com papel
+  `owner`, `editor` ou `viewer`.
+- **Row Level Security (PostgreSQL)**: as tabelas de domínio têm `ENABLE` + `FORCE ROW LEVEL
+  SECURITY` com a política `workspace_id = current_setting('app.workspace_id')::uuid`. Cada
+  requisição autenticada roda numa transação que executa `SET LOCAL ROLE effinance_app` (papel sem
+  `BYPASSRLS`, nunca dono das tabelas) e `set_config('app.workspace_id', <ativo>, true)`. Um bug que
+  esqueça o filtro na aplicação não vaza dados de outro assinante. Os filtros explícitos continuam
+  (defesa em profundidade).
+- **Criptografia de envelope**: cada workspace tem uma chave de dados (AES-256) própria, gerada e
+  protegida pelo AWS KMS (`KEY_PROVIDER=aws`; em desenvolvimento, `local` com
+  `ENCRYPTION_MASTER_KEY`). Campos sensíveis são gravados cifrados com AES-256-GCM (AAD =
+  workspace + tabela + coluna): contatos (CPF/CNPJ, e-mail, telefone, endereço completo,
+  observações), observações de lançamentos e metas, segredo TOTP do usuário (chave mestra). CPF/CNPJ
+  tem índice cego (HMAC) para busca exata. Excluir o workspace apaga a chave (crypto-shredding).
+- **Em trânsito e em repouso**: TLS obrigatório (`DATABASE_SSL=verify-full` com o CA do RDS);
+  RDS com armazenamento e snapshots criptografados pelo KMS e backups com PITR.
+
+## Autenticação e sessões
+
+- Access token JWT curto (15 min) em cookie httpOnly `effinance_token`; refresh token opaco
+  (30 dias) em cookie httpOnly `effinance_refresh` (path `/api/auth`), guardado como hash em
+  `sessions`, **rotacionado a cada uso** e com detecção de reuso (revoga a família). Logout, troca de
+  senha e "encerrar sessão" revogam no servidor.
+- 2FA por TOTP (aplicativo autenticador) com códigos de recuperação de uso único.
+- Recuperação de senha por e-mail (token de uso único, 30 min, guardado como hash).
+- Senhas: scrypt; novas senhas com 10+ caracteres, letras e números.
+- Limite de tentativas em login/2FA/recuperação (Redis opcional via `REDIS_URL` para múltiplas
+  instâncias); CSP restritiva nas respostas da API; requisições que alteram dados exigem JSON e
+  origem permitida (CSRF).
+- Log de auditoria (login, 2FA, membros, assinatura, exportação, exclusões) sem dados pessoais.
+
+## Permissões e assinatura
+
+- `viewer` só lê; `editor` altera dados financeiros; `owner` também gerencia membros, assinatura e
+  exclusão. Violação → `403 forbidden`.
+- Gravações exigem assinatura válida: `trialing` (14 dias, sem cartão), `active` ou `past_due` dentro
+  da carência de 7 dias. Fora disso → `402 subscription_required` (leitura e exportação continuam).
+- Limite de membros por plano ao convidar.
+
+## Endpoints novos
+
+| Método | Rota | Entrada | Resposta |
+| --- | --- | --- | --- |
+| POST | `/api/auth/register` | `registerSchema` (com `acceptTerms`) | `AuthResponse` (201) — cria o workspace pessoal em teste |
+| POST | `/api/auth/login` | `loginSchema` | `AuthResponse` ou `MfaChallengeResponse` |
+| POST | `/api/auth/mfa/verify` | `mfaVerifySchema` | `AuthResponse` |
+| POST | `/api/auth/refresh` | — (cookie) | 204 |
+| POST | `/api/auth/logout` | — | 204 (revoga a sessão) |
+| GET | `/api/auth/me` | — | `MeResponse` |
+| PUT | `/api/auth/me` | `updateProfileSchema` | `MeUser` |
+| DELETE | `/api/auth/me` | `deleteAccountSchema` | 204 — exclui a conta e os workspaces em que é o único proprietário |
+| POST | `/api/auth/password` | `changePasswordSchema` | 204 — revoga as outras sessões |
+| POST | `/api/auth/password/forgot` | `forgotPasswordSchema` | 204 (sempre) |
+| POST | `/api/auth/password/reset` | `resetPasswordSchema` | 204 |
+| GET | `/api/auth/sessions` | — | `SessionInfo[]` |
+| DELETE | `/api/auth/sessions/:id` | — | 204 |
+| POST | `/api/auth/mfa/setup` | — | `MfaSetupResponse` |
+| POST | `/api/auth/mfa/enable` | `mfaCodeSchema` | `MfaEnableResponse` |
+| POST | `/api/auth/mfa/disable` | `mfaCodeSchema` | 204 |
+| POST | `/api/auth/switch-workspace` | `switchWorkspaceSchema` | `MeResponse` |
+| GET | `/api/workspaces` | — | `WorkspaceSummary[]` |
+| POST | `/api/workspaces` | `workspaceInputSchema` | `WorkspaceSummary` (201, em teste) |
+| PUT | `/api/workspaces/current` | `workspaceUpdateSchema` | `WorkspaceSummary` (owner) |
+| DELETE | `/api/workspaces/current` | `deleteWorkspaceSchema` | 204 (owner; cancela assinatura e destrói a chave) |
+| GET | `/api/workspaces/current/members` | — | `Member[]` |
+| PATCH | `/api/workspaces/current/members/:userId` | `memberRoleSchema` | `Member` (owner) |
+| DELETE | `/api/workspaces/current/members/:userId` | — | 204 (owner remove; membro pode sair) |
+| GET | `/api/workspaces/current/invites` | — | `Invite[]` (owner) |
+| POST | `/api/workspaces/current/invites` | `inviteInputSchema` | `Invite` (201, owner) |
+| DELETE | `/api/workspaces/current/invites/:id` | — | 204 (owner) |
+| GET | `/api/invites/:token` | — | `InvitePreview` (público) |
+| POST | `/api/invites/:token/accept` | — | `MeResponse` (e-mail do convite = e-mail logado) |
+| GET | `/api/workspaces/current/export` | — | JSON com todos os dados decifrados (owner, LGPD) |
+| GET | `/api/workspaces/current/audit` | `auditQuerySchema` | `Paginated<AuditLogEntry>` (owner) |
+| GET | `/api/billing/plans` | — | `Plan[]` |
+| GET | `/api/billing/subscription` | — | `Subscription` |
+| POST | `/api/billing/checkout` | `checkoutSchema` | `CheckoutResponse` (owner) |
+| POST | `/api/billing/cancel` | — | `Subscription` (owner; cancela ao fim do período) |
+| POST | `/api/billing/webhooks/mercadopago` | notificação MP | 200 (assinatura `x-signature` verificada, idempotente) |
+| POST | `/api/billing/dev/activate` | `checkoutSchema` | `Subscription` — só com `BILLING_PROVIDER=fake` (dev/demo) |
+
+## Mercado Pago (assinaturas)
+
+`POST /preapproval` com `external_reference = workspaceId`, `payer_email`, `auto_recurring`
+(valor e frequência do plano, BRL) e `back_url` → o usuário paga no `init_point`. Webhooks
+`subscription_preapproval` / `subscription_authorized_payment` / `payment`: valida `x-signature`
+(HMAC-SHA256 de `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` com `MP_WEBHOOK_SECRET`), grava
+o evento (idempotência) e consulta `GET /preapproval/:id` para obter o status oficial:
+`authorized → active`, `paused → past_due`, `cancelled → canceled`, `pending → pending`.

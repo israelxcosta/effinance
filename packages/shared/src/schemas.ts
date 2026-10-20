@@ -80,8 +80,11 @@ export const registerSchema = z.object({
   email: z.email({ message: 'E-mail inválido' }).trim().toLowerCase(),
   password: z
     .string()
-    .min(8, { message: 'A senha deve ter ao menos 8 caracteres' })
-    .max(128, { message: 'Senha muito longa' }),
+    .min(10, { message: 'A senha deve ter ao menos 10 caracteres' })
+    .max(128, { message: 'Senha muito longa' })
+    .refine((v) => /[A-Za-z]/.test(v) && /\d/.test(v), { message: 'Use letras e números' }),
+  /** LGPD: explicit acceptance of the terms of use and privacy policy. */
+  acceptTerms: z.literal(true, { message: 'Aceite os termos de uso e a política de privacidade' }),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
