@@ -63,9 +63,9 @@ export function InsightsTab({ month, dashboard, loading }: { month: string; dash
 
   const split = o
     ? [
-        { name: 'Fixas', value: o.fixedExpense, fill: 'var(--brand-800)' },
-        { name: 'Parceladas', value: o.installmentExpense, fill: 'var(--brand-500)' },
-        { name: 'Variáveis', value: o.variableExpense, fill: 'var(--brand-300)' },
+        { name: 'Fixas', value: o.fixedExpense, fill: 'var(--app-chart-1)' },
+        { name: 'Parceladas', value: o.installmentExpense, fill: 'var(--app-chart-2)' },
+        { name: 'Variáveis', value: o.variableExpense, fill: 'var(--app-chart-3)' },
       ]
     : [];
 

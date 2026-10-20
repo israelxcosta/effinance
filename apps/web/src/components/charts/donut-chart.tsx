@@ -2,6 +2,7 @@ import { Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { formatBRL, formatPercent, type CategoryAmount } from '@effinance/shared';
 import { cn } from '@/lib/utils';
 import { MoneyTooltip, SERIES_PALETTE } from './chart-utils';
+import { useTone } from '@/lib/theme';
 
 interface DonutChartProps {
   data: CategoryAmount[];
@@ -14,13 +15,14 @@ interface DonutChartProps {
 
 /** Category distribution donut with total in the center and a compact legend. */
 export function DonutChart({ data, total, centerLabel = 'Total', height = 200, maxItems = 6, showLegend = true }: DonutChartProps) {
+  const tone = useTone();
   const sorted = [...data].sort((a, b) => b.amount - a.amount);
   const head = sorted.slice(0, maxItems);
   const rest = sorted.slice(maxItems);
   const items = rest.length
     ? [...head, { categoryId: 'others', name: 'Outros', icon: 'tag' as const, color: '#9A9EA5', amount: rest.reduce((s, r) => s + r.amount, 0), share: rest.reduce((s, r) => s + r.share, 0) }]
     : head;
-  const chartData = items.map((d, i) => ({ ...d, fill: d.color || SERIES_PALETTE[i % SERIES_PALETTE.length] }));
+  const chartData = items.map((d, i) => ({ ...d, fill: tone(d.color || SERIES_PALETTE[i % SERIES_PALETTE.length]!) }));
 
   return (
     <div className="@container">

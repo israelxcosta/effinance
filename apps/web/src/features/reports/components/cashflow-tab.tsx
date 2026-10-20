@@ -77,9 +77,9 @@ export function CashflowTab({ from, to }: { from: string; to: string }) {
                   <ReferenceArea
                     x1={projected[0]!.label}
                     x2={projected[projected.length - 1]!.label}
-                    fill="var(--brand-500)"
+                    fill="var(--app-chart-accent)"
                     fillOpacity={0.06}
-                    stroke="var(--brand-500)"
+                    stroke="var(--app-chart-accent)"
                     strokeOpacity={0.2}
                     strokeDasharray="4 4"
                     label={{ value: 'Projeção', position: 'insideTop', fill: 'var(--app-muted)', fontSize: 11 }}

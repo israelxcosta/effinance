@@ -23,9 +23,11 @@ import { alpha, cn } from '@/lib/utils';
 import { errorMessage } from '@/lib/api';
 import { useAccounts, useDeleteAccount, useSaveAccount } from '../api';
 import { AccountSheet } from '../account-sheet';
+import { useTone } from '@/lib/theme';
 
 export default function AccountsPage() {
   const [showArchived, setShowArchived] = useState(false);
+  const tone = useTone();
   const accounts = useAccounts({ includeArchived: showArchived });
   const [sheet, setSheet] = useState<{ open: boolean; account?: Account | null }>({ open: false });
   const [toDelete, setToDelete] = useState<Account | null>(null);
@@ -100,7 +102,7 @@ export default function AccountsPage() {
               key={a.id}
               className={cn('group relative flex flex-col gap-5 overflow-hidden p-5 transition-shadow hover:shadow-sm', a.archived && 'opacity-60')}
             >
-              <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: a.color }} aria-hidden />
+              <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: tone(a.color) }} aria-hidden />
               <div className="flex items-start gap-3">
                 <BankLogo bank={a.bank} color={a.color} size="lg" />
                 <div className="min-w-0 flex-1">

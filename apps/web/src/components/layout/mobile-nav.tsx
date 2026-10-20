@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router';
-import { ArrowLeftRight, LogOut, Menu, Minus, Plus, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, Bell, LogOut, Menu, Minus, Plus, Search, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
@@ -13,12 +13,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { NAV_ITEMS, SETTINGS_ITEM } from './nav';
+import { useOverdueBills } from './notifications';
 
-export function MobileNav() {
+export function MobileNav({ onSearch }: { onSearch: () => void }) {
   const actions = useTransactionActions();
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Counts what the link opens: overdue payables.
+  const overdue = useOverdueBills().data?.filter((t) => t.type === 'expense').length ?? 0;
   const items = NAV_ITEMS.filter((i) => i.mobile);
   const link = ({ isActive }: { isActive: boolean }) =>
     cn('flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold', isActive ? 'text-primary dark:text-brand-300' : 'text-muted');
@@ -74,6 +77,31 @@ export function MobileNav() {
       </nav>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen} title="Menu" description="Todas as seções do Effinance">
         <div className="flex flex-col gap-1">
+          {/* Search and alerts: on desktop they live in the floating quick-action bar. */}
+          <button
+            type="button"
+            className="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold text-fg hover:bg-bg-subtle"
+            onClick={() => {
+              setMenuOpen(false);
+              onSearch();
+            }}
+          >
+            <Search className="size-5" /> Buscar
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold text-fg hover:bg-bg-subtle"
+            onClick={() => {
+              setMenuOpen(false);
+              navigate('/contas-a-pagar?status=overdue');
+            }}
+          >
+            <Bell className="size-5" /> Contas vencidas
+            {overdue ? (
+              <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">{overdue}</span>
+            ) : null}
+          </button>
+          <span className="my-1 h-px bg-border" aria-hidden />
           {[...NAV_ITEMS, SETTINGS_ITEM].map((i) => (
             <NavLink
               key={i.to}

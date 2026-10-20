@@ -50,6 +50,11 @@
   --app-chart-expense: #d4d4d8;
   --app-chart-expense-strong: #8b8f97;
   --app-chart-grid: #e7e7e3;
+  /* Ordered data series (e.g. fixed / installments / variable) and single-series accents. */
+  --app-chart-1: var(--brand-800);
+  --app-chart-2: var(--brand-500);
+  --app-chart-3: var(--brand-300);
+  --app-chart-accent: var(--brand-500);
 
   --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.04);
   --shadow-sm: 0 1px 3px rgb(16 24 40 / 0.06), 0 1px 2px rgb(16 24 40 / 0.03);
@@ -58,41 +63,62 @@
   color-scheme: light;
 }
 
+/*
+ * Dark mode: neutral grays, black, white and off-white. The navy ramp is swapped for a gray ramp
+ * (same light→dark order), so gradients and brand utilities turn charcoal instead of blue, and the
+ * primary action becomes off-white on near-black.
+ */
 [data-theme='dark'] {
-  --app-bg: #0b1020;
-  --app-bg-subtle: #0f1528;
-  --app-surface: #121a2e;
-  --app-surface-muted: #172038;
-  --app-border: #222c45;
-  --app-border-strong: #2e3a58;
-  --app-fg: #e8ecf4;
-  --app-muted: #a0a9bc;
-  --app-subtle: #6e7891;
+  --brand-50: #fafaf9;
+  --brand-100: #f2f1ee;
+  --brand-200: #e2e1dd;
+  --brand-300: #cbc9c4;
+  --brand-400: #a3a19c;
+  --brand-500: #7d7b77;
+  --brand-600: #5c5b58;
+  --brand-700: #403f3d;
+  --brand-800: #2e2d2b;
+  --brand-900: #1f1e1d;
+  --brand-950: #131312;
 
-  --app-primary: var(--brand-500);
-  --app-primary-hover: var(--brand-400);
-  --app-primary-fg: #ffffff;
-  --app-primary-soft: #1a2747;
-  --app-primary-soft-fg: #b9cbf2;
-  --app-ring: var(--brand-400);
-  --app-brand-text: var(--brand-300);
+  --app-bg: #0b0b0b;
+  --app-bg-subtle: #121212;
+  --app-surface: #171717;
+  --app-surface-muted: #1e1e1d;
+  --app-border: #282827;
+  --app-border-strong: #393937;
+  --app-fg: #f2f1ee;
+  --app-muted: #a3a29e;
+  --app-subtle: #6f6e6a;
 
-  --app-success: #3cc47a;
-  --app-success-soft: #12301f;
-  --app-danger: #f2676b;
-  --app-danger-soft: #3a1a1d;
-  --app-warning: #e3a640;
-  --app-warning-soft: #352a12;
+  --app-primary: #f2f1ee;
+  --app-primary-hover: #ffffff;
+  --app-primary-fg: #121211;
+  --app-primary-soft: #262625;
+  --app-primary-soft-fg: #f2f1ee;
+  --app-ring: #a3a19c;
+  --app-brand-text: #e2e1dd;
 
-  --app-chart-income: var(--brand-400);
-  --app-chart-income-strong: var(--brand-300);
-  --app-chart-expense: #3a4560;
-  --app-chart-expense-strong: #6e7891;
-  --app-chart-grid: #222c45;
+  --app-success: #3dbf73;
+  --app-success-soft: #15231a;
+  --app-danger: #ef6b6e;
+  --app-danger-soft: #2b1718;
+  --app-warning: #d9a441;
+  --app-warning-soft: #29220f;
 
-  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.35);
-  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.55);
+  --app-chart-income: #e2e1dd;
+  --app-chart-income-strong: #f2f1ee;
+  --app-chart-expense: #4a4947;
+  --app-chart-expense-strong: #8a8985;
+  --app-chart-grid: #262625;
+  --app-chart-1: #f2f1ee;
+  --app-chart-2: #a3a19c;
+  --app-chart-3: #5c5b58;
+  --app-chart-accent: #cbc9c4;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.7);
 
   color-scheme: dark;
 }

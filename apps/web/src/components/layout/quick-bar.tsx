@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import { ArrowLeftRight, CreditCard, Plus, Search } from 'lucide-react';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { cn } from '@/lib/utils';
+import { Notifications } from './notifications';
 
 /** Floating quick-action bar (desktop), Graniq style. */
 export function QuickBar({ onSearch }: { onSearch: () => void }) {
@@ -30,6 +31,8 @@ export function QuickBar({ onSearch }: { onSearch: () => void }) {
         <button type="button" className={cn(btn, 'text-muted hover:text-fg')} onClick={() => navigate('/cartoes')}>
           <CreditCard /> Fatura
         </button>
+        <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
+        <Notifications />
       </div>
     </div>
   );

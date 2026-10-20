@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { useTone } from '@/lib/theme';
 
 interface ProgressBarProps {
   /** 0..1 */
@@ -18,6 +19,7 @@ const TONES = {
 } as const;
 
 export function ProgressBar({ value, color, tone = 'brand', className, size = 'md', label }: ProgressBarProps) {
+  const toneColor = useTone();
   const pct = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 100;
   return (
     <div
@@ -30,7 +32,7 @@ export function ProgressBar({ value, color, tone = 'brand', className, size = 'm
     >
       <div
         className={cn('h-full rounded-full transition-[width] duration-500 ease-out', !color && TONES[tone])}
-        style={{ width: `${pct}%`, ...(color ? { backgroundColor: color } : {}) }}
+        style={{ width: `${pct}%`, ...(color ? { backgroundColor: color.startsWith('#') ? toneColor(color) : color } : {}) }}
       />
     </div>
   );

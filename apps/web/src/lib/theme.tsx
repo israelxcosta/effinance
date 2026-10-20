@@ -42,7 +42,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = resolved;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#0B1020' : '#F6F6F4');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolved === 'dark' ? '#0B0B0B' : '#F6F6F4');
   }, [resolved]);
 
   const setTheme = useCallback((next: ThemePreference) => {
@@ -66,4 +66,29 @@ export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme must be used inside ThemeProvider');
   return ctx;
+}
+
+/**
+ * Very dark user colors (like the navy default for categories and goals) vanish on the neutral dark
+ * surfaces; mix them toward off-white so icons, bars and chart slices stay readable.
+ */
+export function liftForDark(color: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!m) return color;
+  const n = parseInt(m[1]!, 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  if (0.2126 * r + 0.7152 * g + 0.0722 * b >= 0.12) return color;
+  const offWhite = [0xf2, 0xf1, 0xee];
+  const mixed = rgb.map((v, i) => Math.round(v * 0.45 + offWhite[i]! * 0.55));
+  return `#${mixed.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Theme-aware version of a user-chosen color (see liftForDark). */
+export function useTone(): (color: string) => string {
+  const { resolved } = useTheme();
+  return useCallback((color: string) => (resolved === 'dark' ? liftForDark(color) : color), [resolved]);
 }

@@ -60,9 +60,9 @@ export function OverviewTab({ from, to }: { from: string; to: string }) {
           ) : o && o.expense > 0 ? (
             <div className="mt-4 flex flex-col gap-5">
               {[
-                { label: 'Fixas', value: o.fixedExpense, color: 'var(--brand-800)' },
-                { label: 'Parceladas', value: o.installmentExpense, color: 'var(--brand-500)' },
-                { label: 'Variáveis', value: o.variableExpense, color: 'var(--brand-300)' },
+                { label: 'Fixas', value: o.fixedExpense, color: 'var(--app-chart-1)' },
+                { label: 'Parceladas', value: o.installmentExpense, color: 'var(--app-chart-2)' },
+                { label: 'Variáveis', value: o.variableExpense, color: 'var(--app-chart-3)' },
               ].map((row) => (
                 <div key={row.label}>
                   <div className="flex justify-between text-[13px]">

@@ -24,9 +24,11 @@ import { useDeleteGoal, useGoals } from '../api';
 import { GoalSheet } from '../goal-sheet';
 import { ContributionDialog } from '../contribution-dialog';
 import { GoalDeadline } from '../goal-card';
+import { useTone } from '@/lib/theme';
 
 export default function GoalsPage() {
   const goals = useGoals();
+  const tone = useTone();
   const [sheet, setSheet] = useState<{ open: boolean; goal?: Goal | null }>({ open: false });
   const [contributing, setContributing] = useState<Goal | null>(null);
   const [toDelete, setToDelete] = useState<Goal | null>(null);
@@ -95,13 +97,13 @@ export default function GoalsPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="rounded-lg p-4" style={{ background: `linear-gradient(135deg, ${alpha(g.color, 0.1)}, ${alpha(g.color, 0.03)})` }}>
+              <div className="rounded-lg p-4" style={{ background: `linear-gradient(135deg, ${alpha(tone(g.color), 0.1)}, ${alpha(tone(g.color), 0.03)})` }}>
                 <div className="flex items-end justify-between gap-2">
                   <div>
                     <p className="text-xs text-muted">Conquistado</p>
                     <p className="tabular text-xl font-semibold tracking-tight">{formatBRL(g.currentAmount)}</p>
                   </div>
-                  <p className="text-2xl font-bold tracking-tight" style={{ color: g.color }}>{formatPercent(g.progress, 0)}</p>
+                  <p className="text-2xl font-bold tracking-tight" style={{ color: tone(g.color) }}>{formatPercent(g.progress, 0)}</p>
                 </div>
                 <ProgressBar value={g.progress} color={g.color} className="mt-3" label={`Progresso de ${g.name}`} />
                 <div className="mt-2 flex justify-between text-[11px] text-muted">

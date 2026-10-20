@@ -24,9 +24,11 @@ import { alpha, cn } from '@/lib/utils';
 import { errorMessage } from '@/lib/api';
 import { useCategories, useDeleteCategory } from '../api';
 import { CategorySheet, type CategorySheetState } from '../category-sheet';
+import { useTone } from '@/lib/theme';
 
 export default function CategoriesPage() {
   const [params, setParams] = useSearchParams();
+  const tone = useTone();
   const type = (params.get('tipo') as CategoryType) || 'expense';
   const [showArchived, setShowArchived] = useState(false);
   const categories = useCategories({ type, includeArchived: showArchived });
@@ -115,7 +117,7 @@ export default function CategoriesPage() {
                     type="button"
                     onClick={() => open({ category: s, parent: c })}
                     className={cn('inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:brightness-95', s.archived && 'line-through opacity-60')}
-                    style={{ backgroundColor: alpha(s.color, 0.1), borderColor: alpha(s.color, 0.25), color: s.color }}
+                    style={{ backgroundColor: alpha(tone(s.color), 0.1), borderColor: alpha(tone(s.color), 0.25), color: tone(s.color) }}
                     title="Editar subcategoria"
                   >
                     <CategoryIcon icon={s.icon} color={s.color} className="!size-4 !bg-transparent [&_svg]:!size-3.5" />

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { axisProps, moneyAxisFormatter, MoneyTooltip, SERIES_PALETTE } from '@/components/charts/chart-utils';
 import { useCategoryReport } from '../api';
+import { useTone } from '@/lib/theme';
 
 export const GRANULARITY_OPTIONS: { value: Granularity; label: string }[] = [
   { value: 'day', label: 'Dia' },
@@ -30,13 +31,14 @@ export function CategoriesTab({ from, to }: { from: string; to: string }) {
   const [drill, setDrill] = useState<{ id: string; name: string } | null>(null);
   const report = useCategoryReport({ from, to, type, granularity, status, categoryId: drill?.id });
   const r = report.data;
+  const tone = useTone();
 
   const { chartData, series } = useMemo(() => {
     if (!r) return { chartData: [], series: [] as { key: string; name: string; color: string }[] };
     const sorted = [...r.series].sort((a, b) => b.total - a.total);
     const head = sorted.slice(0, MAX_SERIES);
     const rest = sorted.slice(MAX_SERIES);
-    const series = head.map((s, i) => ({ key: `s${i}`, name: s.name, color: s.color || SERIES_PALETTE[i % SERIES_PALETTE.length]! }));
+    const series = head.map((s, i) => ({ key: `s${i}`, name: s.name, color: tone(s.color || SERIES_PALETTE[i % SERIES_PALETTE.length]!) }));
     if (rest.length) series.push({ key: 'others', name: 'Outros', color: '#9A9EA5' });
     const chartData = r.periods.map((p, pi) => {
       const row: Record<string, number | string | boolean> = { label: p.label, projected: p.projected, total: r.totals[pi] ?? 0 };
@@ -45,7 +47,7 @@ export function CategoriesTab({ from, to }: { from: string; to: string }) {
       return row;
     });
     return { chartData, series };
-  }, [r]);
+  }, [r, tone]);
 
   const projected = r?.periods.filter((p) => p.projected) ?? [];
   const names = Object.fromEntries([...series.map((s) => [s.key, s.name]), ['total', 'Total']]);
@@ -122,9 +124,9 @@ export function CategoriesTab({ from, to }: { from: string; to: string }) {
                     <ReferenceArea
                       x1={projected[0]!.label}
                       x2={projected[projected.length - 1]!.label}
-                      fill="var(--brand-500)"
+                      fill="var(--app-chart-accent)"
                       fillOpacity={0.06}
-                      stroke="var(--brand-500)"
+                      stroke="var(--app-chart-accent)"
                       strokeOpacity={0.2}
                       strokeDasharray="4 4"
                       label={{ value: 'Projeção', position: 'insideTop', fill: 'var(--app-muted)', fontSize: 11 }}

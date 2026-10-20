@@ -46,9 +46,20 @@
 
 ### Modo escuro
 
-`bg #0B1020`, `bg-subtle #0F1528`, `surface #121A2E`, `surface-muted #172038`, `border #222C45`,
-`border-strong #2E3A58`, `text #E8ECF4`, `text-muted #A0A9BC`, `text-subtle #6E7891`.
-A primária passa a `brand-500` para manter contraste; gráficos usam `brand-400`/`#3A4560`.
+Neutro, sem azul: preto, cinzas escuros, branco e off-white. A rampa `brand-*` é trocada por uma
+rampa de cinzas (mesma ordem claro→escuro), então gradientes e utilitários de marca ficam grafite.
+
+| Token | Hex | Token | Hex |
+| --- | --- | --- | --- |
+| `bg` | `#0B0B0B` | `fg` | `#F2F1EE` (off-white) |
+| `bg-subtle` | `#121212` | `text-muted` | `#A3A29E` |
+| `surface` | `#171717` | `text-subtle` | `#6F6E6A` |
+| `surface-muted` | `#1E1E1D` | `primary` | `#F2F1EE` com texto `#121211` |
+| `border` | `#282827` | `primary-soft` | `#262625` |
+| `border-strong` | `#393937` | gráfico receita/despesa | `#E2E1DD` / `#4A4947` |
+
+Cores escolhidas pelo usuário muito escuras (ex.: o azul-marinho padrão de categorias e metas) são
+clareadas no modo escuro por `useTone()` (`src/lib/theme.tsx`) para continuarem legíveis.
 
 ### Tipografia
 
@@ -80,14 +91,15 @@ A primária passa a `brand-500` para manter contraste; gráficos usam `brand-400
   `lucide` 20px em botões 44×44 com raio 12; ativo = `surface` + sombra xs (ou `brand-100` +
   `text-brand-800`); tooltip com o nome à direita; rodapé com badge **PRO** (`brand-800`) e avatar
   com iniciais.
-- **Topbar** (altura 72px, sticky, `bg` com blur): saudação "Bom dia, {nome} 👋" (H1); busca
-  pílula com ícone e `⌘K`; botões em pílula com borda; botão de destaque "Nova transação" (primário)
-  com menu de opções (Receita, Despesa, Transferência, Investimento); ícones de calendário/notificação
-  em botões quadrados 40×40 com borda.
+- **Topbar** (altura 72px, sticky, `bg` com blur): apenas a saudação "Bom dia, {nome} 👋" (H1).
+  Busca, ações e notificações ficam na barra flutuante; o tema fica no menu do avatar e em
+  Configurações.
 - **Conteúdo**: max-width 1440px, padding 24px, seções em cards `xl`.
-- **Barra flutuante** inferior centralizada (pílula `surface`, sombra lg): ações rápidas
-  `+ Despesa` (texto `danger`), `+ Receita` (texto `success`), `Transferir`, `Fatura`.
-- **Mobile** (< 1024px): sidebar vira navegação inferior; topbar compacta; sheets em tela cheia.
+- **Barra flutuante** inferior centralizada (pílula `surface`, sombra lg): busca/⌘K, ações rápidas
+  `+ Despesa` (texto `danger`), `+ Receita` (texto `success`), `Transferir`, `Fatura` e, à direita,
+  o sino de notificações (contas vencidas, com contador; o menu abre para cima).
+- **Mobile** (< 1024px): sidebar vira navegação inferior; "Buscar" e "Contas vencidas" ficam no
+  menu "Mais"; sheets em tela cheia.
 
 ## 3. Componentes
 

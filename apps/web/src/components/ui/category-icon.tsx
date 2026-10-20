@@ -1,5 +1,6 @@
 import { getIcon } from '@/lib/icons';
 import { alpha, cn } from '@/lib/utils';
+import { useTone } from '@/lib/theme';
 
 interface CategoryIconProps {
   icon: string | null | undefined;
@@ -16,7 +17,8 @@ const SIZES = {
 
 export function CategoryIcon({ icon, color, size = 'md', className }: CategoryIconProps) {
   const Icon = getIcon(icon);
-  const c = color ?? '#6B6F76';
+  const tone = useTone();
+  const c = tone(color ?? '#6B6F76');
   return (
     <span
       aria-hidden
