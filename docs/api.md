@@ -22,6 +22,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
 | PUT | `/api/categories/:id` | `categoryUpdateSchema` | `Category` |
 | DELETE | `/api/categories/:id` | — | 204 (409 se houver lançamentos → arquivar) |
 | GET | `/api/accounts` | `accountQuerySchema` | `Account[]` |
+| GET | `/api/accounts/:id` | — | `Account` |
 | POST | `/api/accounts` | `accountInputSchema` | `Account` (201) |
 | PUT | `/api/accounts/:id` | `accountInputSchema` | `Account` |
 | DELETE | `/api/accounts/:id` | — | 204 (409 se houver lançamentos → arquivar) |
@@ -78,6 +79,8 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 404, 4
   relatórios e projeções de qualquer mês.
 - **Escopo de edição/exclusão** em séries: `one` (só esta), `future` (esta e as próximas), `all`.
   Ocorrências já pagas não são alteradas por `future`/`all`. Excluir `future` encerra a série.
+- **Vencido**: pendente com data anterior a hoje; compras no cartão só vencem quando a fatura
+  delas vence (não pela data da compra).
 - **Fatura**: identificada pelo mês de vencimento. Compra entra na primeira fatura cujo fechamento é
   posterior à data da compra. Pagar a fatura marca as compras como pagas e cria a transferência.
 - **Relatórios por competência** (categorias, contatos, comparação, visão geral) usam `date` e
