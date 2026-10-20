@@ -1,9 +1,13 @@
 import type { ApiError } from '@effinance/shared';
-import { IS_DEMO } from './demo';
 
-/** In the demo build requests are answered in-browser (PGlite) instead of going to the network. */
+/**
+ * In the demo build requests are answered in-browser (PGlite) instead of going to the network.
+ * The env check is inlined (not IS_DEMO) so regular builds drop the demo chunk entirely.
+ */
 const transport = (input: string, init: RequestInit): Promise<Response> =>
-  IS_DEMO ? import('@/demo/fetch').then((m) => m.demoFetch(input, init)) : fetch(input, init);
+  import.meta.env.VITE_DEMO === 'true'
+    ? import('@/demo/fetch').then((m) => m.demoFetch(input, init))
+    : fetch(input, init);
 
 export class ApiRequestError extends Error {
   readonly status: number;

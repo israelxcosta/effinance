@@ -10,8 +10,11 @@ export function DemoBanner() {
 
   async function reset() {
     setResetting(true);
-    const { resetDemo } = await import('@/demo/server');
-    await resetDemo();
+    // Inlined env check so regular builds drop the demo chunk.
+    if (import.meta.env.VITE_DEMO === 'true') {
+      const { resetDemo } = await import('@/demo/server');
+      await resetDemo();
+    }
     window.location.reload();
   }
 
