@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { Check, CreditCard, Lock, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toastError } from '@/lib/notify';
+import { resolveCheckoutUrl } from '@/lib/safe-url';
 import { useAuth } from '@/features/auth/auth-context';
 import { usePermissions } from '@/features/auth/permissions';
 import { daysUntil } from '@/features/billing/subscription-banner';
@@ -78,21 +79,25 @@ export function SubscriptionTab() {
  */
 function useSimulatedCheckout() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const activate = useDevActivate();
   const handled = useRef<string | null>(null);
   const simulate = params.get('simular');
+  // Set by `subscribe()` below when it routes here: a link someone sent (`?simular=`) carries no
+  // router state, so it can't fire the activation by itself (CSRF through a crafted URL).
+  const intended = (location.state as { simulatedCheckout?: unknown } | null)?.simulatedCheckout;
   const { mutate } = activate;
 
   useEffect(() => {
     if (!simulate || handled.current === simulate) return;
     handled.current = simulate;
     setParams({ aba: 'assinatura' }, { replace: true });
-    if (!(PLAN_CODES as readonly string[]).includes(simulate)) return;
+    if (intended !== simulate || !(PLAN_CODES as readonly string[]).includes(simulate)) return;
     mutate(simulate as PlanCode, {
       onSuccess: (sub) => toast.success(`Assinatura ${sub.plan?.name ?? ''} ativada. Obrigado!`),
       onError: toastError,
     });
-  }, [simulate, setParams, mutate]);
+  }, [simulate, intended, setParams, mutate]);
 }
 
 function CurrentPlanCard({ sub }: { sub: Subscription }) {
@@ -194,10 +199,13 @@ function PlansCard({ sub, plans }: { sub: Subscription; plans: Plan[] | undefine
     setPending(plan.code);
     try {
       const { checkoutUrl } = await checkout.mutateAsync(plan.code);
-      const url = new URL(checkoutUrl, window.location.origin);
+      // Only the payment provider (https allowlist) or a screen of this app — never `javascript:`
+      // or another host, even if the API response is tampered with.
+      const target = resolveCheckoutUrl(checkoutUrl, window.location.href);
+      if (!target) toast.error('Link de pagamento inválido. Tente novamente em instantes.');
       // The fake provider returns to this screen; keep it inside the router (also in the hash-routed demo).
-      if (url.origin === window.location.origin && url.pathname.endsWith('/configuracoes')) navigate(`/configuracoes${url.search}`);
-      else window.location.assign(url.toString());
+      else if (target.kind === 'internal') navigate(target.path, { state: { simulatedCheckout: plan.code } });
+      else window.location.assign(target.href);
     } catch (error) {
       toastError(error);
     } finally {

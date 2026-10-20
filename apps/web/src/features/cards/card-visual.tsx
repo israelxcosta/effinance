@@ -1,6 +1,6 @@
 import { CARD_BRAND_LABELS, formatBRL, getBank, type CreditCard } from '@effinance/shared';
 import { Wifi } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, safeColor } from '@/lib/utils';
 
 function BrandMark({ brand }: { brand: CreditCard['brand'] }) {
   if (brand === 'mastercard') {
@@ -18,7 +18,8 @@ function BrandMark({ brand }: { brand: CreditCard['brand'] }) {
 /** Credit-card shaped tile with the bank color. */
 export function CardVisual({ card, className, compact }: { card: CreditCard; className?: string; compact?: boolean }) {
   const bank = getBank(card.bank);
-  const base = card.color || bank?.color || '#152B61';
+  // Interpolated into a `background` shorthand: only a plain hex color may get there.
+  const base = safeColor(card.color, safeColor(bank?.color));
   return (
     <div
       className={cn('relative flex aspect-[1.586] w-full flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-lg', compact && 'p-4', className)}

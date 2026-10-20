@@ -6,6 +6,7 @@ import { configureKeyring } from '../lib/crypto/keyring';
 import { createKeyProvider } from '../setup';
 import { backfillEncryption, needsBackfill } from './backfill';
 import { createDb } from './client';
+import { purgeExpiredSecurityRows } from './retention';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Works both from src/db (tsx) and dist (bundled build).
@@ -19,7 +20,14 @@ export async function runMigrations(url?: string) {
       configureKeyring({ provider: await createKeyProvider(env), db });
       const result = await backfillEncryption(db);
       console.log(`✔ encryption backfill: ${result.workspaces} workspaces, ${result.rows} rows encrypted`);
+      // Old plain-text versions of the updated rows stay in dead tuples until vacuumed (and in WAL and
+      // backups until they expire). When rows > 0, run `VACUUM FULL contacts, transactions,
+      // recurrences, goals, goal_contributions` in a maintenance window.
     }
+    const purged = await purgeExpiredSecurityRows(db);
+    console.log(
+      `✔ retention: ${purged.sessions} sessions, ${purged.passwordResets} reset links, ${purged.invites} invites removed`,
+    );
   } finally {
     await client.end();
   }

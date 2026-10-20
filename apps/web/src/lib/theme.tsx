@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { safeColor } from './utils';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -90,5 +91,12 @@ export function liftForDark(color: string): string {
 /** Theme-aware version of a user-chosen color (see liftForDark). */
 export function useTone(): (color: string) => string {
   const { resolved } = useTheme();
-  return useCallback((color: string) => (resolved === 'dark' ? liftForDark(color) : color), [resolved]);
+  return useCallback(
+    (color: string) => {
+      // Only `#rrggbb` reaches inline styles (see safeColor); anything else becomes the neutral tone.
+      const safe = safeColor(color, '#6B6F76');
+      return resolved === 'dark' ? liftForDark(safe) : safe;
+    },
+    [resolved],
+  );
 }

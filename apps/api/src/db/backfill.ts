@@ -1,7 +1,12 @@
 // Encrypts data written before field encryption existed (contacts, notes) and gives every workspace
 // a data key. Idempotent: values already in the `v1.` format are skipped. Runs after migrations.
+//
+// Completion is tracked per workspace (`workspaces.encryption_backfilled_at`), not by the presence of
+// the data key: keys are created outside the tenant transaction (and lazily by the API), so "has a
+// key" never proved that its rows were encrypted — a run interrupted after the key was stored, or a
+// workspace first opened by the API before `db:migrate`, would have kept plain text forever.
 
-import { eq, isNull, sql } from 'drizzle-orm';
+import { eq, isNull, or, sql } from 'drizzle-orm';
 import type { DbExecutor } from './client';
 import { contacts, goalContributions, goals, recurrences, transactions, workspaces } from './schema';
 import { getCipher } from '../lib/crypto/keyring';
@@ -9,10 +14,12 @@ import { isEncrypted } from '../lib/crypto/field-cipher';
 import { withTenant } from '../lib/tenant';
 import { CONTACT_ENCRYPTED_FIELDS, encryptContactInput } from '../modules/contacts/service';
 
+const pendingWorkspaces = or(isNull(workspaces.wrappedKey), isNull(workspaces.encryptionBackfilledAt));
+
 export async function backfillEncryption(db: DbExecutor): Promise<{ workspaces: number; rows: number }> {
-  const all = await db.select({ id: workspaces.id }).from(workspaces);
+  const pending = await db.select({ id: workspaces.id }).from(workspaces).where(pendingWorkspaces);
   let rows = 0;
-  for (const { id } of all) {
+  for (const { id } of pending) {
     const cipher = await getCipher(id); // generates the key of migrated workspaces
     rows += await withTenant(db, id, async (tx) => {
       let n = 0;
@@ -54,12 +61,14 @@ export async function backfillEncryption(db: DbExecutor): Promise<{ workspaces: 
       }
       return n;
     });
+    // Only after the tenant transaction committed (a failure above leaves the workspace pending).
+    await db.update(workspaces).set({ encryptionBackfilledAt: new Date() }).where(eq(workspaces.id, id));
   }
-  return { workspaces: all.length, rows };
+  return { workspaces: pending.length, rows };
 }
 
-/** True when some workspace still lacks a data key (cheap check before a full backfill). */
+/** True when some workspace still lacks a data key or was never checked by the backfill. */
 export async function needsBackfill(db: DbExecutor): Promise<boolean> {
-  const [row] = await db.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(workspaces).where(isNull(workspaces.wrappedKey));
+  const [row] = await db.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(workspaces).where(pendingWorkspaces);
   return (row?.n ?? 0) > 0;
 }

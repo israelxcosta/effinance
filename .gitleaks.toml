@@ -1,0 +1,15 @@
+# Secret scanning (gitleaks >= 8.25). Used by .github/workflows/ci.yml on the full git history.
+# Default rules + a narrow allowlist for the fake passwords used by the test fixtures.
+# Do not widen the allowlist to whole directories: real secrets must still be caught in tests.
+
+title = "effinance"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake credentials in API/shared test fixtures"
+condition = "AND"
+paths = ['''(^|/)(apps/api|packages/shared)/test/[^/]+\.test\.ts$''']
+regexTarget = "match"
+regexes = ['''(?i)password['"]?\s*:\s*['"](senha-forte-123|errada-123|nova-senha-123|senha-nova-123)['"]''']

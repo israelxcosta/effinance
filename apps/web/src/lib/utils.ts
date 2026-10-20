@@ -13,6 +13,16 @@ export function initials(name: string | null | undefined): string {
   return (first + last).toUpperCase();
 }
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+/**
+ * User colors come from the API and end up in `style` (some as part of a `background` shorthand,
+ * where `url(...)` would fetch a third-party resource). Only `#rrggbb` is accepted.
+ */
+export function safeColor(value: string | null | undefined, fallback = '#152B61'): string {
+  return value && HEX_COLOR.test(value) ? value : fallback;
+}
+
 /** Hex color with alpha (0..1) → rgba() string. */
 export function alpha(hex: string, a: number): string {
   const h = hex.replace('#', '');

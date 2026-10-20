@@ -33,12 +33,13 @@ export type CheckoutTarget = { kind: 'internal'; path: string } | { kind: 'exter
 
 /**
  * Where to send the browser for a `checkoutUrl` returned by the API. Only two shapes are accepted:
- * an https page of the payment provider (allowlist) or a screen of this app — the fake provider used
- * in development and in the demo returns `<app>/configuracoes?...` (or `<app>/#/configuracoes?...`
- * with the hash router). `fakeProvider` also accepts the app route from another origin (dev runs on
- * both localhost and 127.0.0.1). Anything else (`javascript:`, other hosts, http) yields null.
+ * an https page of the payment provider (allowlist) or a screen of this app. The fake provider used
+ * in development and in the demo returns `<app>/configuracoes?aba=assinatura&simular=<plan>` (or
+ * `<app>/#/configuracoes?...` with the hash router); that route is kept inside the router even when
+ * the API's APP_URL differs from the current origin (dev runs on both localhost and 127.0.0.1) —
+ * an in-app route never leaves the app. Anything else (`javascript:`, other hosts, http) is null.
  */
-export function resolveCheckoutUrl(raw: unknown, currentHref: string, fakeProvider = false): CheckoutTarget | null {
+export function resolveCheckoutUrl(raw: unknown, currentHref: string): CheckoutTarget | null {
   if (typeof raw !== 'string' || raw.length > 2048 || UNSAFE_CHARS.test(raw)) return null;
   let url: URL;
   let current: URL;
@@ -48,16 +49,13 @@ export function resolveCheckoutUrl(raw: unknown, currentHref: string, fakeProvid
   } catch {
     return null;
   }
-  if (url.username || url.password) return null;
+  if (url.username || url.password || (url.protocol !== 'https:' && url.protocol !== 'http:')) return null;
 
-  const sameOrigin = url.origin === current.origin;
-  const web = url.protocol === 'https:' || url.protocol === 'http:';
-  if (sameOrigin || (fakeProvider && web)) {
-    // Hash-routed build (demo): the route lives after `#`.
-    const route = url.hash.startsWith('#/') ? url.hash.slice(1) : `${url.pathname}${url.search}`;
-    const path = safeInternalPath(route, '');
-    if (path && (sameOrigin || /^\/configuracoes(?:[/?#]|$)/.test(path))) return { kind: 'internal', path };
-  }
+  // Hash-routed build (demo): the route lives after `#`.
+  const route = url.hash.startsWith('#/') ? url.hash.slice(1) : `${url.pathname}${url.search}`;
+  const path = safeInternalPath(route, '');
+  if (path && url.origin === current.origin) return { kind: 'internal', path };
+  if (path && /^\/configuracoes\?(?:[^#]*&)?simular=/.test(path)) return { kind: 'internal', path };
 
   if (url.protocol === 'https:' && !url.port && isCheckoutHost(url.hostname)) {
     return { kind: 'external', href: url.toString() };

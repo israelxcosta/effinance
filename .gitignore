@@ -3,11 +3,25 @@ dist/
 dist-demo/
 build/
 coverage/
-.env
-.env.local
 *.log
 .DS_Store
 .vite/
 playwright-report/
 test-results/
 *.tsbuildinfo
+
+# Secrets and local configuration — never versioned (templates are *.example)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+.npmrc
+.aws/
+*.tfstate
+*.tfstate.*
+.terraform/
+.claude/settings.local.json

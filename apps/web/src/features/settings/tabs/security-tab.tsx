@@ -69,6 +69,9 @@ function ChangePasswordCard() {
       toast.success('Senha alterada. As sessões em outros dispositivos foram encerradas.');
     } catch (error) {
       toastError(error);
+    } finally {
+      // The mutation keeps its variables (both passwords) in memory until reset.
+      change.reset();
     }
   });
 
@@ -149,11 +152,22 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   const [saved, setSaved] = useState(false);
   const started = useRef(false);
 
-  const { mutate: startSetup } = setup;
+  const { mutate: startSetup, reset: resetSetup } = setup;
+  const { reset: resetEnable } = enable;
   useEffect(() => {
     if (!open) {
       started.current = false;
-      return;
+      // The secret (QR code) and the recovery codes are shown once: drop them from memory, including
+      // the mutation results, once the sheet has closed (after its 200 ms exit animation).
+      const timer = setTimeout(() => {
+        setData(null);
+        setCode('');
+        setRecoveryCodes(null);
+        setSaved(false);
+        resetSetup();
+        resetEnable();
+      }, 300);
+      return () => clearTimeout(timer);
     }
     if (started.current) return;
     started.current = true;
@@ -163,7 +177,7 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     setRecoveryCodes(null);
     setSaved(false);
     startSetup(undefined, { onSuccess: setData });
-  }, [open, startSetup]);
+  }, [open, startSetup, resetSetup, resetEnable]);
 
   async function confirm(value = code) {
     if (!/^\d{6}$/.test(value)) {

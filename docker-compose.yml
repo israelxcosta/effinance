@@ -1,15 +1,23 @@
+# LOCAL DEVELOPMENT ONLY. The credentials below are public, dev-only defaults (also used by the
+# test suite: postgres://postgres:postgres@localhost:5432/effinance_test). Never reuse them in any
+# shared or production environment — production uses RDS with Secrets Manager (docs/deploy-aws.md).
 services:
   db:
-    image: postgres:16-alpine
+    # Pinned by tag + digest; bump both together.
+    image: postgres:16.15-alpine3.24@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgres # dev only
       POSTGRES_DB: effinance
     ports:
-      - '5432:5432'
+      # Loopback only: the database is not reachable from the network.
+      - '127.0.0.1:5432:5432'
     volumes:
+      # Named volume (no host bind mount).
       - effinance-db:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 5s
