@@ -19,16 +19,21 @@ import {
 } from 'drizzle-orm/pg-core';
 import type {
   AccountType,
+  BankAccountKind,
   BankCode,
+  BankConnectionStatus,
   CardBrand,
   CategoryType,
   Frequency,
   IconName,
+  ImportFormat,
   MemberRole,
+  OpenFinanceProvider,
   PaymentMethod,
   PlanCode,
   RecurrenceKind,
   SubscriptionStatus,
+  TransactionOrigin,
   TransactionType,
   TransferKind,
   WorkspaceKind,
@@ -517,6 +522,15 @@ export const transactions = pgTable(
     occurrenceIndex: integer(),
     /** Parts of an amount divided across categories share this id. */
     splitGroupId: uuid(),
+    /** manual | file (OFX/CSV import) | open_finance (bank connection sync). */
+    origin: text().$type<TransactionOrigin>().notNull().default('manual'),
+    /** Import batch that created the row (undo removes what is left of it). */
+    importBatchId: uuid(),
+    /**
+     * Identity of an imported row in its source: OFX FITID, provider transaction id or a content
+     * hash. Unique per account/card, so re-importing never duplicates a transaction.
+     */
+    externalId: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -586,6 +600,253 @@ export const transactions = pgTable(
       columns: [t.workspaceId, t.recurrenceId],
       foreignColumns: [recurrences.workspaceId, recurrences.id],
     }).onDelete('set null'),
+    // Migration 0005: imports.
+    check('transactions_origin_chk', sql`${t.origin} in ('manual', 'file', 'open_finance')`),
+    check('transactions_external_id_chk', sql`${t.externalId} is null or length(${t.externalId}) between 1 and 200`),
+    // Batch and external id only exist on imported rows.
+    check(
+      'transactions_import_chk',
+      sql`${t.origin} <> 'manual' or (${t.importBatchId} is null and ${t.externalId} is null)`,
+    ),
+    foreignKey({
+      name: 'transactions_import_batch_fk',
+      columns: [t.workspaceId, t.importBatchId],
+      foreignColumns: [importBatches.workspaceId, importBatches.id],
+    }).onDelete('set null'),
+    index('transactions_import_batch_idx').on(t.importBatchId).where(sql`${t.importBatchId} is not null`),
+    uniqueIndex('transactions_account_external_uq')
+      .on(t.workspaceId, t.accountId, t.externalId)
+      .where(sql`${t.externalId} is not null`),
+    uniqueIndex('transactions_card_external_uq')
+      .on(t.workspaceId, t.creditCardId, t.externalId)
+      .where(sql`${t.externalId} is not null`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Imports and Open Finance (migration 0005)
+// ---------------------------------------------------------------------------
+
+/** One import: a file (OFX/CSV) or one Open Finance sync of one linked account. */
+export const importBatches = pgTable(
+  'import_batches',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    origin: text().$type<Exclude<TransactionOrigin, 'manual'>>().notNull(),
+    format: text().$type<ImportFormat>(),
+    fileName: text(),
+    connectionId: uuid(),
+    accountId: uuid(),
+    creditCardId: uuid(),
+    invoiceMonth: text(),
+    createdCount: integer().notNull().default(0),
+    skippedCount: integer().notNull().default(0),
+    /** Member who imported (null for webhook-driven syncs and deleted users). */
+    createdBy: uuid().references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('import_batches_workspace_idx').on(t.workspaceId, t.createdAt),
+    index('import_batches_created_by_idx').on(t.createdBy).where(sql`${t.createdBy} is not null`),
+    tenantUnique('import_batches', t),
+    check('import_batches_origin_chk', sql`${t.origin} in ('file', 'open_finance')`),
+    check('import_batches_format_chk', sql`${t.format} in ('ofx', 'csv')`),
+    check('import_batches_file_chk', sql`${t.origin} <> 'file' or (${t.format} is not null and ${t.fileName} is not null)`),
+    check('import_batches_counts_chk', sql`${t.createdCount} >= 0 and ${t.skippedCount} >= 0`),
+    check('import_batches_target_chk', sql`${t.accountId} is null or ${t.creditCardId} is null`),
+    check('import_batches_invoice_month_chk', sql`${t.invoiceMonth} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`),
+    foreignKey({
+      name: 'import_batches_connection_fk',
+      columns: [t.workspaceId, t.connectionId],
+      foreignColumns: [bankConnections.workspaceId, bankConnections.id],
+    }).onDelete('set null'),
+    foreignKey({
+      name: 'import_batches_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+    foreignKey({
+      name: 'import_batches_credit_card_fk',
+      columns: [t.workspaceId, t.creditCardId],
+      foreignColumns: [creditCards.workspaceId, creditCards.id],
+    }).onDelete('set null'),
+  ],
+);
+
+/**
+ * A read-only bank connection (aggregator "item"). The provider's item id is a bearer reference
+ * to the user's bank data at the aggregator: stored encrypted with the workspace key, plus a
+ * blind index for lookups.
+ */
+export const bankConnections = pgTable(
+  'bank_connections',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    provider: text().$type<OpenFinanceProvider>().notNull(),
+    /** FieldCipher (`bank_connections.provider_item_id`). */
+    providerItemId: text().notNull(),
+    /** Blind index (HMAC, workspace key) of the provider item id. */
+    providerItemHash: text().notNull(),
+    institutionName: text().notNull(),
+    /** https only (rendered by the web as an image). */
+    institutionImageUrl: text(),
+    institutionBank: text().$type<BankCode>(),
+    status: text().$type<BankConnectionStatus>().notNull(),
+    statusDetail: text(),
+    consentExpiresAt: timestamptz(),
+    lastSyncAt: timestamptz(),
+    createdBy: uuid().references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    tenantUnique('bank_connections', t),
+    uniqueIndex('bank_connections_item_uq').on(t.workspaceId, t.provider, t.providerItemHash),
+    index('bank_connections_created_by_idx').on(t.createdBy).where(sql`${t.createdBy} is not null`),
+    check('bank_connections_provider_chk', sql`${t.provider} in ('pluggy', 'fake')`),
+    check(
+      'bank_connections_status_chk',
+      sql`${t.status} in ('syncing', 'active', 'login_error', 'waiting_user_input', 'outdated', 'error')`,
+    ),
+    check('bank_connections_image_url_chk', sql`${t.institutionImageUrl} is null or ${t.institutionImageUrl} ~ '^https://'`),
+  ],
+);
+
+/** Accounts/cards of a connection, and the local account/card each one feeds. */
+export const bankConnectionAccounts = pgTable(
+  'bank_connection_accounts',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    connectionId: uuid().notNull(),
+    /** FieldCipher (`bank_connection_accounts.provider_account_id`). */
+    providerAccountId: text().notNull(),
+    providerAccountHash: text().notNull(),
+    kind: text().$type<BankAccountKind>().notNull(),
+    /** Local account type suggested for 'new' links (bank accounts). */
+    accountType: text().$type<'checking' | 'savings'>(),
+    name: text().notNull(),
+    /** Masked (last digits only). */
+    number: text(),
+    balance: money(),
+    creditLimit: money(),
+    cardBrand: text().$type<CardBrand>(),
+    closingDay: integer(),
+    dueDay: integer(),
+    linkedAccountId: uuid(),
+    linkedCreditCardId: uuid(),
+    syncFrom: calendarDate(),
+    lastSyncAt: timestamptz(),
+    /** Latest posted transaction date seen (the next sync re-reads a week before it). */
+    cursor: text(),
+    /** Created by a 'new' link: the first sync sets the initial balance to match the bank. */
+    adjustInitialBalance: boolean().notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    tenantUnique('bank_connection_accounts', t),
+    index('bank_connection_accounts_connection_idx').on(t.connectionId),
+    uniqueIndex('bank_connection_accounts_provider_uq').on(t.workspaceId, t.connectionId, t.providerAccountHash),
+    // One feed per local account/card (two feeds would import the same movements twice).
+    uniqueIndex('bank_connection_accounts_linked_account_uq')
+      .on(t.workspaceId, t.linkedAccountId)
+      .where(sql`${t.linkedAccountId} is not null`),
+    uniqueIndex('bank_connection_accounts_linked_card_uq')
+      .on(t.workspaceId, t.linkedCreditCardId)
+      .where(sql`${t.linkedCreditCardId} is not null`),
+    check('bank_connection_accounts_kind_chk', sql`${t.kind} in ('bank', 'credit_card')`),
+    check('bank_connection_accounts_account_type_chk', sql`${t.accountType} in ('checking', 'savings')`),
+    check(
+      'bank_connection_accounts_card_brand_chk',
+      sql`${t.cardBrand} in ('visa', 'mastercard', 'elo', 'amex', 'hipercard', 'diners', 'other')`,
+    ),
+    check(
+      'bank_connection_accounts_days_chk',
+      sql`(${t.closingDay} is null or ${t.closingDay} between 1 and 31) and (${t.dueDay} is null or ${t.dueDay} between 1 and 31)`,
+    ),
+    check(
+      'bank_connection_accounts_link_chk',
+      sql`(${t.kind} = 'bank' or ${t.linkedAccountId} is null) and (${t.kind} = 'credit_card' or ${t.linkedCreditCardId} is null)`,
+    ),
+    foreignKey({
+      name: 'bank_connection_accounts_connection_fk',
+      columns: [t.workspaceId, t.connectionId],
+      foreignColumns: [bankConnections.workspaceId, bankConnections.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'bank_connection_accounts_account_fk',
+      columns: [t.workspaceId, t.linkedAccountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+    foreignKey({
+      name: 'bank_connection_accounts_credit_card_fk',
+      columns: [t.workspaceId, t.linkedCreditCardId],
+      foreignColumns: [creditCards.workspaceId, creditCards.id],
+    }).onDelete('set null'),
+  ],
+);
+
+// Global (no RLS) tables used without a workspace context: Open Finance webhooks arrive with only
+// the provider's item id. They hold no personal data.
+
+/** Platform-wide secrets (random keys wrapped by the key provider: KMS in production). */
+export const platformKeys = pgTable(
+  'platform_keys',
+  {
+    name: text().primaryKey(),
+    /** `KeyProvider.encryptSecret` output. */
+    wrappedKey: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [check('platform_keys_name_chk', sql`${t.name} ~ '^[a-z0-9_.:-]{1,64}$'`)],
+);
+
+/**
+ * Webhook routing: HMAC (platform key) of `provider:itemId` → workspace and connection. Rows go away
+ * with the connection (FK cascade), so revoking a connection stops its webhooks.
+ */
+export const openFinanceItems = pgTable(
+  'open_finance_items',
+  {
+    itemHash: text().primaryKey(),
+    workspaceId: uuid()
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    connectionId: uuid().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('open_finance_items_connection_uq').on(t.workspaceId, t.connectionId),
+    foreignKey({
+      name: 'open_finance_items_connection_fk',
+      columns: [t.workspaceId, t.connectionId],
+      foreignColumns: [bankConnections.workspaceId, bankConnections.id],
+    }).onDelete('cascade'),
+  ],
+);
+
+/** Webhook deliveries already received (idempotency by the provider's event id). */
+export const openFinanceEvents = pgTable(
+  'open_finance_events',
+  {
+    id: id(),
+    provider: text().$type<OpenFinanceProvider>().notNull(),
+    eventId: text().notNull(),
+    eventType: text().notNull(),
+    processedAt: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex('open_finance_events_provider_event_uq').on(t.provider, t.eventId),
+    index('open_finance_events_created_idx').on(t.createdAt),
+    check('open_finance_events_provider_chk', sql`${t.provider} in ('pluggy', 'fake')`),
+    check(
+      'open_finance_events_size_chk',
+      sql`length(${t.eventId}) between 1 and 200 and length(${t.eventType}) between 1 and 100`,
+    ),
   ],
 );
 
@@ -599,3 +860,6 @@ export type ContactRow = typeof contacts.$inferSelect;
 export type RecurrenceRow = typeof recurrences.$inferSelect;
 export type TransactionRow = typeof transactions.$inferSelect;
 export type NewTransactionRow = typeof transactions.$inferInsert;
+export type ImportBatchRow = typeof importBatches.$inferSelect;
+export type BankConnectionRow = typeof bankConnections.$inferSelect;
+export type BankConnectionAccountRow = typeof bankConnectionAccounts.$inferSelect;

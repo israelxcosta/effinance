@@ -9,14 +9,19 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   ACCOUNT_TYPES,
+  BANK_ACCOUNT_KINDS,
+  BANK_CONNECTION_STATUSES,
   CARD_BRANDS,
   CATEGORY_TYPES,
   FREQUENCIES,
+  IMPORT_FORMATS,
   MEMBER_ROLES,
+  OPEN_FINANCE_PROVIDERS,
   PAYMENT_METHODS,
   PLAN_CODES,
   RECURRENCE_KINDS,
   SUBSCRIPTION_STATUSES,
+  TRANSACTION_ORIGINS,
   TRANSACTION_TYPES,
   TRANSFER_KINDS,
   WORKSPACE_KINDS,
@@ -27,11 +32,14 @@ import type { DbExecutor } from '../src/db/client';
 import { purgeExpiredSecurityRows } from '../src/db/retention';
 import {
   accounts,
+  bankConnectionAccounts,
+  bankConnections,
   categories,
   contacts,
   creditCards,
   goalContributions,
   goals,
+  importBatches,
   passwordResets,
   recurrences,
   sessions,
@@ -133,6 +141,28 @@ async function seedTenant(label: string) {
     .insert(recurrences)
     .values({ workspaceId: ws, kind: 'fixed', frequency: 'monthly', startDate: '2026-10-01', template: TEMPLATE })
     .returning();
+  const [connection] = await db
+    .insert(bankConnections)
+    .values({
+      workspaceId: ws,
+      provider: 'fake',
+      providerItemId: `v1.item.${label}`,
+      providerItemHash: `hash-${label}`,
+      institutionName: 'Banco Simulado',
+      status: 'active',
+    })
+    .returning();
+  const [bankFeed, cardFeed] = await db
+    .insert(bankConnectionAccounts)
+    .values([
+      { workspaceId: ws, connectionId: connection!.id, providerAccountId: 'v1.a.b', providerAccountHash: `acc-${label}`, kind: 'bank', name: 'Conta', linkedAccountId: account!.id },
+      { workspaceId: ws, connectionId: connection!.id, providerAccountId: 'v1.c.d', providerAccountHash: `card-${label}`, kind: 'credit_card', name: 'Cartão', linkedCreditCardId: card!.id },
+    ])
+    .returning();
+  const [batch] = await db
+    .insert(importBatches)
+    .values({ workspaceId: ws, origin: 'file', format: 'ofx', fileName: 'extrato.ofx', accountId: account!.id, connectionId: connection!.id, createdCount: 1 })
+    .returning();
   const [tx] = await db
     .insert(transactions)
     .values({
@@ -149,6 +179,9 @@ async function seedTenant(label: string) {
       recurrenceKind: 'fixed',
       frequency: 'monthly',
       occurrenceIndex: 0,
+      origin: 'file',
+      importBatchId: batch!.id,
+      externalId: `FITID-${label}`,
     })
     .returning();
   return {
@@ -162,6 +195,10 @@ async function seedTenant(label: string) {
     contribution: contribution!.id,
     series: series!.id,
     tx: tx!.id,
+    connection: connection!.id,
+    bankFeed: bankFeed!.id,
+    cardFeed: cardFeed!.id,
+    batch: batch!.id,
   };
 }
 
@@ -303,6 +340,15 @@ describe('catalog: row level security and privileges', () => {
     expect(values('workspaces_kind_chk')).toEqual(sorted(WORKSPACE_KINDS));
     expect(values('workspace_members_role_chk')).toEqual(sorted(MEMBER_ROLES));
     expect(values('workspace_invites_role_chk')).toEqual(sorted(MEMBER_ROLES.filter((r) => r !== 'owner')));
+    // Migration 0005.
+    expect(values('transactions_origin_chk')).toEqual(sorted(TRANSACTION_ORIGINS));
+    expect(values('import_batches_origin_chk')).toEqual(sorted(TRANSACTION_ORIGINS.filter((o) => o !== 'manual')));
+    expect(values('import_batches_format_chk')).toEqual(sorted(IMPORT_FORMATS));
+    expect(values('bank_connections_provider_chk')).toEqual(sorted(OPEN_FINANCE_PROVIDERS));
+    expect(values('open_finance_events_provider_chk')).toEqual(sorted(OPEN_FINANCE_PROVIDERS));
+    expect(values('bank_connections_status_chk')).toEqual(sorted(BANK_CONNECTION_STATUSES));
+    expect(values('bank_connection_accounts_kind_chk')).toEqual(sorted(BANK_ACCOUNT_KINDS));
+    expect(values('bank_connection_accounts_card_brand_chk')).toEqual(sorted(CARD_BRANDS));
   });
 });
 
@@ -411,6 +457,31 @@ describe('foreign keys never cross workspaces', () => {
         a.account,
       ],
       ['goals.account_id', (tx, id) => tx.update(goals).set({ accountId: id }).where(eq(goals.id, b.goal)), a.account],
+      // Migration 0005: imports and Open Finance.
+      ['transactions.import_batch_id', (tx, id) => tx.insert(transactions).values({ ...base, origin: 'file', importBatchId: id }), a.batch],
+      ...(['accountId', 'creditCardId', 'connectionId'] as const).map(
+        (column): [string, (tx: DbExecutor, id: string) => Promise<unknown>, string] => [
+          `import_batches.${column}`,
+          (tx, id) => tx.insert(importBatches).values({ workspaceId: b.ws, origin: 'file', format: 'csv', fileName: 'x.csv', [column]: id }),
+          column === 'accountId' ? a.account : column === 'creditCardId' ? a.card : a.connection,
+        ],
+      ),
+      [
+        'bank_connection_accounts.connection_id',
+        (tx, id) =>
+          tx.insert(bankConnectionAccounts).values({ workspaceId: b.ws, connectionId: id, providerAccountId: 'x', providerAccountHash: randomUUID(), kind: 'bank', name: 'x' }),
+        a.connection,
+      ],
+      [
+        'bank_connection_accounts.linked_account_id',
+        (tx, id) => tx.update(bankConnectionAccounts).set({ linkedAccountId: id }).where(eq(bankConnectionAccounts.id, b.bankFeed)),
+        a.account,
+      ],
+      [
+        'bank_connection_accounts.linked_credit_card_id',
+        (tx, id) => tx.update(bankConnectionAccounts).set({ linkedCreditCardId: id }).where(eq(bankConnectionAccounts.id, b.cardFeed)),
+        a.card,
+      ],
       // Re-pointing an existing row is blocked as well.
       ['transactions.account_id (update)', (tx, id) => tx.update(transactions).set({ accountId: id }).where(eq(transactions.id, b.tx)), a.account],
     ];
@@ -453,6 +524,16 @@ describe('foreign keys never cross workspaces', () => {
     const [card] = await admin().select().from(creditCards).where(eq(creditCards.id, a.card));
     expect(card).toMatchObject({ workspaceId: a.ws, defaultAccountId: null });
     expect(await countRows('categories', a.ws)).toBe(0); // subcategory cascaded
+    // Imports keep their history; feeds stop pointing at the deleted account.
+    const [batch] = await admin().select().from(importBatches).where(eq(importBatches.id, a.batch));
+    expect(batch).toMatchObject({ workspaceId: a.ws, accountId: null, connectionId: a.connection });
+    const [feed] = await admin().select().from(bankConnectionAccounts).where(eq(bankConnectionAccounts.id, a.bankFeed));
+    expect(feed).toMatchObject({ workspaceId: a.ws, linkedAccountId: null });
+
+    // Revoking a connection removes its feeds and keeps the batches (without the connection).
+    await withTenant(app.db, a.ws, (tx) => tx.delete(bankConnections).where(eq(bankConnections.id, a.connection)));
+    expect(await countRows('bank_connection_accounts', a.ws)).toBe(0);
+    expect((await admin().select().from(importBatches).where(eq(importBatches.id, a.batch)))[0]).toMatchObject({ connectionId: null });
 
     expect(await Promise.all(TENANT_TABLES.map((t) => countRows(t, b.ws)))).toEqual(before);
   });
@@ -484,6 +565,21 @@ describe('domain checks', () => {
         'subscription plan',
         sql`insert into subscriptions (workspace_id, status, plan_code) values (${a.ws}, 'active', 'enterprise_unlimited')`,
       ],
+      ['transaction origin', sql`update transactions set origin = 'scraped' where id = ${a.tx}`],
+      ['manual row with an external id', sql`update transactions set origin = 'manual' where id = ${a.tx}`],
+      ['external id size', sql`update transactions set external_id = ${'x'.repeat(201)} where id = ${a.tx}`],
+      ['batch origin', sql`update import_batches set origin = 'manual' where id = ${a.batch}`],
+      ['file batch without format', sql`update import_batches set format = null where id = ${a.batch}`],
+      ['batch counts', sql`update import_batches set created_count = -1 where id = ${a.batch}`],
+      ['batch with account and card', sql`update import_batches set credit_card_id = ${a.card} where id = ${a.batch}`],
+      ['connection status', sql`update bank_connections set status = 'happy' where id = ${a.connection}`],
+      ['connection provider', sql`update bank_connections set provider = 'belvo' where id = ${a.connection}`],
+      ['institution image over http', sql`update bank_connections set institution_image_url = 'javascript:alert(1)' where id = ${a.connection}`],
+      ['bank feed linked to a card', sql`update bank_connection_accounts set linked_credit_card_id = ${a.card} where id = ${a.bankFeed}`],
+      ['feed kind', sql`update bank_connection_accounts set kind = 'loan' where id = ${a.bankFeed}`],
+      ['event provider', sql`insert into open_finance_events (provider, event_id, event_type) values ('belvo', 'e1', 'item/updated')`],
+      ['event id size', sql`insert into open_finance_events (provider, event_id, event_type) values ('pluggy', ${'e'.repeat(201)}, 'item/updated')`],
+      ['platform key name', sql`insert into platform_keys (name, wrapped_key) values ('Bad Name!', 'x')`],
       [
         'invite as owner',
         sql`insert into workspace_invites (workspace_id, email, role, token_hash, expires_at)

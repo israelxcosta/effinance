@@ -20,6 +20,11 @@ export const IDENTITY_GRANTS = {
   sessions: ['select', 'insert', 'update'],
   password_resets: ['select', 'insert', 'update', 'delete'],
   audit_logs: ['select', 'insert'],
+  // Open Finance webhooks (migration 0005): platform keys are written once; the webhook index is
+  // only inserted (rows go away with the connection, by cascade); events get `processed_at`.
+  platform_keys: ['select', 'insert'],
+  open_finance_items: ['select', 'insert'],
+  open_finance_events: ['select', 'insert', 'update'],
 } as const satisfies Record<string, readonly ('select' | 'insert' | 'update' | 'delete')[]>;
 
 /** Tables outside RLS that the API reads/writes with its own login role. */
@@ -35,4 +40,7 @@ export const TENANT_TABLES = [
   'contacts',
   'recurrences',
   'transactions',
+  'import_batches',
+  'bank_connections',
+  'bank_connection_accounts',
 ] as const;

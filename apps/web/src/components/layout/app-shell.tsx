@@ -6,6 +6,7 @@ import { VIEWER_REASON } from '@/features/auth/permissions';
 import { SubscriptionBanner } from '@/features/billing/subscription-banner';
 import { onAccessError } from '@/lib/api';
 import { TransactionActionsProvider } from '@/features/transactions/transaction-actions';
+import { ImportActionsProvider } from '@/features/imports/import-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Sidebar } from './sidebar';
 import { QuickBar } from './quick-bar';
@@ -65,6 +66,7 @@ export function AppShell() {
 
   return (
     <TransactionActionsProvider>
+      <ImportActionsProvider>
       <div className="min-h-dvh">
         <Sidebar />
         <div className="lg:pl-[76px]">
@@ -80,6 +82,7 @@ export function AppShell() {
         <MobileNav onSearch={() => setPaletteOpen(true)} />
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </div>
+      </ImportActionsProvider>
     </TransactionActionsProvider>
   );
 }

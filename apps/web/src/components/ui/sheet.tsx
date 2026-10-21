@@ -13,7 +13,8 @@ interface SheetProps {
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
-  width?: 'md' | 'lg';
+  /** md 460px (forms), lg 620px, xl 1040px (tables such as the import review). */
+  width?: 'md' | 'lg' | 'xl';
 }
 
 /** Side panel used by every create/edit form (design: "Nova Transação"). */
@@ -35,7 +36,7 @@ export function Sheet({
         <Dialog.Content
           className={cn(
             'fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-surface shadow-lg outline-none data-[state=closed]:animate-sheet-out data-[state=open]:animate-sheet-in sm:inset-y-2 sm:right-2 sm:rounded-2xl sm:border sm:border-border',
-            width === 'md' ? 'sm:max-w-[460px]' : 'sm:max-w-[620px]',
+            width === 'md' ? 'sm:max-w-[460px]' : width === 'lg' ? 'sm:max-w-[620px]' : 'sm:max-w-[1040px]',
             className,
           )}
           onOpenAutoFocus={(e) => {

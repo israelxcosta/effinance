@@ -3,13 +3,15 @@ import { Command } from 'cmdk';
 import { Dialog } from 'radix-ui';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeftRight, Minus, Plus, Search, TrendingUp, UserRound } from 'lucide-react';
+import { ArrowLeftRight, FileUp, Landmark, Minus, Plus, Search, TrendingUp, UserRound } from 'lucide-react';
 import { formatBRL, formatDateBR, type SearchResponse } from '@effinance/shared';
 import { api } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import { BankLogo } from '@/components/ui/bank-logo';
 import { CategoryIcon } from '@/components/ui/category-icon';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
+import { useImportActions } from '@/features/imports/import-actions';
+import { useOpenFinanceStatus } from '@/features/open-finance/api';
 import { NAV_ITEMS, SETTINGS_ITEM } from './nav';
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -27,6 +29,8 @@ const itemClass =
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
   const actions = useTransactionActions();
+  const { openImport } = useImportActions();
+  const openFinance = useOpenFinanceStatus(open);
   const [query, setQuery] = useState('');
   const q = useDebounced(query.trim(), 200);
   const search = useQuery({
@@ -135,6 +139,18 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                 <Command.Item value="investir aplicar" className={itemClass} onSelect={() => run(() => actions.openTransfer('investment'))}>
                   <TrendingUp /> Investir
                 </Command.Item>
+                <Command.Item value="importar extrato fatura arquivo ofx csv banco" className={itemClass} onSelect={() => run(() => openImport())}>
+                  <FileUp /> Importar extrato ou fatura (OFX/CSV)
+                </Command.Item>
+                {openFinance.enabled ? (
+                  <Command.Item
+                    value="conectar banco open finance integracoes sincronizar"
+                    className={itemClass}
+                    onSelect={() => run(() => navigate('/configuracoes?aba=integracoes'))}
+                  >
+                    <Landmark /> Conectar banco (Open Finance)
+                  </Command.Item>
+                ) : null}
               </Command.Group>
               <Command.Group heading="Ir para" className="[&_[cmdk-group-heading]]:eyebrow [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-subtle">
                 {[...NAV_ITEMS, SETTINGS_ITEM].map((item) => (

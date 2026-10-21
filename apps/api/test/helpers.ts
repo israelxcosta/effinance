@@ -24,7 +24,8 @@ export async function createTestApp(): Promise<App> {
 }
 
 export async function resetDb(_app?: App) {
-  await admin().execute(sql`truncate table users, workspaces, billing_events restart identity cascade`);
+  // platform_keys stays: the app caches the key it unwrapped (a new one would orphan the index).
+  await admin().execute(sql`truncate table users, workspaces, billing_events, open_finance_events restart identity cascade`);
 }
 
 export interface Client {

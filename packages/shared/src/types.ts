@@ -13,6 +13,7 @@ import type {
   TransactionType,
   TransferKind,
 } from './constants';
+import type { TransactionOrigin } from './integrations';
 import type { ISODate, MonthKey } from './utils/dates';
 
 export interface ApiError {
@@ -231,6 +232,10 @@ export interface Transaction {
   occurrenceNumber: number | null;
   /** Shared by the parts of an amount divided across categories at creation. */
   splitGroupId: string | null;
+  /** How the row was created: by hand, from an imported file or synced through Open Finance. */
+  origin: TransactionOrigin;
+  /** Import batch (file or Open Finance sync) that created the row; undoing the batch removes it. */
+  importBatchId: string | null;
 
   createdAt: string;
   updatedAt: string;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Archive, ArchiveRestore, Ellipsis, Landmark, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Ellipsis, FileUp, Landmark, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ACCOUNT_TYPE_LABELS, formatBRL, type Account } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { AccountSheet } from '../account-sheet';
 import { useTone } from '@/lib/theme';
 import { toastError } from '@/lib/notify';
 import { usePermissions, WriteGate } from '@/features/auth/permissions';
+import { useImportActions } from '@/features/imports/import-actions';
 
 export default function AccountsPage() {
   const readOnly = !usePermissions().canWrite;
@@ -36,6 +37,7 @@ export default function AccountsPage() {
   const del = useDeleteAccount();
   const save = useSaveAccount();
   const navigate = useNavigate();
+  const { openImport } = useImportActions();
 
   const list = accounts.data ?? [];
   const active = list.filter((a) => !a.archived);
@@ -126,6 +128,9 @@ export default function AccountsPage() {
                   <DropdownMenuContent>
                     <DropdownMenuItem icon={<Pencil />} disabled={readOnly} onSelect={() => setSheet({ open: true, account: a })}>Editar</DropdownMenuItem>
                     <DropdownMenuItem icon={<ScrollText />} onSelect={() => navigate(`/extrato?conta=${a.id}`)}>Ver extrato</DropdownMenuItem>
+                    <DropdownMenuItem icon={<FileUp />} disabled={readOnly || a.archived} onSelect={() => openImport({ target: { kind: 'account', accountId: a.id } })}>
+                      Importar extrato
+                    </DropdownMenuItem>
                     <DropdownMenuItem icon={a.archived ? <ArchiveRestore /> : <Archive />} disabled={readOnly} onSelect={() => void toggleArchive(a)}>
                       {a.archived ? 'Reativar' : 'Arquivar'}
                     </DropdownMenuItem>

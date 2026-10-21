@@ -29,6 +29,11 @@ export const qk = {
   invitePreview: (token: string) => ['invite', token] as const,
   plans: ['billing', 'plans'] as const,
   subscription: ['billing', 'subscription'] as const,
+  // Integrations: file imports (batches) and read-only bank connections (Open Finance).
+  imports: (params?: Params) => ['imports', params ?? {}] as const,
+  openFinanceStatus: ['open-finance', 'status'] as const,
+  bankConnections: ['open-finance', 'connections'] as const,
+  fakeInstitutions: ['open-finance', 'dev', 'institutions'] as const,
 };
 
 /** Everything derived from transactions/balances. Called after any money-moving mutation. */
@@ -43,6 +48,8 @@ export function invalidateFinancialData(qc: QueryClient): Promise<unknown> {
     'credit-cards',
     'goals',
     'search',
+    // Import batches count the transactions that still exist (deleting one changes it).
+    'imports',
   ];
   return Promise.all(domains.map((d) => qc.invalidateQueries({ queryKey: [d] })));
 }

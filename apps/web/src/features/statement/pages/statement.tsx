@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
-import { ArrowDownLeft, ArrowUpRight, ScrollText } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, FileUp, ScrollText } from 'lucide-react';
 import { ACCOUNT_TYPE_LABELS, formatBRL, type StatementEntry } from '@effinance/shared';
 import { Card } from '@/components/ui/card';
 import { BankLogo } from '@/components/ui/bank-logo';
@@ -19,10 +19,12 @@ import { useTransactionActions } from '@/features/transactions/transaction-actio
 import { TransactionRow } from '@/features/transactions/components/transaction-row';
 import { useStatement } from '../api';
 import { WriteGate } from '@/features/auth/permissions';
+import { useImportActions } from '@/features/imports/import-actions';
 
 export default function StatementPage() {
   const [params, setParams] = useSearchParams();
   const actions = useTransactionActions();
+  const { openImport } = useImportActions();
   const accountId = params.get('conta') ?? '';
   const includePending = params.get('previstos') !== '0';
 
@@ -60,6 +62,13 @@ export default function StatementPage() {
         overline="Movimentações"
         title="Extrato"
         description="Selecione a conta e o período para ver entradas, saídas e o saldo dia a dia."
+        actions={
+          <WriteGate>
+            <Button variant="outline" onClick={() => openImport({ target: accountId ? { kind: 'account', accountId } : undefined })}>
+              <FileUp /> Importar extrato
+            </Button>
+          </WriteGate>
+        }
       />
 
       <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -122,11 +131,18 @@ export default function StatementPage() {
               title="Sem movimentações neste período"
               description="Lançamentos pagos e previstos desta conta aparecerão aqui com o saldo dia a dia."
               action={
-                <WriteGate>
-                  <Button variant="outline" onClick={() => actions.openTransaction({ type: 'expense', defaults: accountId ? { source: `account:${accountId}` } : undefined })}>
-                    Adicionar lançamento
-                  </Button>
-                </WriteGate>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <WriteGate>
+                    <Button variant="outline" onClick={() => actions.openTransaction({ type: 'expense', defaults: accountId ? { source: `account:${accountId}` } : undefined })}>
+                      Adicionar lançamento
+                    </Button>
+                  </WriteGate>
+                  <WriteGate>
+                    <Button variant="ghost" onClick={() => openImport({ target: accountId ? { kind: 'account', accountId } : undefined })}>
+                      <FileUp /> Importar arquivo OFX/CSV
+                    </Button>
+                  </WriteGate>
+                </div>
               }
             />
           ) : (

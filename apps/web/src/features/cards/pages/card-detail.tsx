@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard as CardIcon, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, CreditCard as CardIcon, FileUp, Pencil, Plus } from 'lucide-react';
 import {
   CARD_BRAND_LABELS,
   INVOICE_STATUS_LABELS,
@@ -27,12 +27,14 @@ import { CardSheet } from '../card-sheet';
 import { PayInvoiceDialog } from '../pay-invoice-dialog';
 import { INVOICE_TONE } from './cards';
 import { WriteGate } from '@/features/auth/permissions';
+import { useImportActions } from '@/features/imports/import-actions';
 import { isCurrentMonth, setActiveMonth, useActiveMonth } from '@/lib/active-month';
 
 export default function CardDetailPage() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const actions = useTransactionActions();
+  const { openImport } = useImportActions();
   const cards = useCards({ includeArchived: true });
   const card = cards.data?.find((c) => c.id === id);
   const [activeMonth] = useActiveMonth();
@@ -83,9 +85,14 @@ export default function CardDetailPage() {
         <Button variant="ghost" size="sm" asChild>
           <Link to="/cartoes"><ArrowLeft /> Cartões</Link>
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <WriteGate>
             <Button variant="outline" onClick={() => setEditing(true)}><Pencil /> Editar</Button>
+          </WriteGate>
+          <WriteGate>
+            <Button variant="outline" onClick={() => openImport({ target: { kind: 'credit_card', creditCardId: card.id, invoiceMonth: month } })}>
+              <FileUp /> Importar fatura
+            </Button>
           </WriteGate>
           <WriteGate>
             <Button onClick={() => actions.openTransaction({ type: 'expense', defaults: { source: `card:${card.id}` } })}>

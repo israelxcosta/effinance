@@ -117,6 +117,8 @@ export function toTransaction(row: TransactionRow, refs: RefMaps, now: string = 
     installmentTotal: row.installmentTotal,
     occurrenceNumber: row.occurrenceIndex === null ? null : row.occurrenceIndex + 1,
     splitGroupId: row.splitGroupId,
+    origin: row.origin,
+    importBatchId: row.importBatchId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     category: refCategory(get(refs.categories, row.categoryId)),
