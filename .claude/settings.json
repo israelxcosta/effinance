@@ -1,0 +1,17 @@
+{
+  "language": "brazilian portuguese",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/docs/historico.md\"; [ -f \"$f\" ] && { echo '# Histórico de decisões (docs/historico.md) — leia antes de continuar'; cat \"$f\"; } || true",
+            "statusMessage": "Carregando o histórico de decisões"
+          }
+        ]
+      }
+    ]
+  }
+}

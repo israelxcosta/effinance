@@ -25,6 +25,10 @@ Segurança (auditoria + correção com teste de regressão, um por linguagem/cam
 
 ## Regras
 
+- Converse com o usuário **somente em pt-BR**.
+- `docs/historico.md` guarda as decisões entre sessões: leia-o ao começar (o hook `SessionStart`
+  em `.claude/settings.json` já o injeta no início e após compactação) e registre ali toda
+  decisão nova antes de encerrar o trabalho.
 - Dinheiro em centavos inteiros; datas de calendário como `YYYY-MM-DD`.
 - Toda query do backend filtra por `userId`.
 - UI em pt-BR; código em inglês.
