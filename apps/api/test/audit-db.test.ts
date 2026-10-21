@@ -44,7 +44,7 @@ import {
 import { executeRows, likePattern } from '../src/lib/sql';
 import { TENANT_STATEMENT_TIMEOUT, withTenant } from '../src/lib/tenant';
 import { API_ROLE, IDENTITY_GRANTS, IDENTITY_TABLES, TENANT_TABLES } from './db-roles';
-import { admin, createAccount, createTestApp, registerUser, resetDb } from './helpers';
+import { admin, createTestApp, registerUser, resetDb } from './helpers';
 
 let app: App;
 beforeAll(async () => {
@@ -538,14 +538,13 @@ describe('data protection', () => {
   it('the backfill re-checks workspaces that already have a key but were never verified', async () => {
     const alice = await registerUser(app, 'Alice');
     const ws = (await alice.get('/auth/me')).body.workspace.id as string;
-    const account = await createAccount(alice);
     // Workspaces created by the API are born encrypted.
     expect(await needsBackfill(app.db)).toBe(false);
 
     // A legacy row (written before field encryption) in a workspace whose key exists already.
     const [legacy] = await admin()
       .insert(transactions)
-      .values({ workspaceId: ws, type: 'expense', description: 'Legado', amount: 100, date: '2026-10-01', accountId: account, notes: 'segredo antigo' })
+      .values({ workspaceId: ws, type: 'expense', description: 'Legado', amount: 100, date: '2026-10-01', notes: 'segredo antigo' })
       .returning();
     await admin().update(workspaces).set({ encryptionBackfilledAt: null }).where(eq(workspaces.id, ws));
     expect(await needsBackfill(app.db)).toBe(true);
