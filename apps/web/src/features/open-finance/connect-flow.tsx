@@ -142,6 +142,8 @@ export function useBankConnectFlow(): BankConnectFlow {
       toastError(error);
     } finally {
       fakeResult.current = null;
+      // The mutation keeps its result (the connect token) in memory until reset: it is single-use.
+      token.reset();
       setBusy(false);
     }
   }

@@ -24,6 +24,11 @@ import { totpCode, totpStep } from '../src/lib/totp';
 import { MercadoPagoProvider } from '../src/modules/billing/providers/mercadopago';
 import { hmacSha256Hex, signatureManifest } from '../src/modules/billing/providers/signature';
 import type { BillingProvider } from '../src/modules/billing/providers/types';
+import { MAX_CSV_COLUMNS } from '../src/modules/imports/csv';
+import { ImportParseError, parseImportFile } from '../src/modules/imports/parse';
+import { FakeOpenFinanceProvider } from '../src/modules/open-finance/providers/fake';
+import type { OpenFinanceSetup, ProviderTransaction } from '../src/modules/open-finance/providers/types';
+import { settleOpenFinanceJobs } from '../src/modules/open-finance/webhooks';
 import { TEST_PASSWORD, admin, createAccount, createTestApp, firstCategory, registerUser, resetDb, type Client } from './helpers';
 
 const DAY = 86_400_000;
@@ -878,5 +883,169 @@ describe('guards: access control', () => {
     expect((await alice.get('/auth/sessions')).body).toHaveLength(1);
     const filtered = await bob.get(`/transactions?accountId=${aAccount}&creditCardId=${aCard}&contactId=${aContact}`);
     expect(filtered.body.total).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Round 2 — file imports (OFX/CSV) and Open Finance
+// ---------------------------------------------------------------------------------------------
+
+/** Wall time of an async call (the parsers are synchronous: a slow one blocks the event loop). */
+async function timed<T>(fn: () => Promise<T>): Promise<{ ms: number; result: T | Error }> {
+  const started = performance.now();
+  let result: T | Error;
+  try {
+    result = await fn();
+  } catch (error) {
+    result = error as Error;
+  }
+  return { ms: performance.now() - started, result };
+}
+
+describe('finding: import parsers run in linear time (CWE-1333/CWE-407)', () => {
+  // Mid-size inputs: the quadratic versions took ~10 s (OFX) and ~4 s (CSV) on these; full-size ones hours.
+  it('OFX tag tokenizer: an unclosed "<" no longer backtracks over the rest of the file', async () => {
+    const mid = await timed(() => parseImportFile({ content: '<OFX>' + '<A'.repeat(60_000) }));
+    expect(mid.ms).toBeLessThan(1000);
+    for (const content of ['<OFX>' + '<A'.repeat(1_500_000), '<OFX><A' + 'a'.repeat(3_000_000), '<OFX>' + '<'.repeat(3_000_000) + '>']) {
+      expect((await timed(() => parseImportFile({ content }))).ms).toBeLessThan(3000);
+    }
+  });
+
+  it('CSV splitter: a field full of quotes is scanned once', async () => {
+    const mid = await timed(() => parseImportFile({ content: 'a' + '"'.repeat(150_000), format: 'csv' }));
+    expect(mid.ms).toBeLessThan(1000);
+    expect((await timed(() => parseImportFile({ content: 'a' + '"'.repeat(3_000_000), format: 'csv' }))).ms).toBeLessThan(3000);
+  });
+
+  it('CSV width and length are bounded (no 3-million-column preview, no unbounded line list)', async () => {
+    const wide = await parseImportFile({ content: ';'.repeat(1_000_000) + '\n', format: 'csv' });
+    expect(wide.csvColumns!.length).toBeLessThanOrEqual(MAX_CSV_COLUMNS);
+    const long = await timed(() => parseImportFile({ content: 'x\n'.repeat(1_000_000), format: 'csv' }));
+    expect(long.result).toBeInstanceOf(ImportParseError);
+    expect(long.ms).toBeLessThan(1000);
+    const manyTx = await timed(() =>
+      parseImportFile({ content: '<OFX>' + '<STMTTRN><DTPOSTED>20261001<TRNAMT>-1,00<FITID>1<NAME>x'.repeat(50_000) }),
+    );
+    expect(manyTx.result).toBeInstanceOf(ImportParseError);
+    expect((manyTx.result as Error).message).toMatch(/limite por importação é 3000/);
+    expect(manyTx.ms).toBeLessThan(1000);
+  });
+
+  it('a full-size hostile preview is answered quickly instead of freezing the API', async () => {
+    const user = await registerUser(app, 'Arquivo Hostil');
+    const accountId = await createAccount(user);
+    const started = performance.now();
+    const res = await user.post('/imports/preview', {
+      fileName: 'extrato.ofx',
+      content: '<OFX>' + '<A'.repeat(1_499_000),
+      target: { kind: 'account', accountId },
+    });
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(res.status).toBeLessThan(500);
+  });
+});
+
+describe('finding: Open Finance', () => {
+  it('never logs a slice of an unparsable aggregator response (CWE-532)', async () => {
+    const { PluggyProvider } = await import('../src/modules/open-finance/providers/pluggy');
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url.endsWith('/auth')) return new Response(JSON.stringify({ apiKey: 'a.b.c' }), { status: 200 });
+      return new Response('<html>Maria Silva 52998224725 saldo 1.234,56</html>', { status: 200 });
+    };
+    const pluggy = new PluggyProvider({ clientId: 'id', clientSecret: 'secret', fetch: fetchImpl });
+    const error = await pluggy.getItem('item-1').catch((e: Error) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toMatch(/Maria|52998224725|html/);
+  });
+
+  const SECRET = 'whsec_auditoria_0123456789_abcdefghijklmnopqrstuvwxyz';
+  let original: OpenFinanceSetup | null | undefined;
+  beforeEach(() => {
+    original = app.platform.openFinance;
+  });
+  afterEach(async () => {
+    await settleOpenFinanceJobs();
+    app.platform.openFinance = original;
+  });
+
+  async function connectAndLink(user: Client, provider: FakeOpenFinanceProvider) {
+    app.platform.openFinance = { provider, webhookUrl: null, webhookSecret: SECRET };
+    const { itemId } = (await user.post('/open-finance/dev/connect', { institutionId: 'nubank' })).body;
+    const created = await user.post('/open-finance/connections', { itemId });
+    expect(created.status).toBe(201);
+    const bank = created.body.accounts.find((a: { kind: string }) => a.kind === 'bank');
+    const linked = await user.put(`/open-finance/connections/${created.body.id}/accounts`, {
+      links: [{ connectionAccountId: bank.id, target: { kind: 'new' } }],
+    });
+    expect(linked.status).toBe(200);
+    return { itemId, connectionId: created.body.id as string };
+  }
+
+  const openFinanceRows = async (workspaceId: string) =>
+    (
+      await executeRows<{ n: number }>(
+        admin(),
+        sql`select count(*)::int as n from transactions where workspace_id = ${workspaceId} and origin = 'open_finance'`,
+      )
+    )[0]!.n;
+
+  it('webhook-driven syncs respect a read-only (expired) workspace (CWE-285)', async () => {
+    const user = await registerUser(app, 'Assinatura Vencida OF');
+    const workspaceId = (await user.get('/auth/me')).body.workspace.id as string;
+    const { itemId } = await connectAndLink(user, new FakeOpenFinanceProvider());
+    await admin().execute(sql`update subscriptions set trial_ends_at = now() - interval '1 day' where workspace_id = ${workspaceId}`);
+    const hook = (eventId: string) =>
+      app.inject({ method: 'POST', url: `/api/open-finance/webhooks/fake/${SECRET}`, payload: { event: 'item/updated', eventId, itemId } });
+    expect((await hook('evt-vencido')).statusCode).toBe(200);
+    await settleOpenFinanceJobs();
+    // The manual sync answers 402; the webhook must not write behind the subscription's back either.
+    expect(await openFinanceRows(workspaceId)).toBe(0);
+
+    await admin().execute(sql`update subscriptions set trial_ends_at = now() + interval '1 day' where workspace_id = ${workspaceId}`);
+    expect((await hook('evt-ativo')).statusCode).toBe(200);
+    await settleOpenFinanceJobs();
+    expect(await openFinanceRows(workspaceId)).toBeGreaterThan(0);
+  });
+
+  it('skips malformed provider transactions instead of failing (or corrupting) the whole sync (CWE-20)', async () => {
+    class GarbledProvider extends FakeOpenFinanceProvider {
+      override async listTransactions(accountId: string, range: { from: string; to: string }): Promise<ProviderTransaction[]> {
+        const real = await super.listTransactions(accountId, range);
+        // An ordinary movement (bill payments are skipped for another reason).
+        const base = real.find((t) => !t.pending && t.direction === 'in' && !/fatura/i.test(t.description))!;
+        return [
+          ...real,
+          { ...base, id: 'bad-date', date: '2026-13-45' },
+          { ...base, id: 'year-zero', date: '0000-01-01' },
+          { ...base, id: 'huge', amount: 1e15 },
+          { ...base, id: 'fraction', amount: 12.5 },
+          { ...base, id: 'x'.repeat(201) },
+        ];
+      }
+      override async listBills(accountId: string) {
+        return (await super.listBills(accountId)).map((b) => ({ ...b, dueDate: '2026-99-99' }));
+      }
+    }
+    const user = await registerUser(app, 'Dados Estranhos');
+    const workspaceId = (await user.get('/auth/me')).body.workspace.id as string;
+    const { connectionId } = await connectAndLink(user, new GarbledProvider());
+    // The card too: its purchases point to bills whose due dates are impossible.
+    const feeds = (await user.get('/open-finance/connections')).body[0].accounts;
+    const cardFeed = feeds.find((a: { kind: string }) => a.kind === 'credit_card');
+    const linkedCard = await user.put(`/open-finance/connections/${connectionId}/accounts`, {
+      links: [{ connectionAccountId: cardFeed.id, target: { kind: 'new' } }],
+    });
+    expect(linkedCard.status).toBe(200);
+    const sync = await user.post(`/open-finance/connections/${connectionId}/sync`);
+    expect(sync.status).toBe(200);
+    expect(sync.body.created).toBeGreaterThan(0);
+    const bad = await executeRows<{ n: number }>(
+      admin(),
+      sql`select count(*)::int as n from transactions where workspace_id = ${workspaceId}
+          and (external_id in ('bad-date', 'year-zero', 'huge', 'fraction') or length(external_id) > 200)`,
+    );
+    expect(bad[0]!.n).toBe(0);
   });
 });

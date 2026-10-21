@@ -9,7 +9,7 @@ import {
   type ImportPreviewRow,
   type ImportTarget,
 } from '@effinance/shared';
-import { csvSample, guessDelimiter, type CsvDelimiter } from './decode';
+import { csvSample, displayFileName, guessDelimiter, type CsvDelimiter } from './decode';
 
 export const DELIMITER_LABELS: Record<CsvDelimiter, string> = {
   ';': 'Ponto e vírgula ( ; )',
@@ -136,7 +136,8 @@ export function batchState(batch: ImportBatch): 'undone' | 'empty' | 'active' {
 
 export function batchTitle(batch: ImportBatch): string {
   if (batch.origin === 'open_finance') return 'Open Finance · sincronização';
-  return batch.fileName ?? 'Arquivo importado';
+  // Names come back from the API and are shown to every member: no direction overrides.
+  return batch.fileName ? displayFileName(batch.fileName) : 'Arquivo importado';
 }
 
 export function formatBytes(bytes: number): string {

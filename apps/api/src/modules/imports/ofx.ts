@@ -79,17 +79,38 @@ interface Token {
   text: string;
 }
 
+const TAG_NAME = /^(\/?)([A-Za-z][A-Za-z0-9._]*)/;
+
+/**
+ * Tags and the text after them, in one left-to-right pass (linear time). A regex with overlapping
+ * quantifiers here (`<name[^>]*>`) backtracks quadratically on a '<' never closed — a few hundred KB
+ * of "<A<A<A…" kept the event loop busy for minutes. A '<' before the next '>' starts over there.
+ */
 function* tokens(body: string): Generator<Token> {
-  const re = /<(\/?)([A-Za-z][A-Za-z0-9._]*)[^>]*>([^<]*)/g;
-  for (let m = re.exec(body); m; m = re.exec(body)) {
-    yield { close: m[1] === '/', name: m[2]!.toUpperCase(), text: m[3] ?? '' };
+  let lt = body.indexOf('<');
+  let gt = -1;
+  while (lt >= 0) {
+    if (gt <= lt) gt = body.indexOf('>', lt + 1);
+    if (gt < 0) return;
+    const nextLt = body.indexOf('<', lt + 1);
+    if (nextLt >= 0 && nextLt < gt) {
+      lt = nextLt;
+      continue;
+    }
+    const m = TAG_NAME.exec(body.slice(lt + 1, gt));
+    const textEnd = nextLt < 0 ? body.length : nextLt;
+    if (m) yield { close: m[1] === '/', name: m[2]!.toUpperCase(), text: body.slice(gt + 1, textEnd) };
+    lt = nextLt;
   }
 }
 
 const OUTFLOW_TYPES = new Set(['DEBIT', 'PAYMENT', 'CHECK', 'FEE', 'SRVCHG', 'ATM', 'POS', 'CASH', 'DIRECTDEBIT', 'XFER_OUT']);
 
-/** Throws `Error` with a pt-BR message when the content is not an OFX statement. */
-export function parseOfx(content: string): OfxStatement {
+/**
+ * Throws `Error` with a pt-BR message when the content is not an OFX statement. Stops reading after
+ * `maxTransactions` + 1 transactions (the caller rejects files over the limit without parsing them all).
+ */
+export function parseOfx(content: string, maxTransactions = Number.POSITIVE_INFINITY): OfxStatement {
   const text = content.replace(/^﻿/, '');
   const start = text.toUpperCase().indexOf('<OFX');
   if (start < 0) throw new Error('Arquivo OFX inválido (sem o bloco <OFX>)');
@@ -130,6 +151,7 @@ export function parseOfx(content: string): OfxStatement {
   };
 
   for (const t of tokens(body)) {
+    if (out.length > maxTransactions) break;
     const value = decodeEntities(t.text).trim();
     if (t.close) {
       if (t.name === 'STMTTRN' || t.name === 'BANKTRANLIST') finish();

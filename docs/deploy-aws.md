@@ -552,7 +552,7 @@ X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: same-origin
 Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()
-Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Opener-Policy: same-origin-allow-popups
 Cross-Origin-Resource-Policy: same-origin
 ```
 
@@ -575,11 +575,12 @@ Cross-Origin-Resource-Policy: same-origin
    que `apps/web/src/lib/csp.ts` gera (`PLUGGY_CONNECT_ORIGIN`). Não carregue o SDK do CDN
    (`cdn.pluggy.ai`): exigiria `script-src` de terceiro com acesso à sessão. A página não chama
    `api.pluggy.ai` diretamente (é o iframe que chama), então `connect-src` continua `'self'`.
-   **Atenção ao COOP**: o fluxo OAuth abre o app/site do banco a partir do iframe; com
-   `Cross-Origin-Opener-Policy: same-origin` o navegador pode cortar a relação com esse popup
-   (`window.opener` nulo) e o widget não receber o retorno. Valide no sandbox da Pluggy em staging; se
-   quebrar, use `same-origin-allow-popups` (de preferência só para a rota da tela de conexões, por
-   um comportamento próprio do CloudFront).
+   **COOP `same-origin-allow-popups`**: o fluxo OAuth abre o app/site do banco em popup a partir do
+   iframe. Com `same-origin` o popup perde o `window.opener` e o retorno nunca chega ao widget
+   (comprovado no Chromium pela auditoria web). Como é uma SPA, o COOP vale para o `index.html`
+   inteiro (não dá para aplicá-lo só a uma rota, e o fluxo abre de Configurações, Contas e da paleta).
+   Custo aceito: popups abertos pelo próprio app/widget podem navegar a aba (tabnabbing); páginas que
+   abram o Effinance continuam isoladas. A demo usa `frame-src 'none'` (não abre o widget).
 6. Route 53: registro CAA (`0 issue "amazon.com"`), DNSSEC opcional.
 
 ### 8. WAF (no CloudFront, escopo `CLOUDFRONT`, criado em `us-east-1`)

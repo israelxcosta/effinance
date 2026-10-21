@@ -6,9 +6,12 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  MAX_YEAR,
+  MIN_YEAR,
   OPEN_FINANCE_DEFAULT_HISTORY_DAYS,
   OPEN_FINANCE_MAX_HISTORY_DAYS,
   addDays,
+  isISODate,
   maxISO,
   monthKey,
   type BankConnection,
@@ -497,6 +500,33 @@ export function syncWindowStart(feed: Pick<BankConnectionAccountRow, 'syncFrom' 
   return maxISO(from, addDays(anchor, -RESYNC_OVERLAP_DAYS));
 }
 
+/** Largest amount a transaction may carry (same bound as the API contract, `amountSchema`). */
+const MAX_AMOUNT_CENTS = 100_000_000_000;
+
+/**
+ * Provider data is validated like client input before it is written: a malformed date, an amount the
+ * contract would refuse or an id longer than the externalId column allows is skipped — not stored,
+ * and not allowed to fail the whole sync (one bad row would otherwise block every later one).
+ */
+function isStorableDate(value: unknown): value is ISODate {
+  if (typeof value !== 'string' || !isISODate(value)) return false;
+  const year = Number(value.slice(0, 4));
+  return year >= MIN_YEAR && year <= MAX_YEAR;
+}
+
+export function isStorableTransaction(t: ProviderTransaction): boolean {
+  return (
+    typeof t.id === 'string' &&
+    t.id.length >= 1 &&
+    t.id.length <= 200 &&
+    isStorableDate(t.date) &&
+    Number.isSafeInteger(t.amount) &&
+    t.amount >= 0 &&
+    t.amount <= MAX_AMOUNT_CENTS &&
+    (t.direction === 'in' || t.direction === 'out')
+  );
+}
+
 interface FeedFetch {
   feed: BankConnectionAccountRow;
   transactions: ProviderTransaction[];
@@ -560,7 +590,10 @@ export async function syncConnection(
     const txs = await call(ctx, 'listTransactions', () => provider.listTransactions(accountId, { from: syncWindowStart(feed), to: now }));
     const billDue = new Map<string, ISODate>();
     if (feed.kind === 'credit_card' && txs.some((t) => t.billId)) {
-      for (const bill of await call(ctx, 'listBills', () => provider.listBills(accountId))) billDue.set(bill.id, bill.dueDate);
+      for (const bill of await call(ctx, 'listBills', () => provider.listBills(accountId))) {
+        // The due month becomes the invoice: an impossible date would fail the whole sync.
+        if (isStorableDate(bill.dueDate)) billDue.set(bill.id, bill.dueDate);
+      }
     }
     fetched.push({ feed, transactions: txs, billDue });
   }
@@ -592,7 +625,8 @@ export async function syncConnection(
       } catch {
         continue;
       }
-      const posted = txs.filter((t) => !t.pending);
+      const posted = txs.filter((t) => !t.pending && isStorableTransaction(t));
+      skipped += txs.filter((t) => !t.pending).length - posted.length;
       const ids = posted.map((t) => t.id);
       const existing = await existingByExternalId(tx, workspaceId, target, ids);
       // Removed by the user (undo / delete) or moved to another account/card: never recreated.

@@ -150,7 +150,16 @@ export function decodeImportBytes(input: ArrayBuffer | Uint8Array, fileName: str
   if (content.length > MAX_IMPORT_CONTENT_CHARS) throw tooLarge();
 
   const format: ImportFormat = looksLikeOfx(content.slice(0, 4096)) || ext === '.ofx' || ext === '.qfx' ? 'ofx' : 'csv';
-  return { fileName: fileName.trim().slice(0, 255) || 'extrato', format, content, charset, declaredCharset: declared, size: bytes.length };
+  return { fileName: displayFileName(fileName), format, content, charset, declaredCharset: declared, size: bytes.length };
+}
+
+// Control characters and bidirectional overrides (U+202E turns "fatura\u202Eexe.ofx" into
+// "fatura" + "xfo.exe" on screen). The name is shown in the review and in the shared import history.
+const UNSAFE_NAME_CHARS = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+
+/** File name as sent to the API and displayed: no invisible/direction characters, max 255. */
+export function displayFileName(fileName: string): string {
+  return Array.from(fileName.replace(UNSAFE_NAME_CHARS, '').trim()).slice(0, 255).join('').trim() || 'extrato';
 }
 
 function tooLarge(): ImportFileError {

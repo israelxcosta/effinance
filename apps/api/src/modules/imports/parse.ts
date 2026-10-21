@@ -3,7 +3,7 @@
 // normalized description | n-th identical occurrence — the same file imported twice yields the same
 // ids, so nothing is created twice. WebCrypto only (runs in the browser demo).
 
-import type { CsvMapping, ImportFormat, ISODate } from '@effinance/shared';
+import { MAX_IMPORT_ROWS, type CsvMapping, type ImportFormat, type ISODate } from '@effinance/shared';
 import { sha256Hex } from '../../lib/crypto/encoding';
 import { parseCsv } from './csv';
 import { normalizeDescription } from './describe';
@@ -32,6 +32,13 @@ export interface ParsedImport {
 }
 
 export class ImportParseError extends Error {}
+
+/** Over the per-import limit: rejected before ids are hashed (and, for OFX, before reading on). */
+function assertRowLimit(count: number) {
+  if (count > MAX_IMPORT_ROWS) {
+    throw new ImportParseError(`O arquivo tem mais de ${MAX_IMPORT_ROWS} lançamentos; o limite por importação é ${MAX_IMPORT_ROWS}. Exporte um período menor.`);
+  }
+}
 
 export function detectFormat(content: string): ImportFormat {
   return looksLikeOfx(content) ? 'ofx' : 'csv';
@@ -72,10 +79,11 @@ export async function parseImportFile(input: {
   if (format === 'ofx') {
     let statement;
     try {
-      statement = parseOfx(input.content);
+      statement = parseOfx(input.content, MAX_IMPORT_ROWS);
     } catch (error) {
       throw new ImportParseError((error as Error).message);
     }
+    assertRowLimit(statement.transactions.length);
     const ids = await assignExternalIds(
       statement.transactions.map((t) => ({ ...t, sourceId: t.fitId })),
       'fitid',
@@ -98,7 +106,13 @@ export async function parseImportFile(input: {
     };
   }
 
-  const parsed = parseCsv(input.content, input.csv);
+  let parsed;
+  try {
+    parsed = parseCsv(input.content, input.csv);
+  } catch (error) {
+    throw new ImportParseError((error as Error).message);
+  }
+  assertRowLimit(parsed.rows.length);
   const ids = await assignExternalIds(
     parsed.rows.map((r) => ({ ...r, sourceId: r.fileId })),
     'id',

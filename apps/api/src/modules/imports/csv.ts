@@ -28,21 +28,42 @@ export interface CsvParseResult {
 
 const DELIMITERS: CsvDelimiter[] = [';', ',', '\t', '|'];
 const HEADER_SCAN = 15;
+/** Columns kept per line: the mapping addresses columns 0–200; anything wider is not a statement. */
+export const MAX_CSV_COLUMNS = 201;
+/** Non-empty lines read (MAX_IMPORT_ROWS movements plus preamble, balances and junk lines). */
+export const MAX_CSV_RECORDS = 20_000;
 
-/** Splits CSV text into records (quotes, doubled quotes, newlines inside quotes, CRLF). */
-export function splitCsv(text: string, delimiter: string, maxRecords = Number.POSITIVE_INFINITY): string[][] {
+/**
+ * Splits CSV text into records (quotes, doubled quotes, newlines inside quotes, CRLF) in linear time.
+ * Empty lines are dropped; fields after the first `maxFields` of a line are ignored.
+ */
+export function splitCsv(
+  text: string,
+  delimiter: string,
+  maxRecords = Number.POSITIVE_INFINITY,
+  maxFields = MAX_CSV_COLUMNS,
+): string[][] {
   const records: string[][] = [];
   let record: string[] = [];
   let field = '';
+  // Whether `field` is still only whitespace (then a quote opens a quoted field). Tracked per
+  // character: re-trimming the growing field at every quote made a line of quotes quadratic.
+  let blank = true;
   let quoted = false;
   let i = 0;
   const n = text.length;
+  const endField = () => {
+    if (record.length < maxFields) record.push(field);
+    field = '';
+    blank = true;
+  };
   while (i < n) {
     const ch = text[i]!;
     if (quoted) {
       if (ch === '"') {
         if (text[i + 1] === '"') {
           field += '"';
+          blank = false;
           i += 2;
           continue;
         }
@@ -51,35 +72,38 @@ export function splitCsv(text: string, delimiter: string, maxRecords = Number.PO
         continue;
       }
       field += ch;
+      if (blank && ch.trim() !== '') blank = false;
       i += 1;
       continue;
     }
-    if (ch === '"' && field.trim() === '') {
+    if (ch === '"' && blank) {
       quoted = true;
       field = '';
       i += 1;
       continue;
     }
     if (ch === delimiter) {
-      record.push(field);
-      field = '';
+      endField();
       i += 1;
       continue;
     }
     if (ch === '\n' || ch === '\r') {
-      record.push(field);
-      records.push(record);
-      if (records.length >= maxRecords) return records;
+      const emptyLine = record.length === 0 && field === '';
+      endField();
+      if (!emptyLine) {
+        records.push(record);
+        if (records.length >= maxRecords) return records;
+      }
       record = [];
-      field = '';
       i += ch === '\r' && text[i + 1] === '\n' ? 2 : 1;
       continue;
     }
     field += ch;
+    if (blank && ch.trim() !== '') blank = false;
     i += 1;
   }
   if (field !== '' || record.length > 0) {
-    record.push(field);
+    endField();
     records.push(record);
   }
   return records;
@@ -331,7 +355,10 @@ export function readCsvRows(records: string[][], mapping: CsvMapping): CsvRow[] 
 export function parseCsv(content: string, mapping?: CsvMapping): CsvParseResult {
   const text = content.replace(/^﻿/, '');
   const delimiter = mapping?.delimiter ?? detectDelimiter(text);
-  const records = splitCsv(text, delimiter);
+  const records = splitCsv(text, delimiter, MAX_CSV_RECORDS + 1);
+  if (records.length > MAX_CSV_RECORDS) {
+    throw new Error(`O arquivo tem mais de ${MAX_CSV_RECORDS} linhas. Exporte um período menor.`);
+  }
   const detected = mapping ? null : detectMapping(records, delimiter);
   let used = mapping ?? detected?.mapping ?? null;
   if (mapping && mapping.idColumn === undefined) {

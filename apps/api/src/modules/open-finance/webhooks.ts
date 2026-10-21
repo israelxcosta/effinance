@@ -11,6 +11,8 @@ import { sha256Hex, timingSafeEqualStr } from '../../lib/crypto/encoding';
 import { platformHmac } from '../../lib/crypto/platform-keys';
 import { AppError, NotFoundError, UnauthorizedError } from '../../lib/errors';
 import { serializeError } from '../../lib/log';
+import { canWrite } from '../billing/entitlements';
+import { getSubscriptionRow } from '../workspaces/service';
 import { ITEM_INDEX_KEY, requireSetup, syncConnection, type OpenFinanceContext } from './service';
 
 
@@ -76,7 +78,11 @@ export async function processWebhook(ctx: OpenFinanceContext, eventRowId: string
     if (payload.itemId && (SYNC_EVENTS.has(payload.event) || payload.event === 'item/deleted')) {
       const itemHash = await platformHmac(ctx.db, ITEM_INDEX_KEY, `${provider.name}:${payload.itemId}`);
       const [route] = await ctx.db.select().from(openFinanceItems).where(eq(openFinanceItems.itemHash, itemHash));
-      if (route) {
+      // Writing synced rows is a write like any other: a workspace without a subscription that allows
+      // writing (expired trial, canceled plan) is read-only, also for webhook-driven syncs.
+      const writable = route ? canWrite(await getSubscriptionRow(ctx.db, route.workspaceId)) : false;
+      if (route && !writable) ctx.log?.warn({ event: payload.event }, 'open finance webhook ignored: workspace is read-only');
+      if (route && writable) {
         // A deleted item cannot be re-read: the sync marks the connection as gone.
         const result = await syncConnection(ctx, route.workspaceId, route.connectionId, { userId: null });
         await audit(ctx.db, {

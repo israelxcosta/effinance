@@ -214,7 +214,12 @@ export class PluggyProvider implements OpenFinanceProvider {
     if (!res.ok) throw new ProviderError(`Pluggy ${method} ${label} respondeu ${res.status}`, res.status);
     if (res.status === 204) return null;
     const text = await res.text();
-    return (text ? JSON.parse(text) : null) as T | null;
+    try {
+      return (text ? JSON.parse(text) : null) as T | null;
+    } catch {
+      // V8's SyntaxError quotes the start of the body (bank data): never let it reach the logs.
+      throw new ProviderError(`Pluggy ${method} ${label} respondeu um corpo inválido`, res.status);
+    }
   }
 
   async createConnectToken(req: ConnectTokenRequest) {

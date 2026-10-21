@@ -58,6 +58,8 @@ describe('Content Security Policy', () => {
   it('demo policy only adds WebAssembly compilation, never eval', () => {
     const csp = directives(contentSecurityPolicy({ scriptHashes: [THEME_SCRIPT_HASH], demo: true }));
     expect(csp.get('script-src')).toEqual(["'self'", "'wasm-unsafe-eval'", THEME_SCRIPT_HASH]);
+    // Simulated Open Finance provider in the demo: no third-party frame at all.
+    expect(csp.get('frame-src')).toEqual(["'none'"]);
   });
 
   it('frame-src matches the origin the installed Pluggy Connect SDK frames', () => {

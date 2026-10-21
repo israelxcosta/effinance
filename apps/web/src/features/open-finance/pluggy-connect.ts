@@ -63,9 +63,13 @@ export async function openPluggyConnect(options: PluggyConnectOptions): Promise<
       ...(options.updateItem ? { updateItem: options.updateItem } : {}),
       includeSandbox: options.includeSandbox ?? false,
       language: 'pt',
-      theme: options.theme,
-      onSuccess: ({ item }) => {
-        itemId = item.id;
+      // The SDK interpolates `theme` into the modal's innerHTML: only the two known values get there.
+      theme: options.theme === 'dark' ? 'dark' : 'light',
+      onSuccess: (data) => {
+        // Called through postMessage by the widget's origin only (zoid checks it); still untrusted
+        // input: just an id string, which the API re-validates against the aggregator.
+        const id: unknown = data?.item?.id;
+        if (typeof id === 'string' && id.length > 0 && id.length <= 128) itemId = id;
       },
       // Errors (login refused, bank unavailable) are shown inside the widget; the user closes it.
       onError: () => undefined,

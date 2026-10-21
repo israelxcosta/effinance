@@ -38,8 +38,9 @@ export function contentSecurityPolicy({ scriptHashes, header = false, demo = fal
     ['connect-src', "'self'"],
     ['worker-src', "'self'", 'blob:'],
     ['manifest-src', "'self'"],
-    // Only the bank consent widget may be framed (Open Finance).
-    ['frame-src', PLUGGY_CONNECT_ORIGIN],
+    // Only the bank consent widget may be framed (Open Finance). The demo uses the simulated
+    // provider (no widget), so it frames nothing.
+    ['frame-src', demo ? "'none'" : PLUGGY_CONNECT_ORIGIN],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],
     ['form-action', "'self'"],
