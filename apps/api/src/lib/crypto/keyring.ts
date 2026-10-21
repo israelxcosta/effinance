@@ -2,7 +2,7 @@
 // (outside tenant transactions, which cannot read `workspaces`), unwraps it with the KeyProvider
 // and keeps it in memory for a short time. Configured once at startup (API, migrations, demo).
 
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { DbExecutor } from '../../db/client';
 import { workspaces } from '../../db/schema';
 import { NotFoundError } from '../errors';
@@ -51,10 +51,21 @@ async function load(workspaceId: string): Promise<FieldCipher> {
   if (row.wrappedKey && row.keyId) {
     return FieldCipher.create(workspaceId, await provider.decryptDataKey(workspaceId, row.wrappedKey, row.keyId));
   }
-  // Workspaces migrated from the single-user schema get their key on first use.
+  // Workspaces migrated from the single-user schema get their key on first use. Only stored if no
+  // other instance stored one meanwhile; otherwise that key wins (data may already use it).
   const key = await provider.generateDataKey(workspaceId);
-  await db.update(workspaces).set({ wrappedKey: key.wrapped, keyId: key.keyId }).where(eq(workspaces.id, workspaceId));
-  return FieldCipher.create(workspaceId, key.plaintext);
+  const stored = await db
+    .update(workspaces)
+    .set({ wrappedKey: key.wrapped, keyId: key.keyId })
+    .where(and(eq(workspaces.id, workspaceId), isNull(workspaces.wrappedKey)))
+    .returning({ id: workspaces.id });
+  if (stored.length > 0) return FieldCipher.create(workspaceId, key.plaintext);
+  const [winner] = await db
+    .select({ wrappedKey: workspaces.wrappedKey, keyId: workspaces.keyId })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId));
+  if (!winner?.wrappedKey || !winner.keyId) throw new NotFoundError('Espaço não encontrado');
+  return FieldCipher.create(workspaceId, await provider.decryptDataKey(workspaceId, winner.wrappedKey, winner.keyId));
 }
 
 export function getCipher(workspaceId: string): Promise<FieldCipher> {

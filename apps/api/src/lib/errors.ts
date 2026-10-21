@@ -43,6 +43,13 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/** Per-account abuse limits (MFA attempts, e-mails sent), on top of the per-IP rate limit. */
+export class TooManyRequestsError extends AppError {
+  constructor(message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.') {
+    super(429, 'too_many_requests', message);
+  }
+}
+
 /** The workspace has no valid subscription: reads still work, writes need a plan. */
 export class SubscriptionRequiredError extends AppError {
   constructor(message = 'Sua assinatura não está ativa. Assine um plano para voltar a editar.') {

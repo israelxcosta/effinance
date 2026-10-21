@@ -25,7 +25,8 @@ export default async function setup() {
     await sql.unsafe(`alter role ${API_ROLE} login noinherit nosuperuser nobypassrls nocreatedb nocreaterole noreplication`);
     await sql.unsafe(`grant effinance_app to ${API_ROLE}`);
     // Like production: nothing on the database for PUBLIC (no TEMP objects), CONNECT only for the API.
-    const [{ db }] = await sql<{ db: string }[]>`select current_database() as db`;
+    const [current] = await sql<{ db: string }[]>`select current_database() as db`;
+    const db = current!.db;
     await sql.unsafe(`revoke all on database "${db}" from public`);
     await sql.unsafe(`grant connect on database "${db}" to ${API_ROLE}`);
     await sql.unsafe(`grant usage on schema public to ${API_ROLE}`);

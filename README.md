@@ -31,7 +31,8 @@ docs/
 
 ## Rodando localmente
 
-Pré-requisitos: Node 22+, pnpm 10+, PostgreSQL 16 (ou Docker).
+Pré-requisitos: Node 22.12+, pnpm 10.34.5+ (`corepack enable` usa a versão fixada em
+`package.json#packageManager`), PostgreSQL 16 (ou Docker).
 
 ```bash
 pnpm install
@@ -121,4 +122,24 @@ cookie httpOnly e dados no servidor.
 - **LGPD**: aceite dos termos no cadastro, exportação completa dos dados (JSON) e exclusão da conta
   e dos espaços.
 
-Produção: imagem em `apps/api/Dockerfile` e passo a passo em [`docs/deploy-aws.md`](docs/deploy-aws.md).
+- **Infraestrutura (AWS)**: RDS Multi-AZ cifrado com KMS, TLS obrigatório (`verify-full`) e PITR;
+  login da API separado do dono do schema (migrações); chave KMS de dados com *encryption context*
+  obrigatório e uso restrito às roles da aplicação; execution role ≠ task role; segredos só no
+  Secrets Manager; WAF com regras gerenciadas e rate limit; CloudFront com CSP/HSTS e origem
+  inacessível por fora. Passo a passo em [`docs/deploy-aws.md`](docs/deploy-aws.md).
+- **Imagem da API** (`apps/api/Dockerfile`): base fixada por digest, multi-stage, só dependências
+  de produção vindas do lockfile, usuário não root (`10001`), código somente leitura, `tini`, sem
+  npm nem seed de demonstração, CA do RDS fixada por checksum.
+- **Cadeia de suprimentos**: pnpm fixado por versão + hash, `--frozen-lockfile`, só o `esbuild`
+  pode rodar script de instalação (`strictDepBuilds`), versões novas só depois de 24 h
+  (`minimumReleaseAge`), bloqueio de perda de proveniência (`trustPolicy`) e de dependências
+  transitivas de git/tarball (`pnpm-workspace.yaml`). O CI (`.github/workflows/ci.yml`) roda
+  typecheck, testes, builds, `pnpm audit`, gitleaks no histórico inteiro e o build da imagem, com
+  actions fixadas por SHA e token somente leitura.
+- **Segredos**: nada versionado (`.env` ignorado; `apps/api/.env.example` só com valores de
+  desenvolvimento e instruções para gerar segredos fortes). Em produção, `src/env.ts` recusa o
+  provedor de cobrança `fake` e exige chave de criptografia.
+
+> Se um `pnpm install`/`pnpm add` falhar com `ERR_PNPM_NO_MATURE_MATCHING_VERSION`, a versão tem
+> menos de 24 h. Espere ou, para um patch de segurança urgente, adicione o pacote a
+> `minimumReleaseAgeExclude` no `pnpm-workspace.yaml` (revisado no PR).

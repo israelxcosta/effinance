@@ -15,6 +15,7 @@ import { createDb, type Database } from './db/client';
 import { authPlugin } from './lib/auth';
 import { configureKeyring } from './lib/crypto/keyring';
 import { AppError, ForbiddenError } from './lib/errors';
+import { serializeError, serializeRequest } from './lib/log';
 import type { Platform } from './lib/platform';
 import { tenantRoutes } from './lib/tenant-routes';
 import { authRoutes } from './modules/auth/routes';
@@ -38,12 +39,24 @@ export interface BuildAppOptions {
 }
 
 export async function buildApp(options: BuildAppOptions = {}) {
+  // No personal data or secrets in logs: URLs lose personal query values and invite tokens, errors
+  // lose SQL parameters and quoted values (lib/log.ts). Applied to custom logger options too.
+  const logHygiene = {
+    redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+    serializers: { req: serializeRequest, err: serializeError },
+  };
+  const logger: FastifyServerOptions['logger'] =
+    options.logger === undefined
+      ? {
+          level: env.LOG_LEVEL,
+          ...logHygiene,
+          ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
+        }
+      : typeof options.logger === 'object' && options.logger !== null
+        ? { ...logHygiene, ...options.logger }
+        : options.logger;
   const app = Fastify({
-    logger: options.logger ?? {
-      level: env.LOG_LEVEL,
-      redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
-      ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
-    },
+    logger,
     // Only the first N hops (load balancer) may set X-Forwarded-For; a client cannot spoof its IP.
     trustProxy: (_address: string, hop: number) => hop < env.TRUST_PROXY,
   }).withTypeProvider<ZodTypeProvider>();
@@ -80,6 +93,11 @@ export async function buildApp(options: BuildAppOptions = {}) {
     hsts: env.NODE_ENV === 'production' ? { maxAge: 31_536_000, includeSubDomains: true, preload: true } : false,
   });
   await app.register(cors, { origin: env.CORS_ORIGIN, credentials: true });
+  // Financial and personal data must not linger in browser/proxy caches (unless a route says otherwise).
+  app.addHook('onSend', async (_req, reply, payload) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    return payload;
+  });
   await app.register(rateLimit, { global: false, ...(redis ? { redis } : {}) });
 
   // CSRF: cookies are SameSite, and in addition every state-changing request must come from an

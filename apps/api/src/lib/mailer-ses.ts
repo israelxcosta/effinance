@@ -1,4 +1,4 @@
-import type { Mailer } from './mailer';
+import { oneLine, type Mailer } from './mailer';
 
 export async function createSesMailer(options: { from: string; region?: string }): Promise<Mailer> {
   const { SESv2Client, SendEmailCommand } = await import('@aws-sdk/client-sesv2');
@@ -13,7 +13,7 @@ export async function createSesMailer(options: { from: string; region?: string }
           Destination: { ToAddresses: [message.to] },
           Content: {
             Simple: {
-              Subject: { Data: message.subject, Charset: 'UTF-8' },
+              Subject: { Data: oneLine(message.subject), Charset: 'UTF-8' },
               Body: { Text: { Data: message.text, Charset: 'UTF-8' } },
             },
           },

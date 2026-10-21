@@ -4,6 +4,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { PLANS, checkoutSchema } from '@effinance/shared';
 import { NotFoundError } from '../../lib/errors';
+import { rateLimited } from '../../lib/platform';
 import { requestContext } from '../../lib/request-context';
 import { getUserRow } from '../workspaces/service';
 import { assertOwner } from '../workspaces/access';
@@ -12,7 +13,7 @@ import { cancelSubscription, devActivate, getSubscription, handleWebhook, startC
 export const billingRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/plans', async () => PLANS);
 
-  app.post('/webhooks/mercadopago', async (req) => {
+  app.post('/webhooks/mercadopago', { config: rateLimited(app.platform, 300, '1 minute') }, async (req) => {
     const result = await handleWebhook(app.db, app.platform, {
       headers: req.headers as Record<string, string | string[] | undefined>,
       query: (req.query ?? {}) as Record<string, unknown>,
@@ -26,7 +27,7 @@ export const billingRoutes: FastifyPluginAsyncZod = async (app) => {
 
     authed.get('/subscription', async (req) => getSubscription(app.db, req.access));
 
-    authed.post('/checkout', { schema: { body: checkoutSchema } }, async (req) => {
+    authed.post('/checkout', { schema: { body: checkoutSchema }, config: rateLimited(app.platform, 10, '1 minute') }, async (req) => {
       assertOwner(req.access);
       const user = await getUserRow(app.db, req.userId);
       return startCheckout(app.db, app.platform, req.access, user.email, req.body.planCode, requestContext(req));

@@ -44,6 +44,7 @@ export async function createMailer(env: Env): Promise<Mailer> {
 export async function createPlatform(env: Env): Promise<Platform> {
   return {
     appUrl: env.APP_URL,
+    relaxedRateLimits: env.NODE_ENV === 'test',
     mailer: await createMailer(env),
     billing:
       env.BILLING_PROVIDER === 'mercadopago'

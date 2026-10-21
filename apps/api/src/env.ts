@@ -68,6 +68,25 @@ const envSchema = z
     if (e.DATABASE_SSL === 'verify-full' && !e.DATABASE_CA_FILE) {
       issue('DATABASE_CA_FILE', 'required when DATABASE_SSL=verify-full');
     }
+    if (e.NODE_ENV === 'production') {
+      // Fail closed: development defaults must never reach production (docs/deploy-aws.md).
+      if (/change-?me|example|placeholder|secret-of-32/i.test(e.JWT_SECRET)) {
+        issue('JWT_SECRET', 'looks like the .env.example placeholder: generate a random secret (openssl rand -base64 48)');
+      }
+      if (e.MAILER !== 'ses' && e.MAILER !== 'webhook') {
+        issue('MAILER', 'must be "ses" or "webhook" in production (the console mailer writes reset/invite links to the logs)');
+      }
+      if (e.MAILER === 'webhook' && e.MAIL_WEBHOOK_URL && !e.MAIL_WEBHOOK_URL.startsWith('https://')) {
+        issue('MAIL_WEBHOOK_URL', 'must use https in production');
+      }
+      if (e.DATABASE_SSL !== 'verify-full') {
+        issue('DATABASE_SSL', 'must be verify-full in production (TLS with certificate and host verification)');
+      }
+      if (!e.APP_URL.startsWith('https://')) issue('APP_URL', 'must be an https URL in production');
+      if (e.CORS_ORIGIN.length === 0 || e.CORS_ORIGIN.some((o) => !o.startsWith('https://'))) {
+        issue('CORS_ORIGIN', 'must list only https origins in production');
+      }
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;

@@ -15,6 +15,8 @@ import {
 } from '@effinance/shared';
 import { audit } from '../../lib/audit';
 import { ValidationError } from '../../lib/errors';
+import { oneLine } from '../../lib/mailer';
+import { rateLimited } from '../../lib/platform';
 import { requestContext } from '../../lib/request-context';
 import { cancelForDeletion } from '../billing/service';
 import { assertCanWrite, assertOwner } from './access';
@@ -30,6 +32,7 @@ import {
   listAudit,
   listInvites,
   listMembers,
+  INVITED_ACTION,
   listWorkspaceSummaries,
   previewInvite,
   removeMember,
@@ -49,7 +52,7 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.get('/', async (req) => listWorkspaceSummaries(app.db, req.userId));
 
-  app.post('/', { schema: { body: workspaceInputSchema } }, async (req, reply) => {
+  app.post('/', { schema: { body: workspaceInputSchema }, config: rateLimited(app.platform, 10, '1 hour') }, async (req, reply) => {
     const id = await createSharedWorkspace(app.db, req.userId, req.body);
     await audit(app.db, { ...requestContext(req), action: 'workspace.created', workspaceId: id, userId: req.userId, entity: 'workspace', entityId: id, metadata: { kind: req.body.kind } });
     return reply.code(201).send(await summaryOf(req.userId, id));
@@ -106,7 +109,7 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
     return listInvites(app.db, req.access);
   });
 
-  app.post('/current/invites', { schema: { body: inviteInputSchema } }, async (req, reply) => {
+  app.post('/current/invites', { schema: { body: inviteInputSchema }, config: rateLimited(app.platform, 30, '1 hour') }, async (req, reply) => {
     assertOwner(req.access);
     assertCanWrite(req.access);
     const { invite, token } = await createInvite(app.db, req.access, req.body);
@@ -114,10 +117,10 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
     const kind = WORKSPACE_KIND_LABELS[req.access.workspaceKind].toLowerCase();
     await app.platform.mailer.send({
       to: invite.email,
-      subject: `Convite para o espaço "${req.access.workspaceName}" no Effinance`,
+      subject: oneLine(`Convite para o espaço "${req.access.workspaceName}" no Effinance`),
       text: `Você foi convidado(a) para participar do espaço ${kind} "${req.access.workspaceName}" no Effinance.\n\nPara aceitar, acesse (válido por 7 dias):\n${url}`,
     });
-    await audit(app.db, { ...requestContext(req), action: 'member.invited', workspaceId: req.workspaceId, userId: req.userId, entity: 'invite', entityId: invite.id, metadata: { role: invite.role } });
+    await audit(app.db, { ...requestContext(req), action: INVITED_ACTION, workspaceId: req.workspaceId, userId: req.userId, entity: 'invite', entityId: invite.id, metadata: { role: invite.role } });
     // Without real e-mail delivery the owner shares the link by hand.
     return reply.code(201).send(app.platform.mailer.delivers ? invite : { ...invite, inviteUrl: url });
   });
@@ -131,7 +134,7 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
 
   // ------------------------------------------------------------------ data protection
 
-  app.get('/current/export', async (req, reply) => {
+  app.get('/current/export', { config: rateLimited(app.platform, 5, '1 minute') }, async (req, reply) => {
     assertOwner(req.access);
     const data = await exportWorkspace(app.db, req.access);
     await audit(app.db, { ...requestContext(req), action: 'data.exported', workspaceId: req.workspaceId, userId: req.userId, entity: 'workspace', entityId: req.workspaceId });
@@ -148,14 +151,18 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
 
 /** Public preview + accept (the accept needs a signed-in user with the invited e-mail). */
 export const inviteRoutes: FastifyPluginAsyncZod = async (app) => {
-  app.get('/:token', { schema: { params: tokenParams }, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) =>
+  app.get('/:token', { schema: { params: tokenParams }, config: rateLimited(app.platform, 30, '1 minute') }, async (req) =>
     previewInvite(app.db, req.params.token),
   );
 
-  app.post('/:token/accept', { schema: { params: tokenParams }, onRequest: [app.authenticate] }, async (req, reply) => {
-    const workspaceId = await acceptInvite(app.db, req.userId, req.params.token);
-    await app.switchSession(req, reply, workspaceId);
-    await audit(app.db, { ...requestContext(req), action: 'member.joined', workspaceId, userId: req.userId, entity: 'user', entityId: req.userId });
-    return getMe(app.db, req.userId, workspaceId);
-  });
+  app.post(
+    '/:token/accept',
+    { schema: { params: tokenParams }, onRequest: [app.authenticate], config: rateLimited(app.platform, 10, '1 minute') },
+    async (req, reply) => {
+      const workspaceId = await acceptInvite(app.db, req.userId, req.params.token);
+      await app.switchSession(req, reply, workspaceId);
+      await audit(app.db, { ...requestContext(req), action: 'member.joined', workspaceId, userId: req.userId, entity: 'user', entityId: req.userId });
+      return getMe(app.db, req.userId, workspaceId);
+    },
+  );
 };

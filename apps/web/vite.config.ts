@@ -87,6 +87,8 @@ export default defineConfig(({ mode }) => {
       outDir: demo ? 'dist-demo' : 'dist',
       // Never publish source maps (they would expose the full source and comments).
       sourcemap: false,
+      // Fonts stay files: inlined as data: URLs they would need `font-src data:` in the CSP.
+      assetsInlineLimit: (file: string) => (/\.(woff2?|ttf|otf)$/i.test(file) ? false : undefined),
       chunkSizeWarningLimit: 900,
       rollupOptions: {
         output: {

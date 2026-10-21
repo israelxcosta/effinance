@@ -3,11 +3,11 @@
 // directives a <meta> cannot carry (frame-ancestors, report-to) — see docs/deploy-aws.md.
 
 /**
- * sha256 of the inline theme script in index.html (applies the saved theme before first paint).
+ * sha256 of the inline script in index.html (Zod without eval + the saved theme before first paint).
  * Changing that script changes the hash: update this constant and the CDN header (a test fails
  * until they match).
  */
-export const THEME_SCRIPT_HASH = "'sha256-1RAEjxRbXn1nFd1C4BtquRjKkwKE4vDUkRZRzxN1WPc='";
+export const THEME_SCRIPT_HASH = "'sha256-Tx3gv5eNbn+Hf+VoVYfVEoj6NuvY41vj9EhirVY+UE4='";
 
 export interface CspOptions {
   /** `'sha256-…'` sources of the inline scripts of index.html. */

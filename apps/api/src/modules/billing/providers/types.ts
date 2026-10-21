@@ -1,4 +1,4 @@
-import type { Plan, SubscriptionStatus } from '@effinance/shared';
+import type { Plan, PlanCode, SubscriptionStatus } from '@effinance/shared';
 
 /** Provider-side status of a recurring subscription (Mercado Pago "preapproval"). */
 export type ProviderStatus = 'authorized' | 'paused' | 'cancelled' | 'pending';
@@ -9,6 +9,11 @@ export interface ProviderSubscription {
   /** Our workspace id (sent as `external_reference`). */
   externalReference: string | null;
   nextPaymentDate: Date | null;
+  /**
+   * Plan actually being charged, derived from the provider's amount and frequency (never from our
+   * own records): what was paid is what is granted. Null/undefined when it matches no plan.
+   */
+  planCode?: PlanCode | null;
 }
 
 export interface CheckoutRequest {

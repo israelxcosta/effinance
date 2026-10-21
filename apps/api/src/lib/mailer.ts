@@ -9,6 +9,11 @@ export interface MailMessage {
   text: string;
 }
 
+/** Header-safe single line (subjects may carry user-chosen names such as a workspace's). */
+export function oneLine(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim();
+}
+
 export interface Mailer {
   readonly name: 'console' | 'memory' | 'webhook' | 'ses';
   /** True when messages actually leave the server (links must not be returned in API responses). */
@@ -49,7 +54,7 @@ export class WebhookMailer implements Mailer {
         'content-type': 'application/json',
         ...(this.secret ? { authorization: `Bearer ${this.secret}` } : {}),
       },
-      body: JSON.stringify({ from: this.from, ...message }),
+      body: JSON.stringify({ from: this.from, ...message, subject: oneLine(message.subject) }),
     });
     if (!res.ok) throw new Error(`Mail webhook respondeu ${res.status}`);
   }

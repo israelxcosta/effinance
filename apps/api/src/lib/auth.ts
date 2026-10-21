@@ -59,21 +59,27 @@ declare module 'fastify' {
 
 const secure = env.NODE_ENV === 'production';
 
+/** Only the API reads it: not sent with page/asset requests (CDN logs, other paths of the origin). */
+const ACCESS_COOKIE_PATH = '/api';
+
 export function setAccessCookie(reply: FastifyReply, token: string) {
-  reply.setCookie(AUTH_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'lax', secure, maxAge: ACCESS_TTL_SECONDS });
+  reply.setCookie(AUTH_COOKIE, token, { path: ACCESS_COOKIE_PATH, httpOnly: true, sameSite: 'lax', secure, maxAge: ACCESS_TTL_SECONDS });
 }
 
-export function setRefreshCookie(reply: FastifyReply, token: string) {
+export function setRefreshCookie(reply: FastifyReply, token: string, expiresAt?: Date) {
+  const ttlMs = expiresAt ? Math.max(0, expiresAt.getTime() - Date.now()) : REFRESH_TTL_MS;
   reply.setCookie(REFRESH_COOKIE, token, {
     path: '/api/auth',
     httpOnly: true,
     sameSite: 'strict',
     secure,
-    maxAge: Math.floor(REFRESH_TTL_MS / 1000),
+    maxAge: Math.floor(ttlMs / 1000),
   });
 }
 
 export function clearAuthCookies(reply: FastifyReply) {
+  reply.clearCookie(AUTH_COOKIE, { path: ACCESS_COOKIE_PATH });
+  // Cookies issued before the path was narrowed.
   reply.clearCookie(AUTH_COOKIE, { path: '/' });
   reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
 }
@@ -86,7 +92,7 @@ export async function signAccessToken(reply: FastifyReply, claims: Omit<AccessCl
 export async function issueSessionCookies(reply: FastifyReply, session: IssuedSession, workspaceId: string): Promise<string> {
   const token = await signAccessToken(reply, { sub: session.userId, wid: workspaceId, sid: session.familyId });
   setAccessCookie(reply, token);
-  setRefreshCookie(reply, session.refreshToken);
+  setRefreshCookie(reply, session.refreshToken, session.expiresAt);
   return token;
 }
 

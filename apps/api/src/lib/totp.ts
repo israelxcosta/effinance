@@ -1,6 +1,6 @@
 // RFC 6238 TOTP (HMAC-SHA-1, 6 digits, 30 s steps) on WebCrypto, plus RFC 4648 base32.
 
-import { randomBytes, type Bytes } from './crypto/encoding';
+import { randomBytes, timingSafeEqualStr, type Bytes } from './crypto/encoding';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 export const TOTP_PERIOD = 30;
@@ -83,7 +83,7 @@ export async function verifyTotp(
   const current = totpStep(options.now);
   for (const step of [current - 1, current, current + 1]) {
     if (options.lastStep !== null && options.lastStep !== undefined && step <= options.lastStep) continue;
-    if ((await totpCode(secretBase32, step)) === code) return step;
+    if (timingSafeEqualStr(await totpCode(secretBase32, step), code)) return step;
   }
   return null;
 }

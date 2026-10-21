@@ -1,7 +1,7 @@
 // Accounts: registration, password login, profile, password change/reset and account deletion.
 // Browser-safe (the demo runs these same functions on PGlite).
 
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import type {
   ChangePasswordInput,
   LoginInput,
@@ -11,7 +11,8 @@ import type {
   User,
 } from '@effinance/shared';
 import type { DbExecutor } from '../../db/client';
-import { accounts, passwordResets, users, workspaceMembers, workspaces, type UserRow } from '../../db/schema';
+import { accounts, auditLogs, passwordResets, users, workspaceMembers, workspaces, type UserRow } from '../../db/schema';
+import { audit, type AuditContext } from '../../lib/audit';
 import { randomToken, sha256Hex } from '../../lib/crypto/encoding';
 import { ConflictError, UnauthorizedError, ValidationError } from '../../lib/errors';
 import { hashPassword, verifyPassword } from '../../lib/password';
@@ -27,6 +28,9 @@ import {
 import { revokeUserSessions } from './sessions';
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60_000;
+/** Reset e-mails per account per hour (the per-IP limit alone lets many IPs flood one inbox). */
+export const PASSWORD_RESET_MAX_PER_HOUR = 5;
+export const PASSWORD_RESET_REQUESTED_ACTION = 'auth.password_reset_requested';
 
 export function toUser(row: UserRow): User {
   return { id: row.id, name: row.name, email: row.email, createdAt: row.createdAt.toISOString() };
@@ -107,13 +111,33 @@ export async function changePassword(
     .update(users)
     .set({ passwordHash: await hashPassword(input.newPassword), passwordChangedAt: new Date() })
     .where(eq(users.id, userId));
+  // A reset link requested before the change (maybe by whoever knew the old password) stops working.
+  await db.delete(passwordResets).where(and(eq(passwordResets.userId, userId), isNull(passwordResets.usedAt)));
   await revokeUserSessions(db, userId, currentSessionId);
 }
 
-/** Returns the raw token to e-mail, or null when the e-mail has no account (the caller answers 204 anyway). */
-export async function requestPasswordReset(db: DbExecutor, email: string): Promise<{ token: string; user: UserRow } | null> {
+/**
+ * Returns the raw token to e-mail, or null when the e-mail has no account or already received
+ * {@link PASSWORD_RESET_MAX_PER_HOUR} links in the last hour (the caller answers 204 anyway).
+ */
+export async function requestPasswordReset(
+  db: DbExecutor,
+  email: string,
+  ctx: AuditContext = {},
+): Promise<{ token: string; user: UserRow } | null> {
   const [user] = await db.select().from(users).where(eq(users.email, email));
   if (!user) return null;
+  const [recent] = await db
+    .select({ n: count() })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.userId, user.id),
+        eq(auditLogs.action, PASSWORD_RESET_REQUESTED_ACTION),
+        gt(auditLogs.createdAt, sql`now() - interval '1 hour'`),
+      ),
+    );
+  if ((recent?.n ?? 0) >= PASSWORD_RESET_MAX_PER_HOUR) return null;
   // Only the latest link works.
   await db.delete(passwordResets).where(and(eq(passwordResets.userId, user.id), isNull(passwordResets.usedAt)));
   const token = randomToken();
@@ -122,6 +146,7 @@ export async function requestPasswordReset(db: DbExecutor, email: string): Promi
     tokenHash: await sha256Hex(token),
     expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
   });
+  await audit(db, { ...ctx, action: PASSWORD_RESET_REQUESTED_ACTION, userId: user.id });
   return { token, user };
 }
 

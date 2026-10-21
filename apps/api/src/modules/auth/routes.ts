@@ -98,11 +98,9 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     }
     if (claims.typ !== 'mfa') throw new UnauthorizedError('A verificação expirou. Entre novamente.');
     const user = await getUserRow(app.db, claims.sub);
-    const method = await verifyMfaCode(app.db, user, req.body.code);
-    if (!method) {
-      await audit(app.db, { ...requestContext(req), action: 'auth.mfa_failed', userId: user.id });
-      throw new UnauthorizedError('Código inválido');
-    }
+    // Per-account attempt budget and failure audit live in verifyMfaCode (429 when exhausted).
+    const method = await verifyMfaCode(app.db, user, req.body.code, requestContext(req));
+    if (!method) throw new UnauthorizedError('Código inválido');
     return startSession(req, reply, user, method === 'recovery' ? 'mfa_recovery' : 'mfa');
   });
 
@@ -158,15 +156,18 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
   });
 
   app.post('/password/forgot', { schema: { body: forgotPasswordSchema }, config: limit(5, '15 minutes') }, async (req, reply) => {
-    const result = await requestPasswordReset(app.db, req.body.email);
+    const result = await requestPasswordReset(app.db, req.body.email, requestContext(req));
     if (result) {
       const link = `${app.platform.appUrl}/redefinir-senha?token=${result.token}`;
-      await app.platform.mailer.send({
-        to: result.user.email,
-        subject: 'Redefinição de senha — Effinance',
-        text: `Olá, ${result.user.name}.\n\nPara criar uma nova senha, acesse o link abaixo (válido por 30 minutos):\n${link}\n\nSe você não pediu a redefinição, ignore este e-mail.`,
-      });
-      await audit(app.db, { ...requestContext(req), action: 'auth.password_reset_requested', userId: result.user.id });
+      // Not awaited: the answer must take the same time whether or not the e-mail has an account
+      // (waiting for SES/the webhook would reveal it). Delivery failures are logged.
+      app.platform.mailer
+        .send({
+          to: result.user.email,
+          subject: 'Redefinição de senha — Effinance',
+          text: `Olá, ${result.user.name}.\n\nPara criar uma nova senha, acesse o link abaixo (válido por 30 minutos):\n${link}\n\nSe você não pediu a redefinição, ignore este e-mail.`,
+        })
+        .catch((err: unknown) => req.log.error({ err }, 'password reset e-mail failed'));
     }
     return reply.code(204).send();
   });
@@ -225,13 +226,16 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     authed.post('/mfa/setup', async (req) => setupMfa(app.db, req.userId));
 
     authed.post('/mfa/enable', { schema: { body: mfaCodeSchema }, config: limit(10) }, async (req) => {
-      const result = await enableMfa(app.db, req.userId, req.body.code);
+      const result = await enableMfa(app.db, req.userId, req.body.code, {
+        password: req.body.password,
+        sessionId: req.sessionId,
+      });
       await audit(app.db, { ...requestContext(req), action: 'auth.mfa_enabled', userId: req.userId });
       return result;
     });
 
     authed.post('/mfa/disable', { schema: { body: mfaCodeSchema }, config: limit(10) }, async (req, reply) => {
-      await disableMfa(app.db, req.userId, req.body.code);
+      await disableMfa(app.db, req.userId, req.body.code, requestContext(req));
       await audit(app.db, { ...requestContext(req), action: 'auth.mfa_disabled', userId: req.userId });
       return reply.code(204).send();
     });

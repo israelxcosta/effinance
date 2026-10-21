@@ -24,13 +24,27 @@ import { isValidDocument, isValidPhone, onlyDigits } from './utils/documents';
 
 export const idSchema = z.uuid({ message: 'ID inválido' });
 
+/**
+ * Calendar years accepted from clients. Postgres has no year 0 and reports reach back a year before
+ * `from` (opening balances, history), so far-off years would surface as database errors (500).
+ */
+export const MIN_YEAR = 1900;
+export const MAX_YEAR = 2199;
+
+const inYearRange = (value: string) => {
+  const year = Number(value.slice(0, 4));
+  return year >= MIN_YEAR && year <= MAX_YEAR;
+};
+
 export const isoDateSchema = z
   .string()
-  .refine(isISODate, { message: 'Data inválida (use AAAA-MM-DD)' });
+  .refine(isISODate, { message: 'Data inválida (use AAAA-MM-DD)' })
+  .refine(inYearRange, { message: `Use uma data entre ${MIN_YEAR} e ${MAX_YEAR}` });
 
 export const monthKeySchema = z
   .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Mês inválido (use AAAA-MM)' });
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Mês inválido (use AAAA-MM)' })
+  .refine(inYearRange, { message: `Use um mês entre ${MIN_YEAR} e ${MAX_YEAR}` });
 
 /** Positive amount in cents. */
 export const amountSchema = z

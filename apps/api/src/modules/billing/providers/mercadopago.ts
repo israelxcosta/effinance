@@ -1,5 +1,6 @@
 // Mercado Pago subscriptions (Assinaturas / preapproval API) over plain fetch.
 
+import { PLANS, type PlanCode } from '@effinance/shared';
 import { UnauthorizedError } from '../../../lib/errors';
 import type {
   BillingProvider,
@@ -20,6 +21,23 @@ interface PreapprovalResponse {
   external_reference?: string | null;
   next_payment_date?: string | null;
   init_point?: string;
+  auto_recurring?: {
+    frequency?: number;
+    frequency_type?: string;
+    transaction_amount?: number;
+    currency_id?: string;
+  } | null;
+}
+
+/** The plan a preapproval charges for (BRL amount + billing frequency), or null. */
+export function planForCharge(auto: PreapprovalResponse['auto_recurring']): PlanCode | null {
+  if (!auto || auto.currency_id !== 'BRL' || auto.frequency_type !== 'months' || typeof auto.transaction_amount !== 'number') {
+    return null;
+  }
+  const cents = Math.round(auto.transaction_amount * 100);
+  const months = auto.frequency;
+  const plan = PLANS.find((p) => p.priceCents === cents && (p.interval === 'year' ? 12 : 1) === months);
+  return plan?.code ?? null;
 }
 
 function header(headers: WebhookInput['headers'], name: string): string | null {
@@ -84,6 +102,7 @@ export class MercadoPagoProvider implements BillingProvider {
       status: asStatus(out.status),
       externalReference: out.external_reference ?? null,
       nextPaymentDate: out.next_payment_date ? new Date(out.next_payment_date) : null,
+      planCode: planForCharge(out.auto_recurring),
     };
   }
 

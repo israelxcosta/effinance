@@ -1,7 +1,7 @@
 // Subscriptions: plan checkout, cancellation and provider status sync (webhooks). Webhook payloads
 // are never trusted: the official status is always fetched from the provider.
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { PLANS, getPlan, type Plan, type PlanCode, type Subscription } from '@effinance/shared';
 import type { DbExecutor } from '../../db/client';
 import { billingEvents, subscriptions } from '../../db/schema';
@@ -89,16 +89,45 @@ function periodEnd(plan: Plan | undefined, from: Date): Date {
   return end;
 }
 
-/** Applies the provider's official status to our subscription row. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface AppliedSubscription {
+  workspaceId: string;
+  /** Previous provider subscription replaced by this one (cancel it so it is not charged too). */
+  replaced: string | null;
+}
+
+/**
+ * Applies the provider's official status to our subscription row.
+ *
+ * - The workspace's current provider subscription: status (and plan actually charged) are applied.
+ * - Another subscription of the same workspace (`external_reference`), e.g. a second checkout: only
+ *   adopted once AUTHORIZED (an upgrade or a checkout paid later). Any other status of a non-current
+ *   subscription is ignored, so a stale/abandoned checkout can never downgrade or replace the plan.
+ */
 export async function applyProviderSubscription(
   db: DbExecutor,
   remote: ProviderSubscription,
   provider: 'mercadopago' | 'fake',
-): Promise<string | null> {
-  const [byId] = await db.select().from(subscriptions).where(eq(subscriptions.providerSubscriptionId, remote.id));
-  const row = byId ?? (remote.externalReference ? await getSubscriptionRow(db, remote.externalReference) : null);
-  if (!row) return null;
+  /** Stops the replaced subscription at the provider; runs BEFORE our row changes (retry-safe). */
+  cancelReplaced?: (providerSubscriptionId: string) => Promise<void>,
+): Promise<AppliedSubscription | null> {
+  let [row] = await db.select().from(subscriptions).where(eq(subscriptions.providerSubscriptionId, remote.id));
+  let adopting = false;
+  if (!row) {
+    if (remote.status !== 'authorized' || !remote.externalReference || !UUID_RE.test(remote.externalReference)) return null;
+    row = (await getSubscriptionRow(db, remote.externalReference)) ?? undefined;
+    if (!row) return null;
+    adopting = true;
+  }
+  const previous = row.providerSubscriptionId;
+  const replaced = adopting && previous && previous !== remote.id && row.provider === provider ? previous : null;
+  // If this fails, nothing changed here: the provider retries the notification and we try again.
+  if (replaced && cancelReplaced) await cancelReplaced(replaced);
+
   const status = PROVIDER_STATUS_MAP[remote.status];
+  // What is being charged decides the plan; our own record is only a fallback (unknown price).
+  const planCode = remote.planCode ?? row.planCode;
   const now = new Date();
   await db
     .update(subscriptions)
@@ -106,16 +135,17 @@ export async function applyProviderSubscription(
       status,
       provider,
       providerSubscriptionId: remote.id,
+      planCode,
       pastDueSince: status === 'past_due' ? (row.pastDueSince ?? now) : null,
       currentPeriodEnd:
         status === 'active'
-          ? (remote.nextPaymentDate ?? periodEnd(getPlan(row.planCode), now))
+          ? (remote.nextPaymentDate ?? periodEnd(getPlan(planCode), now))
           : row.currentPeriodEnd,
       cancelAtPeriodEnd: status === 'canceled' ? true : status === 'active' ? false : row.cancelAtPeriodEnd,
       ...(status === 'active' ? { trialEndsAt: null } : {}),
     })
     .where(eq(subscriptions.workspaceId, row.workspaceId));
-  return row.workspaceId;
+  return { workspaceId: row.workspaceId, replaced };
 }
 
 /** Cancels at the end of the paid period (or drops a checkout not yet paid). */
@@ -163,35 +193,50 @@ export async function cancelForDeletion(db: DbExecutor, platform: Platform, work
   }
 }
 
-/** Webhook entry point: verify, deduplicate, re-fetch, apply. */
+/**
+ * Webhook entry point: verify, deduplicate, re-fetch, apply. An event is only "done" once processed:
+ * if a previous delivery failed half-way (provider API down, crash), the retry processes it again —
+ * applying a re-fetched status is idempotent.
+ */
 export async function handleWebhook(
   db: DbExecutor,
   platform: Platform,
   input: WebhookInput,
 ): Promise<{ duplicate: boolean; workspaceId: string | null }> {
   const event = await platform.billing.parseWebhook(input);
-  const [stored] = await db
+  let [stored] = await db
     .insert(billingEvents)
     .values({ provider: platform.billing.name, eventId: event.eventId, type: event.type, payload: (input.body ?? {}) as object })
     .onConflictDoNothing()
     .returning({ id: billingEvents.id });
-  if (!stored) return { duplicate: true, workspaceId: null };
+  if (!stored) {
+    const [existing] = await db
+      .select({ id: billingEvents.id, processedAt: billingEvents.processedAt })
+      .from(billingEvents)
+      .where(and(eq(billingEvents.provider, platform.billing.name), eq(billingEvents.eventId, event.eventId)));
+    if (!existing || existing.processedAt) return { duplicate: true, workspaceId: null };
+    stored = existing;
+  }
 
-  let workspaceId: string | null = null;
+  let applied: AppliedSubscription | null = null;
   if (event.subscriptionId) {
     const remote = await platform.billing.getSubscription(event.subscriptionId);
-    workspaceId = await applyProviderSubscription(db, remote, platform.billing.name);
-  }
-  await db.update(billingEvents).set({ processedAt: new Date() }).where(eq(billingEvents.id, stored.id));
-  if (workspaceId) {
-    await audit(db, {
-      action: 'billing.webhook',
-      workspaceId,
-      entity: 'subscription',
-      metadata: { type: event.type, eventId: event.eventId },
+    // The new subscription takes over: stop charging the old one (or an abandoned checkout).
+    applied = await applyProviderSubscription(db, remote, platform.billing.name, async (previousId) => {
+      const old = await platform.billing.getSubscription(previousId);
+      if (old.status !== 'cancelled') await platform.billing.cancel(previousId);
     });
   }
-  return { duplicate: false, workspaceId };
+  await db.update(billingEvents).set({ processedAt: new Date() }).where(eq(billingEvents.id, stored.id));
+  if (applied) {
+    await audit(db, {
+      action: 'billing.webhook',
+      workspaceId: applied.workspaceId,
+      entity: 'subscription',
+      metadata: { type: event.type, eventId: event.eventId, replacedPrevious: !!applied.replaced },
+    });
+  }
+  return { duplicate: false, workspaceId: applied?.workspaceId ?? null };
 }
 
 /** Fake provider only: activates a plan as if the payment had been authorized. */

@@ -8,6 +8,8 @@ import { sql } from 'drizzle-orm';
 import type { DbExecutor } from '../db/client';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Upper bound of any single statement of a tenant request (abusive filters/ranges, runaway plans). */
+export const TENANT_STATEMENT_TIMEOUT = '15s';
 
 /** Runs `fn` in a transaction scoped to `workspaceId` (role `effinance_app` + RLS setting). */
 export async function withTenant<T>(db: DbExecutor, workspaceId: string, fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
@@ -18,7 +20,8 @@ export async function withTenant<T>(db: DbExecutor, workspaceId: string, fn: (tx
   }
   return db.transaction(async (tx) => {
     await tx.execute(
-      sql`select set_config('role', 'effinance_app', true), set_config('app.workspace_id', ${workspaceId}, true)`,
+      sql`select set_config('role', 'effinance_app', true), set_config('app.workspace_id', ${workspaceId}, true),
+                 set_config('statement_timeout', ${TENANT_STATEMENT_TIMEOUT}, true)`,
     );
     return fn(tx);
   });

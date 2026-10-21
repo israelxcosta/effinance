@@ -274,7 +274,7 @@ describe('request hardening', () => {
     });
     const access = res.cookies.find((c) => c.name === 'effinance_token')!;
     const refreshCookie = res.cookies.find((c) => c.name === 'effinance_refresh')!;
-    expect(access).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/', maxAge: 900 });
+    expect(access).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/api', maxAge: 900 });
     expect(refreshCookie).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/api/auth' });
     const payload = JSON.parse(Buffer.from(res.json().token.split('.')[1], 'base64url').toString());
     expect(payload.exp - payload.iat).toBe(900);

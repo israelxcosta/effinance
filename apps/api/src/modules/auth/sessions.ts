@@ -10,6 +10,8 @@ import { randomToken, sha256Hex } from '../../lib/crypto/encoding';
 import { maskIp, shortUserAgent } from '../../lib/ip';
 
 export const REFRESH_TTL_MS = 30 * 86_400_000;
+/** Absolute lifetime of a session (login), however often it is refreshed: then sign in again. */
+export const SESSION_MAX_AGE_MS = 90 * 86_400_000;
 /** A token rotated this recently may still arrive from a concurrent request of the same browser. */
 const ROTATION_GRACE_MS = 10_000;
 
@@ -26,6 +28,11 @@ export interface IssuedSession {
   expiresAt: Date;
 }
 
+/** Sliding refresh window, capped by the session's absolute lifetime. */
+function refreshExpiry(now: Date, sessionStartedAt: Date): Date {
+  return new Date(Math.min(now.getTime() + REFRESH_TTL_MS, sessionStartedAt.getTime() + SESSION_MAX_AGE_MS));
+}
+
 export async function createSession(
   db: DbExecutor,
   input: { userId: string; workspaceId: string | null } & SessionContext,
@@ -33,7 +40,7 @@ export async function createSession(
   const refreshToken = randomToken();
   const now = new Date();
   const id = globalThis.crypto.randomUUID();
-  const expiresAt = new Date(now.getTime() + REFRESH_TTL_MS);
+  const expiresAt = refreshExpiry(now, now);
   await db.insert(sessions).values({
     id,
     familyId: id,
@@ -60,6 +67,10 @@ export async function rotateSession(db: DbExecutor, refreshToken: string, ctx: S
   const now = new Date();
   const [row] = await db.select().from(sessions).where(eq(sessions.tokenHash, await sha256Hex(refreshToken)));
   if (!row || row.revokedAt || row.expiresAt <= now) return { status: 'invalid' };
+  if (row.sessionStartedAt.getTime() + SESSION_MAX_AGE_MS <= now.getTime()) {
+    await revokeFamily(db, row.familyId);
+    return { status: 'invalid' };
+  }
   if (row.rotatedAt) {
     if (now.getTime() - row.rotatedAt.getTime() <= ROTATION_GRACE_MS) return { status: 'grace' };
     await revokeFamily(db, row.familyId);
@@ -67,7 +78,7 @@ export async function rotateSession(db: DbExecutor, refreshToken: string, ctx: S
   }
 
   const next = randomToken();
-  const expiresAt = new Date(now.getTime() + REFRESH_TTL_MS);
+  const expiresAt = refreshExpiry(now, row.sessionStartedAt);
   // Conditional update: two requests racing on the same token cannot both rotate it.
   const rotated = await db
     .update(sessions)

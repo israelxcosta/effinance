@@ -15,6 +15,13 @@ function directives(policy: string): Map<string, string[]> {
 }
 
 describe('Content Security Policy', () => {
+  it('Zod runs without eval: index.html sets its global config before any module loads', async () => {
+    expect(indexHtml).toContain('window.__zod_globalConfig = { jitless: true };');
+    // The flag only works while Zod keeps reading this global (checked against the installed version).
+    const { globalConfig } = await import('zod/v4/core');
+    expect(globalConfig).toBe((globalThis as { __zod_globalConfig?: unknown }).__zod_globalConfig);
+  });
+
   it('the documented hash (CDN header) matches the inline theme script of index.html', async () => {
     // If this fails, the theme script changed: update THEME_SCRIPT_HASH and the CloudFront policy.
     expect(await inlineScriptHashes(indexHtml)).toEqual([THEME_SCRIPT_HASH]);

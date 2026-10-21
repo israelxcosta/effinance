@@ -81,7 +81,7 @@ export async function demoAuthRoutes(app: Scope) {
     const challenge = mfaChallenges.get(mfaToken);
     if (!challenge || challenge.expires < Date.now()) throw new UnauthorizedError('A verificação expirou. Entre novamente.');
     const user = await getUserRow(app.db, challenge.userId);
-    if (!(await verifyMfaCode(app.db, user, code))) throw new UnauthorizedError('Código inválido');
+    if (!(await verifyMfaCode(app.db, user, code, requestContext(req)))) throw new UnauthorizedError('Código inválido');
     mfaChallenges.delete(mfaToken);
     return startSession(req, user);
   });
@@ -112,7 +112,7 @@ export async function demoAuthRoutes(app: Scope) {
   });
 
   app.post('/password/forgot', { schema: { body: forgotPasswordSchema } }, async (req: DemoRequest, reply: DemoReply) => {
-    const result = await requestPasswordReset(app.db, (req.body as { email: string }).email);
+    const result = await requestPasswordReset(app.db, (req.body as { email: string }).email, requestContext(req));
     if (result) {
       await app.platform.mailer.send({
         to: result.user.email,
@@ -166,11 +166,14 @@ export async function demoAuthRoutes(app: Scope) {
     authed.post('/mfa/setup', async (req: DemoRequest) => setupMfa(app.db, req.userId));
 
     authed.post('/mfa/enable', { schema: { body: mfaCodeSchema } }, async (req: DemoRequest) =>
-      enableMfa(app.db, req.userId, (req.body as { code: string }).code),
+      enableMfa(app.db, req.userId, (req.body as { code: string }).code, {
+        password: (req.body as { password?: string }).password,
+        sessionId: req.sessionId,
+      }),
     );
 
     authed.post('/mfa/disable', { schema: { body: mfaCodeSchema } }, async (req: DemoRequest, reply: DemoReply) => {
-      await disableMfa(app.db, req.userId, (req.body as { code: string }).code);
+      await disableMfa(app.db, req.userId, (req.body as { code: string }).code, requestContext(req));
       return reply.code(204).send();
     });
 

@@ -264,7 +264,14 @@ export const mfaVerifySchema = z.object({
 });
 export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;
 
-export const mfaCodeSchema = z.object({ code: totpCode });
+export const mfaCodeSchema = z.object({
+  code: totpCode,
+  /**
+   * Current password. Enabling 2FA requires it unless the session logged in a few minutes ago
+   * (re-authentication before adding a factor); ignored by /mfa/disable, which checks the code.
+   */
+  password: z.string().min(1).max(1024).optional(),
+});
 export type MfaCodeInput = z.infer<typeof mfaCodeSchema>;
 
 export const changePasswordSchema = z.object({

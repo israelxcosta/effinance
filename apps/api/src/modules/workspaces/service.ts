@@ -27,13 +27,18 @@ import {
 } from '../../db/schema';
 import { randomToken, sha256Hex } from '../../lib/crypto/encoding';
 import { forgetWorkspaceKey, newWorkspaceKey } from '../../lib/crypto/keyring';
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../lib/errors';
+import { ConflictError, ForbiddenError, NotFoundError, TooManyRequestsError, ValidationError } from '../../lib/errors';
 import { maxMembersFor, summarizeSubscription } from '../billing/entitlements';
 import type { Access } from './access';
 
 const DAY_MS = 86_400_000;
 export const INVITE_TTL_MS = 7 * DAY_MS;
 export const PERSONAL_WORKSPACE_NAME = 'Pessoal';
+/** Workspaces a user may own (personal included): each is a new trial and a new KMS data key. */
+export const MAX_OWNED_WORKSPACES = 10;
+/** Invite e-mails per workspace per hour (re-inviting replaces the pending invite, so no other cap applies). */
+export const MAX_INVITES_PER_HOUR = 20;
+export const INVITED_ACTION = 'member.invited';
 
 // ---------------------------------------------------------------------------
 // Workspaces
@@ -133,6 +138,15 @@ export async function createSharedWorkspace(
   userId: string,
   input: { name: string; kind: 'family' | 'business' },
 ): Promise<string> {
+  const [owned] = await db
+    .select({ n: count() })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.role, 'owner')));
+  if ((owned?.n ?? 0) >= MAX_OWNED_WORKSPACES) {
+    throw new ValidationError(
+      `Você já é proprietário de ${MAX_OWNED_WORKSPACES} espaços. Exclua um espaço que não usa mais para criar outro.`,
+    );
+  }
   return db.transaction((tx) => createWorkspace(tx, { name: input.name, kind: input.kind, ownerId: userId }));
 }
 
@@ -284,6 +298,21 @@ export async function createInvite(
     .innerJoin(users, eq(users.id, workspaceMembers.userId))
     .where(and(eq(workspaceMembers.workspaceId, access.workspaceId), eq(users.email, input.email)));
   if (existing) throw new ConflictError('Esta pessoa já participa do espaço');
+
+  // Every invite sends an e-mail with a name the owner chose: cap them (spam through our sender).
+  const [sent] = await db
+    .select({ n: count() })
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.workspaceId, access.workspaceId),
+        eq(auditLogs.action, INVITED_ACTION),
+        gt(auditLogs.createdAt, sql`now() - interval '1 hour'`),
+      ),
+    );
+  if ((sent?.n ?? 0) >= MAX_INVITES_PER_HOUR) {
+    throw new TooManyRequestsError('Muitos convites enviados na última hora. Tente novamente mais tarde.');
+  }
 
   // A new invite to the same e-mail replaces the pending one.
   await db
