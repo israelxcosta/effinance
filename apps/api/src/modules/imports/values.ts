@@ -1,7 +1,7 @@
 // Amounts and calendar dates as written in Brazilian bank exports (OFX and CSV). Pure functions on
 // strings: no Node APIs (the browser demo runs the same code), no floating point for money.
 
-import { isISODate, toISODate, type CsvDateFormat, type ISODate } from '@effinance/shared';
+import { daysInMonth, toISODate, type CsvDateFormat, type ISODate } from '@effinance/shared';
 
 /**
  * Signed cents from a money text: "R$ -1.234,56", "(1.234,56)", "1,234.56", "-50", "50,00-",
@@ -60,9 +60,8 @@ const DATE_PATTERNS: Record<CsvDateFormat, RegExp> = {
 };
 
 function valid(year: number, month: number, day: number): ISODate | null {
-  if (year < 1900 || year > 2199 || month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const iso = toISODate(year, month, day);
-  return isISODate(iso) ? iso : null;
+  if (year < 1900 || year > 2199 || month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return null;
+  return toISODate(year, month, day);
 }
 
 /** Calendar date in one of the contract formats; a time after the date ("01/10/2026 14:33") is ignored. */

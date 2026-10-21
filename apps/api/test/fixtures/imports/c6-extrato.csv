@@ -1,0 +1,4 @@
+Data Lançamento,Data Contábil,Título,Descrição,Entrada(R$),Saída(R$),Saldo do Dia(R$)
+"02/10/2026","02/10/2026","Pix recebido de Fulano","Pix","300,00","0,00","1.300,00"
+"03/10/2026","03/10/2026","Pix enviado para Mercado Bom","Pix","0,00","120,00","1.180,00"
+"04/10/2026","04/10/2026","Compra no débito - Posto Exemplo","Cartão","0,00","200,50","979,50"

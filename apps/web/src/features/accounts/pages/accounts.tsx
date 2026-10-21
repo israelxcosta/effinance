@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Archive, ArchiveRestore, Ellipsis, FileUp, Landmark, Pencil, Plus, ScrollText, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Ellipsis, FileUp, Landmark, Pencil, Plug, Plus, ScrollText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ACCOUNT_TYPE_LABELS, formatBRL, type Account } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,8 @@ import { useTone } from '@/lib/theme';
 import { toastError } from '@/lib/notify';
 import { usePermissions, WriteGate } from '@/features/auth/permissions';
 import { useImportActions } from '@/features/imports/import-actions';
+import { useOpenFinanceStatus } from '@/features/open-finance/api';
+import { useBankConnectFlow } from '@/features/open-finance/connect-flow';
 
 export default function AccountsPage() {
   const readOnly = !usePermissions().canWrite;
@@ -38,6 +40,8 @@ export default function AccountsPage() {
   const save = useSaveAccount();
   const navigate = useNavigate();
   const { openImport } = useImportActions();
+  const openFinance = useOpenFinanceStatus();
+  const connectFlow = useBankConnectFlow();
 
   const list = accounts.data ?? [];
   const active = list.filter((a) => !a.archived);
@@ -68,6 +72,13 @@ export default function AccountsPage() {
             <label className="mr-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
               <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Mostrar arquivadas" /> Arquivadas
             </label>
+            {openFinance.enabled ? (
+              <WriteGate>
+                <Button variant="outline" onClick={() => connectFlow.connect()} loading={connectFlow.busy}>
+                  <Plug /> Conectar banco
+                </Button>
+              </WriteGate>
+            ) : null}
             <WriteGate>
               <Button onClick={() => setSheet({ open: true, account: null })}>
                 <Plus /> Nova conta
@@ -155,6 +166,7 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {connectFlow.element}
       <AccountSheet open={sheet.open} account={sheet.account} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} />
       <ConfirmDialog
         open={Boolean(toDelete)}

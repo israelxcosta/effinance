@@ -5,6 +5,7 @@ import { contactRoutes } from './modules/contacts/routes';
 import { creditCardRoutes } from './modules/credit-cards/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
 import { goalRoutes } from './modules/goals/routes';
+import { importRoutes } from './modules/imports/routes';
 import { reportRoutes } from './modules/reports/routes';
 import { searchRoutes } from './modules/search/routes';
 import { statementRoutes } from './modules/statement/routes';
@@ -28,3 +29,9 @@ export const domainRoutes: { prefix: string; plugin: FastifyPluginAsyncZod }[] =
   { prefix: '/reports', plugin: reportRoutes },
   { prefix: '/search', plugin: searchRoutes },
 ];
+
+/**
+ * Modules whose requests run several tenant transactions (lib/tenant-scope.ts: same authentication
+ * and write checks, explicit RLS phases): mounted under `/api` next to `tenantRoutes`, not inside it.
+ */
+export const scopedRoutes: { prefix: string; plugin: FastifyPluginAsyncZod }[] = [{ prefix: '/imports', plugin: importRoutes }];

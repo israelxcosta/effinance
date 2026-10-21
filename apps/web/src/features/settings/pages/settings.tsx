@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router';
-import { CreditCard, ShieldCheck, ShieldEllipsis, UserRound, Users } from 'lucide-react';
+import { CreditCard, Plug, ShieldCheck, ShieldEllipsis, UserRound, Users } from 'lucide-react';
 import { WORKSPACE_KIND_LABELS } from '@effinance/shared';
 import { PageHeader } from '@/components/ui/misc';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -9,8 +9,9 @@ import { SecurityTab } from '../tabs/security-tab';
 import { MembersTab } from '../tabs/members-tab';
 import { SubscriptionTab } from '../tabs/subscription-tab';
 import { PrivacyTab } from '../tabs/privacy-tab';
+import { IntegrationsTab } from '../tabs/integrations-tab';
 
-const TABS = ['perfil', 'seguranca', 'membros', 'assinatura', 'privacidade'] as const;
+const TABS = ['perfil', 'seguranca', 'membros', 'assinatura', 'integracoes', 'privacidade'] as const;
 type Tab = (typeof TABS)[number];
 
 export default function SettingsPage() {
@@ -50,6 +51,7 @@ export default function SettingsPage() {
             { value: 'seguranca', label: 'Segurança', icon: <ShieldCheck /> },
             { value: 'membros', label: 'Membros', icon: <Users /> },
             { value: 'assinatura', label: 'Assinatura', icon: <CreditCard /> },
+            { value: 'integracoes', label: 'Integrações', icon: <Plug /> },
             { value: 'privacidade', label: 'Privacidade', icon: <ShieldEllipsis /> },
           ]}
         />
@@ -58,6 +60,7 @@ export default function SettingsPage() {
       {tab === 'seguranca' ? <SecurityTab /> : null}
       {tab === 'membros' ? <MembersTab /> : null}
       {tab === 'assinatura' ? <SubscriptionTab /> : null}
+      {tab === 'integracoes' ? <IntegrationsTab /> : null}
       {tab === 'privacidade' ? <PrivacyTab /> : null}
     </div>
   );

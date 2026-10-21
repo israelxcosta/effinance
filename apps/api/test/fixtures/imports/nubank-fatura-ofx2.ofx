@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?OFX OFXHEADER="200" VERSION="211" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>
+      <DTSERVER>20261020000000[-3:BRT]</DTSERVER>
+      <LANGUAGE>POR</LANGUAGE>
+      <FI><ORG>NU PAGAMENTOS S.A.</ORG><FID>260</FID></FI>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <CREDITCARDMSGSRSV1>
+    <CCSTMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>
+      <CCSTMTRS>
+        <CURDEF>BRL</CURDEF>
+        <CCACCTFROM><ACCTID>5a3f1c2e-0000-4000-8000-00000000c4f1</ACCTID></CCACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20260903000000[-3:BRT]</DTSTART>
+          <DTEND>20261003000000[-3:BRT]</DTEND>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260905000000[-3:BRT]</DTPOSTED>
+            <TRNAMT>-45.90</TRNAMT>
+            <FITID>66f1a2b3-0001-4c1d-9e2f-000000000001</FITID>
+            <MEMO>Padaria Pao &amp; Cia</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20260912000000[-3:BRT]</DTPOSTED>
+            <TRNAMT>-250.00</TRNAMT>
+            <FITID>66f1a2b3-0002-4c1d-9e2f-000000000002</FITID>
+            <MEMO>Loja de Moveis - Parcela 2/10</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260915000000[-3:BRT]</DTPOSTED>
+            <TRNAMT>1534.27</TRNAMT>
+            <FITID>66f1a2b3-0003-4c1d-9e2f-000000000003</FITID>
+            <MEMO>Pagamento recebido</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20260920000000[-3:BRT]</DTPOSTED>
+            <TRNAMT>19.90</TRNAMT>
+            <FITID>66f1a2b3-0004-4c1d-9e2f-000000000004</FITID>
+            <MEMO>Estorno - Streaming Exemplo</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20261001000000[-3:BRT]</DTPOSTED>
+            <TRNAMT>-1,234.56</TRNAMT>
+            <FITID>66f1a2b3-0005-4c1d-9e2f-000000000005</FITID>
+            <MEMO>Companhia Aerea Exemplo</MEMO>
+          </STMTTRN>
+        </BANKTRANLIST>
+      </CCSTMTRS>
+    </CCSTMTTRNRS>
+  </CREDITCARDMSGSRSV1>
+</OFX>

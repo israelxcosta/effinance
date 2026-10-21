@@ -84,6 +84,11 @@ export const csvMappingSchema = z
     amountColumn: z.int().min(0).max(200).nullable(),
     debitColumn: z.int().min(0).max(200).nullable(),
     creditColumn: z.int().min(0).max(200).nullable(),
+    /**
+     * Column with the bank's own transaction id (e.g. Nubank "Identificador"): used as externalId.
+     * Optional (additive); detected from the header when omitted.
+     */
+    idColumn: z.int().min(0).max(200).nullable().optional(),
     dateFormat: z.enum(CSV_DATE_FORMATS),
     decimalSeparator: z.enum([',', '.']),
     /** Card exports usually list purchases as positive numbers: invert so purchases are outflows. */

@@ -1,7 +1,10 @@
-// Pluggy Connect: the aggregator's official consent widget (Open Finance Brasil). It renders an
-// iframe served from https://connect.pluggy.ai (the only origin it needs: see `frame-src` in
-// src/lib/csp.ts) and talks to this page through postMessage. Loaded on demand (own chunk), never
-// from a CDN.
+// Pluggy Connect: the aggregator's official consent widget (Open Finance Brasil), from the npm
+// package `pluggy-connect-sdk` (pinned). It renders an iframe served by PLUGGY_CONNECT_ORIGIN — the
+// only origin it needs, allowed in `frame-src` (src/lib/csp.ts) — and talks to this page through
+// postMessage (zoid). No script is loaded from a CDN: the SDK is bundled in its own chunk, fetched
+// only when the user connects a bank.
+
+import { PLUGGY_CONNECT_ORIGIN } from '@/lib/csp';
 
 export interface PluggyConnectOptions {
   /** Short-lived connect token from `POST /open-finance/connect-token` (never an API key). */
@@ -20,15 +23,62 @@ export class PluggyConnectError extends Error {
   }
 }
 
+/** The part of the SDK used here (its typings import types from the server-side `pluggy-js`). */
+interface PluggyConnectWidget {
+  init(container?: HTMLElement): Promise<void>;
+}
+type PluggyConnectCtor = new (props: {
+  url?: string;
+  connectToken: string;
+  updateItem?: string;
+  includeSandbox?: boolean;
+  language?: string;
+  theme?: 'light' | 'dark';
+  onSuccess?: (data: { item: { id: string } }) => void;
+  onError?: (error: { message: string; data?: { item?: { id: string } } }) => void;
+  onClose?: () => void;
+}) => PluggyConnectWidget;
+
 /**
- * Opens the widget and resolves with the connected item id when the user finishes, or null when
- * they close it without connecting. Rejects when the widget cannot be loaded.
- *
- * TODO(open-finance): instalar o SDK oficial e trocar este corpo pelo import dinâmico:
- *   pnpm --filter @effinance/web add pluggy-connect-sdk@2.14.2
- * (o pnpm recusa re-resolver o lockfile até as dependências recentes cumprirem `minimumReleaseAge`).
+ * Opens the widget and resolves with the connected item id once the user closes it after
+ * connecting, or null when they close it without connecting. Rejects when it cannot be loaded.
+ * The promise settles only on close: the widget is a modal on top of the page, and the next
+ * dialogs of the flow (Radix, modal) would block its pointer events while it is still open.
  */
 export async function openPluggyConnect(options: PluggyConnectOptions): Promise<string | null> {
-  void options;
-  throw new PluggyConnectError('O conector do banco ainda não está disponível nesta versão. Tente novamente mais tarde.');
+  let PluggyConnect: PluggyConnectCtor;
+  try {
+    const mod = (await import('pluggy-connect-sdk')) as unknown as { PluggyConnect: PluggyConnectCtor };
+    PluggyConnect = mod.PluggyConnect;
+  } catch {
+    throw new PluggyConnectError('Não foi possível carregar o conector do banco. Verifique sua internet e tente novamente.');
+  }
+
+  return new Promise<string | null>((resolve, reject) => {
+    let itemId: string | null = null;
+    let settled = false;
+    const widget = new PluggyConnect({
+      url: PLUGGY_CONNECT_ORIGIN,
+      connectToken: options.connectToken,
+      ...(options.updateItem ? { updateItem: options.updateItem } : {}),
+      includeSandbox: options.includeSandbox ?? false,
+      language: 'pt',
+      theme: options.theme,
+      onSuccess: ({ item }) => {
+        itemId = item.id;
+      },
+      // Errors (login refused, bank unavailable) are shown inside the widget; the user closes it.
+      onError: () => undefined,
+      onClose: () => {
+        if (settled) return;
+        settled = true;
+        resolve(itemId);
+      },
+    });
+    widget.init().catch(() => {
+      if (settled) return;
+      settled = true;
+      reject(new PluggyConnectError('Não foi possível abrir o conector do banco. Tente novamente em instantes.'));
+    });
+  });
 }

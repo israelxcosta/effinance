@@ -4,6 +4,7 @@ import { CheckCircle2, CreditCard, EyeOff, KeyRound, Landmark, LockKeyhole, Refr
 import {
   addDays,
   formatBRL,
+  formatDateBR,
   OPEN_FINANCE_DEFAULT_HISTORY_DAYS,
   OPEN_FINANCE_MAX_HISTORY_DAYS,
   todayISO,
@@ -17,7 +18,7 @@ import {
 import { BankLogo } from '@/components/ui/bank-logo';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Field, Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { SkeletonRows } from '@/components/ui/skeleton';
@@ -113,7 +114,9 @@ export function useBankConnectFlow(): BankConnectFlow {
           setPhase({ kind: 'fake', updateItemId: t.updateItemId, institution });
         });
       } else {
+        // Close our (modal) dialog first: Radix blocks pointer events outside it, widget included.
         setPhase({ kind: 'idle' });
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         itemId = await openPluggyConnect({
           connectToken: t.accessToken,
           updateItem: t.updateItemId,
@@ -446,7 +449,6 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
             {connection.accounts.map((a) => {
               const row = rows[a.id]!;
               const setRow = (patch: Partial<LinkRow>) => setRows((r) => ({ ...r!, [a.id]: { ...r![a.id]!, ...patch } }));
-              const dateId = `sync-from-${a.id}`;
               return (
                 <li key={a.id} className="rounded-lg border border-border p-4">
                   <div className="flex items-start gap-3">
@@ -463,51 +465,36 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px]">
-                    <Select aria-label={`Destino de ${a.name}`} value={row.target} onChange={(e) => setRow({ target: e.target.value as TargetChoice })}>
-                      <option value="new">{a.kind === 'credit_card' ? 'Criar novo cartão' : 'Criar nova conta'}</option>
-                      <option value="ignore">Ignorar (não sincronizar)</option>
-                      {a.kind === 'credit_card' ? (
-                        activeCards.length ? (
-                          <optgroup label="Cartão existente">
-                            {activeCards.map((c) => (
-                              <option key={c.id} value={`card:${c.id}`}>
-                                {c.name}
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px]">
+                    <Field label="Destino">
+                      <Select value={row.target} onChange={(e) => setRow({ target: e.target.value as TargetChoice })}>
+                        <option value="new">{a.kind === 'credit_card' ? 'Criar novo cartão' : 'Criar nova conta'}</option>
+                        <option value="ignore">Ignorar (não sincronizar)</option>
+                        {a.kind === 'credit_card' ? (
+                          activeCards.length ? (
+                            <optgroup label="Cartão existente">
+                              {activeCards.map((c) => (
+                                <option key={c.id} value={`card:${c.id}`}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null
+                        ) : activeAccounts.length ? (
+                          <optgroup label="Conta existente">
+                            {activeAccounts.map((acc) => (
+                              <option key={acc.id} value={`account:${acc.id}`}>
+                                {acc.name}
                               </option>
                             ))}
                           </optgroup>
-                        ) : null
-                      ) : activeAccounts.length ? (
-                        <optgroup label="Conta existente">
-                          {activeAccounts.map((acc) => (
-                            <option key={acc.id} value={`account:${acc.id}`}>
-                              {acc.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ) : null}
-                    </Select>
+                        ) : null}
+                      </Select>
+                    </Field>
                     {row.target !== 'ignore' ? (
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor={dateId} className="sr-only">
-                          Importar desde
-                        </label>
-                        <div className="relative">
-                          <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-xs text-muted" aria-hidden>
-                            Desde
-                          </span>
-                          <Input
-                            id={dateId}
-                            type="date"
-                            min={minDate}
-                            max={today}
-                            value={row.syncFrom}
-                            aria-invalid={row.syncFrom < minDate || row.syncFrom > today ? true : undefined}
-                            onChange={(e) => setRow({ syncFrom: e.target.value })}
-                            className="pl-14"
-                          />
-                        </div>
-                      </div>
+                      <Field label="Importar desde" error={row.syncFrom < minDate || row.syncFrom > today ? `Entre ${formatDateBR(minDate)} e hoje` : undefined}>
+                        <Input type="date" min={minDate} max={today} value={row.syncFrom} onChange={(e) => setRow({ syncFrom: e.target.value })} />
+                      </Field>
                     ) : null}
                   </div>
                 </li>
@@ -516,7 +503,7 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
           </ul>
         )}
         <p className="mt-4 text-xs text-muted">
-          “Desde” define até onde a primeira sincronização volta (padrão {OPEN_FINANCE_DEFAULT_HISTORY_DAYS} dias, no máximo{' '}
+          “Importar desde” define até onde a primeira sincronização volta (padrão {OPEN_FINANCE_DEFAULT_HISTORY_DAYS} dias, no máximo{' '}
           {OPEN_FINANCE_MAX_HISTORY_DAYS}). Lançamentos repetidos não entram duas vezes.
         </p>
       </div>

@@ -1,6 +1,7 @@
-import { Copy, CreditCard, Ellipsis, FastForward, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { Copy, CreditCard, Ellipsis, FastForward, FileDown, Landmark, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import {
   FREQUENCY_LABELS,
+  TRANSACTION_ORIGIN_LABELS,
   TRANSFER_KIND_LABELS,
   diffInDays,
   formatDateBR,
@@ -35,6 +36,23 @@ export function SeriesBadge({ tx }: { tx: Transaction }) {
   if (tx.recurrenceKind === 'recurring')
     return <Badge tone="neutral">{tx.frequency ? FREQUENCY_LABELS[tx.frequency] : 'Recorrente'}</Badge>;
   return null;
+}
+
+/** "Importado" / "Open Finance" for rows that did not come from the form (tolerates APIs without `origin`). */
+export function OriginBadge({ tx }: { tx: Transaction }) {
+  const origin = (tx as Partial<Pick<Transaction, 'origin'>>).origin;
+  if (origin !== 'file' && origin !== 'open_finance') return null;
+  return (
+    <Badge
+      tone="neutral"
+      title={origin === 'file' ? 'Criado por importação de arquivo (OFX/CSV)' : 'Sincronizado do banco via Open Finance'}
+      className="shrink-0 px-1.5 @md:px-2"
+    >
+      {origin === 'file' ? <FileDown aria-hidden /> : <Landmark aria-hidden />}
+      {/* Icon only in narrow rows (mobile); the label stays for screen readers. */}
+      <span className="sr-only @md:not-sr-only">{TRANSACTION_ORIGIN_LABELS[origin]}</span>
+    </Badge>
+  );
 }
 
 export function DueLabel({ tx }: { tx: Transaction }) {
@@ -145,6 +163,7 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
             <SeriesBadge tx={tx} />
             {tx.splitGroupId ? <Badge tone="neutral" title="Valor dividido entre categorias">Dividido</Badge> : null}
             {tx.type === 'transfer' && tx.transferKind ? <Badge tone="brand">{TRANSFER_KIND_LABELS[tx.transferKind]}</Badge> : null}
+            <OriginBadge tx={tx} />
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
             {tx.category ? (

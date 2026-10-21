@@ -9,6 +9,14 @@
  */
 export const THEME_SCRIPT_HASH = "'sha256-Tx3gv5eNbn+Hf+VoVYfVEoj6NuvY41vj9EhirVY+UE4='";
 
+/**
+ * Pluggy Connect, the Open Finance consent widget (`pluggy-connect-sdk`), renders an iframe from
+ * this origin and exchanges postMessage with the page. It is the only third-party origin of the
+ * policy: no external scripts, styles, images or API calls (the widget's own requests run inside
+ * its iframe, under Pluggy's policy). Checked against the installed SDK in csp.test.ts.
+ */
+export const PLUGGY_CONNECT_ORIGIN = 'https://connect.pluggy.ai';
+
 export interface CspOptions {
   /** `'sha256-…'` sources of the inline scripts of index.html. */
   scriptHashes: string[];
@@ -30,7 +38,8 @@ export function contentSecurityPolicy({ scriptHashes, header = false, demo = fal
     ['connect-src', "'self'"],
     ['worker-src', "'self'", 'blob:'],
     ['manifest-src', "'self'"],
-    ['frame-src', "'none'"],
+    // Only the bank consent widget may be framed (Open Finance).
+    ['frame-src', PLUGGY_CONNECT_ORIGIN],
     ['object-src', "'none'"],
     ['base-uri', "'self'"],
     ['form-action', "'self'"],

@@ -1,0 +1,10 @@
+Extrato Conta Corrente
+Conta;12345678-9
+Período;01/10/2026 a 15/10/2026
+
+Data Lançamento;Histórico;Descrição;Valor;Saldo
+01/10/2026;Saldo Anterior;;;1.000,00
+02/10/2026;Pix recebido;Maria Exemplo;1.250,00;2.250,00
+03/10/2026;Pix enviado ;Mercado Central;-89,90;2.160,10
+04/10/2026;Pagamento efetuado;Conta de Luz Exemplo;-245,13;1.914,97
+05/10/2026;Compra no debito;Farmacia Exemplo;-32,50;1.882,47

@@ -22,7 +22,7 @@ import { authRoutes } from './modules/auth/routes';
 import { billingRoutes } from './modules/billing/routes';
 import { isMutation } from './modules/workspaces/access';
 import { inviteRoutes, workspaceRoutes } from './modules/workspaces/routes';
-import { domainRoutes } from './routes';
+import { domainRoutes, scopedRoutes } from './routes';
 import { createKeyProvider, createPlatform } from './setup';
 
 declare module 'fastify' {
@@ -160,6 +160,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
       await api.register(inviteRoutes, { prefix: '/invites' });
       await api.register(billingRoutes, { prefix: '/billing' });
       await api.register(tenantRoutes, { routes: domainRoutes });
+      for (const { prefix, plugin } of scopedRoutes) await api.register(plugin, { prefix });
     },
     { prefix: '/api' },
   );

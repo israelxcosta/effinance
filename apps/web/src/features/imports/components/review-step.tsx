@@ -10,7 +10,7 @@ import { Money } from '@/components/ui/misc';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CategoryPicker, type CategoryValue } from '@/features/categories/category-picker';
 import { useCategories } from '@/features/categories/api';
-import { cn } from '@/lib/utils';
+import { cn, pluralize } from '@/lib/utils';
 import { duplicateKind, typeLabel } from '../labels';
 
 export interface RowChoice {
@@ -114,16 +114,16 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg bg-surface-muted px-4 py-3">
-        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
+        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2 text-xs lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_minmax(0,1fr)]">
           <div className="min-w-0">
             <dt className="text-muted">Arquivo</dt>
-            <dd className="mt-0.5 truncate font-semibold text-fg" title={preview.fileName}>
-              {preview.fileName} <Badge tone="brand" className="ml-1 align-middle">{preview.format.toUpperCase()}</Badge>
+            <dd className="mt-0.5 font-semibold break-all text-fg" title={preview.fileName}>
+              {preview.fileName} <Badge tone="brand" className="ml-0.5 align-middle">{preview.format.toUpperCase()}</Badge>
             </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-muted">Destino</dt>
-            <dd className="mt-0.5 truncate font-semibold text-fg">{destination}</dd>
+            <dd className="mt-0.5 font-semibold text-fg">{destination}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-muted">Período</dt>
@@ -158,7 +158,7 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
           label="Sinalizados"
           value={String(counts.flagged)}
           tone={counts.flagged ? 'warning' : undefined}
-          hint={preview.totals.duplicates ? `${preview.totals.duplicates} duplicados` : 'Nenhum duplicado'}
+          hint={preview.totals.duplicates ? pluralize(preview.totals.duplicates, 'duplicado', 'duplicados') : 'Nenhum duplicado'}
         />
       </div>
 
