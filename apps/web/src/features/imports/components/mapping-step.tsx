@@ -139,6 +139,14 @@ export function MappingStep({ content, mapping, onChange, apiColumns, live }: Ma
             </Field>
           )}
         </fieldset>
+        <Field label="Identificador do lançamento (opcional)" hint="Código único do banco por linha: evita duplicar ao importar de novo.">
+          <Select
+            value={mapping.idColumn === null || mapping.idColumn === undefined ? '' : String(mapping.idColumn)}
+            onChange={(e) => set({ idColumn: e.target.value === '' ? null : Number(e.target.value) })}
+          >
+            {columnOptions(true)}
+          </Select>
+        </Field>
         <label className="flex cursor-pointer items-start justify-between gap-3 text-[13px] font-medium text-fg">
           <span>
             Inverter sinal dos valores

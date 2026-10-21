@@ -49,7 +49,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | POST | `/api/contacts` | `contactInputSchema` | `Contact` (201) |
 | PUT | `/api/contacts/:id` | `contactInputSchema` | `Contact` |
 | DELETE | `/api/contacts/:id` | — | 204 (lançamentos ficam sem contato) |
-| GET | `/api/transactions` | `transactionQuerySchema` | `TransactionListResponse` |
+| GET | `/api/transactions` | `transactionQuerySchema` (inclui `origin`: `manual` \| `file` \| `open_finance`) | `TransactionListResponse` |
 | GET | `/api/transactions/:id` | — | `Transaction` |
 | POST | `/api/transactions` | `transactionInputSchema` | `Transaction[]` (201) — todas as ocorrências criadas (e todas as partes, se dividido) |
 | PUT | `/api/transactions/:id?scope=one\|future\|all` | `transactionUpdateSchema` | `Transaction` |
@@ -261,11 +261,11 @@ garantias de `tenant-routes`, em fases: transações RLS curtas e chamadas ao pr
 | POST | `/api/imports/preview` | `importPreviewSchema` | `ImportPreview` — nada é gravado |
 | POST | `/api/imports` | `importCommitSchema` | `ImportCommitResponse` (201) |
 | GET | `/api/imports?page&pageSize` | `importListQuerySchema` | `Paginated<ImportBatch>` (mais recentes primeiro) |
-| DELETE | `/api/imports/:id` | — | 204 — desfaz: remove os lançamentos restantes do lote e o lote |
+| DELETE | `/api/imports/:id` | — | 204 — desfaz: remove os lançamentos restantes; o lote fica no histórico com `undoneAt` e `remainingCount` 0 (repetir é no-op) |
 | GET | `/api/open-finance/status` | — | `OpenFinanceStatus` |
 | POST | `/api/open-finance/connect-token` | `connectTokenSchema` | `ConnectTokenResponse` |
 | GET | `/api/open-finance/dev/institutions` | — | `FakeInstitution[]` — **só** provedor `fake` (404 caso contrário) |
-| POST | `/api/open-finance/dev/connect` | `fakeConnectSchema` | `{ itemId }` — **só** provedor `fake` |
+| POST | `/api/open-finance/dev/connect` | `fakeConnectSchema` | `FakeConnectResponse` (`{ itemId }`) — **só** provedor `fake` |
 | POST | `/api/open-finance/connections` | `createConnectionSchema` | `BankConnection` (201; 200 se o item já existia: reconsentimento) |
 | GET | `/api/open-finance/connections` | — | `BankConnection[]` |
 | PUT | `/api/open-finance/connections/:id/accounts` | `linkAccountsSchema` | `BankConnection` |
@@ -300,9 +300,10 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
   arquivo recebem `#n`. Sem id: `h:` + SHA-256 de `data|valor com sinal|descrição normalizada|n-ésima
   ocorrência idêntica` — o mesmo arquivo gera sempre os mesmos ids. Unicidade no banco por
   `(workspace, conta, externalId)` e `(workspace, cartão, externalId)`.
-- **Prévia** (`ImportPreviewRow`): `duplicate` quando o externalId já existe no alvo ("Já
-  importado") ou há lançamento (de qualquer origem) com mesma data, tipo, valor e descrição
-  normalizada ("Possível duplicado…"; cada lançamento existente casa com uma linha só);
+- **Prévia** (`ImportPreviewRow`): `duplicate` quando o externalId já existe no alvo
+  (`duplicateKind: 'imported'`, nota "Já importado") ou há lançamento (de qualquer origem) com mesma
+  data, tipo, valor e descrição normalizada (`duplicateKind: 'similar'`, "Possível duplicado…"; cada
+  lançamento existente casa com uma linha só); `duplicateKind` é `null` nas demais (campo aditivo);
   `categoryId` sugerido pelo histórico do workspace (lançamento categorizado mais recente, do mesmo
   tipo, com descrição normalizada igual ou mesmo prefixo significativo — ex.: "UBER *TRIP 1234" ≈
   "UBER *TRIP 9876"; pode ser subcategoria; categorias arquivadas são ignoradas);
@@ -321,8 +322,13 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
   requisição) não são criados e contam em `skipped` — reenviar o mesmo commit é idempotente (cria
   um lote com `createdCount = 0`). `ON CONFLICT DO NOTHING` nos índices únicos cobre corridas.
 - **Lotes**: `remainingCount` = lançamentos do lote que ainda existem (editar não tira do lote;
-  excluir tira). `createdByName` só para quem ainda é membro. `DELETE` remove os lançamentos
-  restantes (inclusive os editados) e o lote.
+  excluir tira). `createdByName` só para quem ainda é membro. **Desfazer** (`DELETE`) remove os
+  lançamentos restantes (inclusive os editados) e **mantém o lote** na lista, com `undoneAt`
+  preenchido e `remainingCount` 0 (rastreabilidade; campo aditivo `ImportBatch.undoneAt`); repetir
+  o `DELETE` responde 204 sem efeito. Um arquivo desfeito pode ser importado de novo. Lote do Open
+  Finance desfeito gera *tombstones* (abaixo).
+- **Filtro por origem**: `GET /api/transactions?origin=manual|file|open_finance` (paginado no
+  servidor; campo aditivo de `transactionQuerySchema`).
 - **Limites**: `MAX_IMPORT_CONTENT_CHARS` (3 M caracteres) e `MAX_IMPORT_ROWS` (3000) por arquivo;
   corpo da prévia até `3 × MAX_IMPORT_CONTENT_CHARS + 64 KiB` (UTF-8 + JSON), do commit até 4 MiB;
   rate limit por IP: prévia 30/min, commit 20/min, desfazer 30/min.
@@ -344,6 +350,13 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
   workspaceId` e `webhookUrl = ${API_PUBLIC_URL}/api/open-finance/webhooks/pluggy/<segredo>` (só
   https); com `connectionId`, devolve `updateItemId` para reconsentimento. A chave de API do
   agregador nunca sai do servidor (cache em memória até 1 min antes de expirar; 401 renova uma vez).
+- **Fluxo no web**: `connect-token` → widget (fake: `GET /dev/institutions` + `POST /dev/connect`,
+  que devolve `FakeConnectResponse`) → `POST /connections` com o `itemId` → `PUT …/accounts` →
+  `POST …/sync`. **Renovar consentimento**: `connect-token` com `connectionId` (o widget abre em
+  modo atualização com `updateItemId`) → `POST /connections` com o **mesmo** `itemId` (responde
+  `200` e atualiza status, consentimento e contas) → `POST …/sync`. Logo após o consentimento o
+  item pode estar `syncing` e ainda sem contas; elas aparecem no próximo `POST …/sync` ou quando o
+  webhook `item/updated` chegar.
 - **Conexão**: `POST /connections` busca o item **no provedor** (nunca confia no cliente) e exige
   `item.clientUserId === workspaceId` — item de outro cliente ou inexistente → `404`. Fora de
   sandbox, exige `connector.isOpenFinance === true` e não-sandbox (`422`): sem raspagem com senha de
@@ -365,7 +378,11 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
   receita, pagas na data; débitos de pagamento de fatura são pulados. Cartão: compras na fatura do
   vencimento da *bill* do provedor quando conhecida, senão pela data de compra; pagamentos e
   estornos pulados. Dedupe por externalId = id da transação no provedor; valor/data alterados no
-  banco atualizam o lançamento (`updated`; compras já pagas pela fatura não mudam). Um lote
+  banco atualizam o lançamento (`updated`; compras já pagas pela fatura não mudam). **Exclusões do
+  usuário são respeitadas**: lançamento do Open Finance excluído à mão ou lote desfeito vira
+  *tombstone* `(workspace, conta/cartão, externalId)` (`import_tombstones`) e não volta na próxima
+  sincronização (que relê 7 dias); lançamento movido para outra conta/cartão também não é recriado
+  na origem. Tombstones somem com a conta/cartão. Um lote
   `open_finance` por conta vinculada quando há lançamentos novos. Status da conexão vem do item
   (`UPDATED→active`, `UPDATING/MERGING→syncing`, `LOGIN_ERROR→login_error`,
   `WAITING_USER_INPUT/ACTION→waiting_user_input`, `OUTDATED→outdated`) com `statusDetail` fixo em
@@ -391,7 +408,7 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
 - Auditoria: `open_finance.connected` (`metadata.reconnected`), `open_finance.synced` (`trigger`
   manual/webhook, contagens), `open_finance.disconnected` — sem ids do provedor.
 
-## Banco (migração 0005)
+## Banco (migrações 0005 e 0006)
 
 - Tenant (RLS `ENABLE`+`FORCE`, política `USING`/`WITH CHECK`, `UNIQUE (workspace_id, id)`, FKs
   compostas, `GRANT SELECT, INSERT, UPDATE, DELETE` só para `effinance_app`): `import_batches`,
@@ -405,3 +422,5 @@ provider_unavailable` (agregador não respondeu; detalhes só no log do servidor
   `open_finance_items` (HMAC de `provider:itemId` com a chave de plataforma → workspace/conexão;
   apagado em cascata com a conexão; `SELECT, INSERT`) e `open_finance_events` (`SELECT, INSERT,
   UPDATE`). Um dump do banco não revela ids de item: o índice é um HMAC com chave protegida pelo KMS.
+- 0006: `import_batches.undone_at` e `import_tombstones` (tenant, RLS, FKs compostas `ON DELETE
+  CASCADE` para conta/cartão, CHECK de exatamente um destino, únicos parciais por destino).

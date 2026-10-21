@@ -23,7 +23,7 @@ import { invoiceMonthFor } from '../transactions/series';
 import { installmentHint, isCardBillPayment, normalizeDescription } from './describe';
 import { ImportParseError, parseImportFile, type ParsedRow } from './parse';
 import { loadCategorySuggester } from './suggest';
-import { existingByExternalId, insertImported, targetCondition, type ImportedRow, type ResolvedTarget } from './writer';
+import { addTombstones, existingByExternalId, insertImported, targetCondition, type ImportedRow, type ResolvedTarget } from './writer';
 
 type PreviewInput = z.output<typeof importPreviewSchema>;
 type CommitInput = z.output<typeof importCommitSchema>;
@@ -97,6 +97,7 @@ export async function previewImport(db: DbExecutor, workspaceId: string, input: 
         type,
         externalId: r.externalId,
         duplicate: match !== null,
+        duplicateKind: match ? (match.byExternalId ? 'imported' : 'similar') : null,
         duplicateTransactionId: match?.transactionId ?? null,
         categoryId: note && note !== NOTES.duplicate && note !== NOTES.imported ? null : suggester.suggest(r.description, type),
         installment: installmentHint(r.description, onCard),
@@ -310,6 +311,7 @@ export function toImportBatch(row: ImportBatchRow, remaining: number, names: Map
     remainingCount: remaining,
     createdByName: row.createdBy ? (names.get(row.createdBy) ?? null) : null,
     createdAt: row.createdAt.toISOString(),
+    undoneAt: row.undoneAt?.toISOString() ?? null,
   };
 }
 
@@ -351,19 +353,35 @@ export async function listImports(db: DbExecutor, workspaceId: string, q: ListQu
   };
 }
 
-/** Undo: removes what is left of the batch (rows edited since are removed too) and the batch. */
-export async function undoImport(db: DbExecutor, workspaceId: string, id: string): Promise<{ removed: number; origin: string }> {
+/**
+ * Undo: removes what is left of the batch (rows edited since are removed too). The batch stays in
+ * the history (`undoneAt`, remainingCount 0). Open Finance rows get tombstones, so the next sync —
+ * which re-reads a week of history — does not bring them back. Repeating is a no-op.
+ */
+export async function undoImport(
+  db: DbExecutor,
+  workspaceId: string,
+  id: string,
+): Promise<{ removed: number; origin: string; alreadyUndone: boolean }> {
   return inTenant(db, workspaceId, async (tx) => {
     const [batch] = await tx
       .select()
       .from(importBatches)
-      .where(and(eq(importBatches.workspaceId, workspaceId), eq(importBatches.id, id)));
+      .where(and(eq(importBatches.workspaceId, workspaceId), eq(importBatches.id, id)))
+      .for('update');
     if (!batch) throw new NotFoundError('Importação não encontrada');
+    if (batch.undoneAt) return { removed: 0, origin: batch.origin, alreadyUndone: true };
     const removed = await tx
       .delete(transactions)
       .where(and(eq(transactions.workspaceId, workspaceId), eq(transactions.importBatchId, id)))
-      .returning({ id: transactions.id });
-    await tx.delete(importBatches).where(eq(importBatches.id, id));
-    return { removed: removed.length, origin: batch.origin };
+      .returning({
+        accountId: transactions.accountId,
+        creditCardId: transactions.creditCardId,
+        externalId: transactions.externalId,
+        origin: transactions.origin,
+      });
+    await addTombstones(tx, workspaceId, removed);
+    await tx.update(importBatches).set({ undoneAt: new Date() }).where(eq(importBatches.id, id));
+    return { removed: removed.length, origin: batch.origin, alreadyUndone: false };
   });
 }

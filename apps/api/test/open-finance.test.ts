@@ -3,7 +3,7 @@
 
 import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addDays, type BankConnection, type SyncResult } from '@effinance/shared';
+import { addDays, type BankConnection, type FakeConnectResponse, type SyncResult } from '@effinance/shared';
 import type { App } from '../src/app';
 import { sanitizeUrl } from '../src/lib/log';
 import { executeRows } from '../src/lib/sql';
@@ -43,7 +43,7 @@ const rows = <T>(query: ReturnType<typeof sql>) => executeRows<T>(admin(), query
 const workspaceOf = async (c: Client) => (await c.get('/auth/me')).body.workspace.id as string;
 
 async function connect(c: Client, institutionId = 'nubank'): Promise<{ itemId: string; connection: BankConnection }> {
-  const { itemId } = (await c.post('/open-finance/dev/connect', { institutionId })).body;
+  const { itemId } = (await c.post<FakeConnectResponse>('/open-finance/dev/connect', { institutionId })).body;
   const res = await c.post('/open-finance/connections', { itemId });
   expect(res.status).toBe(201);
   return { itemId, connection: res.body };
@@ -250,6 +250,41 @@ describe('connection lifecycle (fake provider)', () => {
     const actions = (await rows<{ action: string }>(sql`select action from audit_logs where action like 'open_finance.%' order by created_at`)).map((a) => a.action);
     expect(actions).toEqual(expect.arrayContaining(['open_finance.connected', 'open_finance.synced', 'open_finance.disconnected']));
     expect(JSON.stringify(await rows(sql`select metadata, entity_id from audit_logs`))).not.toContain(itemId);
+  });
+
+  it('never recreates rows the user undid, deleted or moved (tombstones)', async () => {
+    const user = await registerUser(app, 'Exclusões Respeitadas');
+    const { connection } = await connect(user, 'nubank');
+    const accountId = await createAccount(user, { name: 'Destino' });
+    const otherId = await createAccount(user, { name: 'Outra conta' });
+    const cardId = (await user.post('/credit-cards', CARD)).body.id as string;
+    const syncFrom = addDays(TODAY, -6); // inside the 7-day resync overlap: everything is re-read
+    await user.put(`/open-finance/connections/${connection.id}/accounts`, {
+      links: [
+        { connectionAccountId: connection.accounts[0]!.id, target: { kind: 'account', accountId }, syncFrom },
+        { connectionAccountId: connection.accounts[1]!.id, target: { kind: 'credit_card', creditCardId: cardId }, syncFrom },
+      ],
+    });
+    const sync = () => user.post<SyncResult>(`/open-finance/connections/${connection.id}/sync`);
+    expect((await sync()).body.created).toBeGreaterThan(2);
+    const ofTotal = async (filter: string) => (await user.get(`/transactions?${filter}&origin=open_finance`)).body.total as number;
+    const accountRows = (await user.get(`/transactions?accountId=${accountId}&origin=open_finance`)).body.items as { id: string }[];
+    expect(accountRows.length).toBeGreaterThanOrEqual(2);
+    const cardBatch = (await user.get('/imports')).body.items.find((b: { creditCardId: string | null }) => b.creditCardId === cardId);
+    expect(cardBatch.createdCount).toBeGreaterThan(0);
+
+    // Deleted by hand, moved to another account, and a whole batch undone.
+    expect((await user.del(`/transactions/${accountRows[0]!.id}`)).status).toBe(204);
+    expect((await user.put(`/transactions/${accountRows[1]!.id}`, { accountId: otherId })).status).toBe(200);
+    expect((await user.del(`/imports/${cardBatch.id}`)).status).toBe(204);
+
+    const resync = await sync();
+    expect(resync.body).toMatchObject({ created: 0, updated: 0 });
+    expect(await ofTotal(`accountId=${accountId}`)).toBe(accountRows.length - 2);
+    expect(await ofTotal(`accountId=${otherId}`)).toBe(1);
+    expect(await ofTotal(`creditCardId=${cardId}`)).toBe(0);
+    const [tombstones] = await rows<{ n: number }>(sql`select count(*)::int as n from import_tombstones`);
+    expect(tombstones!.n).toBe(1 + cardBatch.createdCount);
   });
 
   it('marks the connection when the item is gone at the provider (webhook item/deleted)', async () => {

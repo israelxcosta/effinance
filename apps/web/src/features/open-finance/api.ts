@@ -4,6 +4,7 @@ import type {
   ConnectTokenInput,
   ConnectTokenResponse,
   CreateConnectionInput,
+  FakeConnectResponse,
   FakeInstitution,
   LinkAccountsInput,
   OpenFinanceStatus,
@@ -55,7 +56,7 @@ export function useFakeInstitutions(enabled: boolean) {
 export function useFakeConnect() {
   return useMutation({
     mutationFn: (institutionId: string) =>
-      api<{ itemId: string }>('/open-finance/dev/connect', { method: 'POST', body: { institutionId } }),
+      api<FakeConnectResponse>('/open-finance/dev/connect', { method: 'POST', body: { institutionId } }),
   });
 }
 

@@ -33,6 +33,7 @@ import {
   occurrenceRow,
 } from './series';
 import { deleteTransfer } from '../transfers/service';
+import { addTombstones } from '../imports/writer';
 
 type TransactionQuery = z.output<typeof transactionQuerySchema>;
 type TransactionUpdate = z.output<typeof transactionUpdateSchema>;
@@ -84,6 +85,7 @@ function buildFilters(workspaceId: string, q: TransactionQuery): SQL[] {
   }
   if (q.contactId) where.push(eq(transactions.contactId, q.contactId));
   if (q.recurrenceKind) where.push(eq(transactions.recurrenceKind, q.recurrenceKind));
+  if (q.origin) where.push(eq(transactions.origin, q.origin));
   if (q.search) {
     const pattern = likePattern(q.search);
     // Notes are encrypted, so only the description is searchable.
@@ -441,6 +443,8 @@ export async function deleteTransaction(
   if (row.type === 'transfer') return deleteTransfer(db, workspaceId, id);
 
   await db.transaction(async (tx) => {
+    // A row synced from Open Finance must not come back with the next sync.
+    await addTombstones(tx, workspaceId, [row]);
     if (scope === 'one' || !row.recurrenceId) {
       await tx.delete(transactions).where(eq(transactions.id, row.id));
       if (row.recurrenceId) await cleanupSeries(tx, row.recurrenceId);

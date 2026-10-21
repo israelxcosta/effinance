@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, Plus, Receipt, Search, HandCoins, X } from 'lucide-react';
-import { formatBRL, todayISO, type TransactionStatus } from '@effinance/shared';
+import { formatBRL, todayISO, TRANSACTION_ORIGIN_LABELS, TRANSACTION_ORIGINS, type TransactionOrigin, type TransactionStatus } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -41,7 +41,10 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
   const status = (params.get('status') as TransactionStatus) || 'all';
   const categoryId = params.get('categoria') ?? '';
   const contactId = params.get('contato') ?? '';
+  // `origem` (older) is the account/card; how the row was created (manual, file, Open Finance) is `entrada`.
   const source = params.get('origem') ?? '';
+  const rawOrigin = params.get('entrada') ?? '';
+  const origin = (TRANSACTION_ORIGINS as readonly string[]).includes(rawOrigin) ? (rawOrigin as TransactionOrigin) : '';
   const page = Number(params.get('pagina') ?? '1') || 1;
   const [searchInput, setSearchInput] = useState(params.get('busca') ?? '');
   const search = useDebounced(searchInput.trim());
@@ -76,11 +79,12 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
       accountId: sourceKind === 'account' ? sourceId : undefined,
       creditCardId: sourceKind === 'card' ? sourceId : undefined,
       search: search || undefined,
+      origin: origin || undefined,
       page,
       pageSize: PAGE_SIZE,
       sort: 'date_asc' as const,
     }),
-    [type, status, range.from, range.to, categoryId, contactId, sourceKind, sourceId, search, page],
+    [type, status, range.from, range.to, categoryId, contactId, sourceKind, sourceId, search, origin, page],
   );
   const list = useTransactions(query);
 
@@ -90,7 +94,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
   const cards = useCards();
 
   const summary = list.data?.summary;
-  const hasFilters = Boolean(categoryId || contactId || source || search);
+  const hasFilters = Boolean(categoryId || contactId || source || search || origin);
   const totalPages = list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1;
 
   const labels = isExpense
@@ -151,7 +155,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
             ]}
           />
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto]">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
             <Input
@@ -197,13 +201,21 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
               </optgroup>
             ) : null}
           </Select>
+          <Select size_="sm" value={origin} onChange={(e) => update({ entrada: e.target.value })} aria-label="Origem">
+            <option value="">Todas as origens</option>
+            {TRANSACTION_ORIGINS.map((o) => (
+              <option key={o} value={o}>
+                {TRANSACTION_ORIGIN_LABELS[o]}
+              </option>
+            ))}
+          </Select>
           {hasFilters ? (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
                 setSearchInput('');
-                update({ categoria: null, contato: null, origem: null, busca: null });
+                update({ categoria: null, contato: null, origem: null, entrada: null, busca: null });
               }}
             >
               <X /> Limpar

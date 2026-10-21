@@ -45,7 +45,14 @@ import { getAccountOrThrow, getCardOrThrow } from '../common/ownership';
 import { createCreditCard } from '../credit-cards/service';
 import { isCardBillPayment } from '../imports/describe';
 import { loadCategorySuggester, type CategorySuggester } from '../imports/suggest';
-import { existingByExternalId, insertImported, type ImportedRow, type ResolvedTarget } from '../imports/writer';
+import {
+  existingByExternalId,
+  importedElsewhere,
+  insertImported,
+  tombstonedIds,
+  type ImportedRow,
+  type ResolvedTarget,
+} from '../imports/writer';
 import { invoiceMonthFor } from '../transactions/series';
 import { FakeOpenFinanceProvider } from './providers/fake';
 import { bankColor, bankFromInstitution, cardBrandOf } from './institutions';
@@ -586,7 +593,13 @@ export async function syncConnection(
         continue;
       }
       const posted = txs.filter((t) => !t.pending);
-      const existing = await existingByExternalId(tx, workspaceId, target, posted.map((t) => t.id));
+      const ids = posted.map((t) => t.id);
+      const existing = await existingByExternalId(tx, workspaceId, target, ids);
+      // Removed by the user (undo / delete) or moved to another account/card: never recreated.
+      const [removedByUser, moved] = await Promise.all([
+        tombstonedIds(tx, workspaceId, target, ids),
+        importedElsewhere(tx, workspaceId, target, ids),
+      ]);
       const fresh: ImportedRow[] = [];
       let feedSkipped = 0;
       for (const t of posted) {
@@ -603,6 +616,10 @@ export async function syncConnection(
               ? monthKey(billDue.get(t.billId)!)
               : invoiceMonthFor(target.card, t.date)
             : null;
+        if (removedByUser.has(t.id) || moved.has(t.id)) {
+          feedSkipped += 1;
+          continue;
+        }
         const hit = existing.get(t.id);
         if (hit) {
           if (hit.amount === t.amount && hit.date === t.date) {

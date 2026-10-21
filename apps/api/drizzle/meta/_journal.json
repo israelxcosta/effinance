@@ -43,6 +43,13 @@
       "when": 1792554622597,
       "tag": "0005_imports_open_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792584391627,
+      "tag": "0006_import_tombstones",
+      "breakpoints": true
     }
   ]
 }

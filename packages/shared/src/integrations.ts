@@ -8,7 +8,7 @@
 // or a content hash) never creates the same transaction twice.
 
 import { z } from 'zod';
-import { idSchema, isoDateSchema, monthKeySchema, signedAmountSchema } from './schemas';
+import { idSchema, isoDateSchema, monthKeySchema, signedAmountSchema, type transactionQuerySchema } from './schemas';
 import type { ISODate, MonthKey } from './utils/dates';
 
 // ---------------------------------------------------------------------------
@@ -18,6 +18,11 @@ import type { ISODate, MonthKey } from './utils/dates';
 /** Where a transaction came from. */
 export const TRANSACTION_ORIGINS = ['manual', 'file', 'open_finance'] as const;
 export type TransactionOrigin = (typeof TRANSACTION_ORIGINS)[number];
+
+// The transactions filter (schemas.ts) repeats the list: fail to compile if they diverge.
+type QueryOrigin = NonNullable<z.output<typeof transactionQuerySchema>['origin']>;
+const _sameOrigins: [QueryOrigin] extends [TransactionOrigin] ? ([TransactionOrigin] extends [QueryOrigin] ? true : never) : never = true;
+void _sameOrigins;
 
 export const TRANSACTION_ORIGIN_LABELS: Record<TransactionOrigin, string> = {
   manual: 'Manual',
@@ -136,6 +141,11 @@ export interface ImportPreviewRow {
   externalId: string;
   /** Already imported (same externalId) or a likely manual duplicate (same date, amount, description). */
   duplicate: boolean;
+  /**
+   * Additive: why `duplicate` — 'imported' (same externalId already in the target) or 'similar'
+   * (a transaction with the same date, type, amount and normalized description); null otherwise.
+   */
+  duplicateKind: 'imported' | 'similar' | null;
   duplicateTransactionId: string | null;
   /** Suggested (sub)category from the workspace history; null when unknown. */
   categoryId: string | null;
@@ -200,6 +210,11 @@ export interface ImportBatch {
   remainingCount: number;
   createdByName: string | null;
   createdAt: string;
+  /**
+   * Additive: when the batch was undone (`DELETE /imports/:id`). Undone batches stay in the
+   * history with `remainingCount` 0.
+   */
+  undoneAt: string | null;
 }
 
 export interface ImportCommitResponse {
@@ -251,6 +266,11 @@ export interface FakeInstitution {
 }
 
 export const fakeConnectSchema = z.object({ institutionId: z.string().min(1).max(50) });
+
+/** Additive: answer of `POST /open-finance/dev/connect` (what the real widget's onSuccess gives). */
+export interface FakeConnectResponse {
+  itemId: string;
+}
 
 export const createConnectionSchema = z.object({
   /** Item id returned by the consent widget. */

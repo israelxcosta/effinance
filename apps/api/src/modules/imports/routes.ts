@@ -57,7 +57,8 @@ export const importRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/', { schema: { querystring: importListQuerySchema } }, async (req) => listImports(app.db, req.workspaceId, req.query));
 
   app.delete('/:id', { schema: { params: idParams }, config: rateLimited(app.platform, 30, '1 minute') }, async (req, reply) => {
-    const { removed, origin } = await undoImport(app.db, req.workspaceId, req.params.id);
+    const { removed, origin, alreadyUndone } = await undoImport(app.db, req.workspaceId, req.params.id);
+    if (alreadyUndone) return reply.code(204).send();
     await audit(app.db, {
       ...requestContext(req),
       action: 'import.undone',

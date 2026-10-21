@@ -172,6 +172,9 @@ describe('demo api (PGlite)', () => {
     expect(imported).toMatchObject({ origin: 'file', importBatchId: committed.body.batch.id, paid: true });
     expect((await call('DELETE', `/imports/${committed.body.batch.id}`)).status).toBe(204);
     expect((await call('GET', `/transactions?accountId=${accountId}&search=Feira`)).body.total).toBe(0);
+    const undone = (await call('GET', '/imports')).body.items.find((b: { id: string }) => b.id === committed.body.batch.id);
+    expect(undone).toMatchObject({ remainingCount: 0, undoneAt: expect.any(String) });
+    expect((await call('GET', '/transactions?origin=open_finance')).body.total).toBeGreaterThan(0);
   });
 
   it('connects, links, syncs and disconnects a simulated bank (fake provider)', async () => {

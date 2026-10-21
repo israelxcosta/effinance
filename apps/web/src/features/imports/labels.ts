@@ -61,25 +61,41 @@ export function defaultCsvMapping(content: string): CsvMapping {
   const creditColumn = byName(/cr[ée]dito|entrada|credit/, [dateColumn]);
   const split = debitColumn !== null && creditColumn !== null;
   const amountColumn = split ? null : (byName(/valor|amount|quantia|montante/, [dateColumn]) ?? numeric[0] ?? Math.min(2, width - 1));
-  const used = [dateColumn, amountColumn, debitColumn, creditColumn].filter((v): v is number => v !== null);
+  const idColumn = byName(/^identificador$|^id$|^c[óo]digo|^fitid|^documento$|^n[ºo°]?\.? ?doc/, [dateColumn, amountColumn ?? -1]);
+  const used = [dateColumn, amountColumn, debitColumn, creditColumn, idColumn].filter((v): v is number => v !== null);
   const avgLength = (i: number) => rows.reduce((s, r) => s + (r[i]?.length ?? 0), 0) / Math.max(rows.length, 1);
   const descriptionColumn =
-    byName(/hist[óo]rico|descri|title|memo|estabelecimento|identifica/, used) ??
+    byName(/hist[óo]rico|descri|title|memo|estabelecimento/, used) ??
     cols.filter((i) => !used.includes(i) && share(i, AMOUNT_CELL) < 0.5).sort((a, b) => avgLength(b) - avgLength(a))[0] ??
     Math.min(1, width - 1);
 
   const amountCells = rows.flatMap((r) => [amountColumn, debitColumn, creditColumn].map((i) => (i === null ? '' : (r[i] ?? '')))).filter(Boolean);
   const decimalSeparator = amountCells.some((c) => /,\d{1,2}\)?\s*[-DC]?$/i.test(c)) ? ',' : amountCells.some((c) => /\.\d{1,2}\)?\s*[-DC]?$/i.test(c)) ? '.' : delimiter === ',' ? '.' : ',';
 
-  return { delimiter, hasHeader, dateColumn, descriptionColumn, amountColumn, debitColumn: split ? debitColumn : null, creditColumn: split ? creditColumn : null, dateFormat, decimalSeparator, invertSign: false };
+  return {
+    delimiter,
+    hasHeader,
+    dateColumn,
+    descriptionColumn,
+    amountColumn,
+    debitColumn: split ? debitColumn : null,
+    creditColumn: split ? creditColumn : null,
+    idColumn,
+    dateFormat,
+    decimalSeparator,
+    invertSign: false,
+  };
 }
 
 /**
  * "Já importado" (same externalId: never created twice) vs "Possível duplicado" (same date, amount
- * and description as an existing row). The contract only has `duplicate`, so the API note decides.
+ * and description as an existing row), from the API's `duplicateKind`. APIs older than the field
+ * only send `duplicate`: then the note decides.
  */
 export function duplicateKind(row: ImportPreviewRow): 'imported' | 'similar' | null {
   if (!row.duplicate) return null;
+  const kind = (row as Partial<Pick<ImportPreviewRow, 'duplicateKind'>>).duplicateKind;
+  if (kind === 'imported' || kind === 'similar') return kind;
   return row.note && /j[áa]\s+importad/i.test(row.note) ? 'imported' : 'similar';
 }
 

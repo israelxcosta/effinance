@@ -27,6 +27,7 @@ const SAFE_QUERY_KEYS = new Set([
   'categoryId',
   'contactId',
   'recurrenceKind',
+  'origin',
   'topic',
   'data.id',
 ]);

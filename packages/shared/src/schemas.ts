@@ -396,6 +396,8 @@ export const transactionQuerySchema = paginationQuerySchema.extend({
   categoryId: idSchema.optional(),
   contactId: idSchema.optional(),
   recurrenceKind: z.enum(RECURRENCE_KINDS).optional(),
+  /** `TRANSACTION_ORIGINS` (integrations.ts, which imports this module — kept in sync by a type check there). */
+  origin: z.enum(['manual', 'file', 'open_finance']).optional(),
   search: z.string().trim().max(80).optional(),
   sort: z.enum(['date_asc', 'date_desc', 'amount_desc', 'amount_asc']).default('date_asc'),
 });

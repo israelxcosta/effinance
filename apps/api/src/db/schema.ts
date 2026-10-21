@@ -645,6 +645,8 @@ export const importBatches = pgTable(
     /** Member who imported (null for webhook-driven syncs and deleted users). */
     createdBy: uuid().references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
+    /** Undone (`DELETE /imports/:id`): its transactions were removed; the batch stays as history (0006). */
+    undoneAt: timestamptz(),
   },
   (t) => [
     index('import_batches_workspace_idx').on(t.workspaceId, t.createdAt),
@@ -786,6 +788,40 @@ export const bankConnectionAccounts = pgTable(
       columns: [t.workspaceId, t.linkedCreditCardId],
       foreignColumns: [creditCards.workspaceId, creditCards.id],
     }).onDelete('set null'),
+  ],
+);
+
+/**
+ * Open Finance rows the user removed (batch undone or transaction deleted): the next sync — which
+ * re-reads a week of history — must not bring them back (migration 0006). Per destination
+ * account/card; they go away with it.
+ */
+export const importTombstones = pgTable(
+  'import_tombstones',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    accountId: uuid(),
+    creditCardId: uuid(),
+    externalId: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    tenantUnique('import_tombstones', t),
+    uniqueIndex('import_tombstones_account_uq').on(t.workspaceId, t.accountId, t.externalId).where(sql`${t.accountId} is not null`),
+    uniqueIndex('import_tombstones_card_uq').on(t.workspaceId, t.creditCardId, t.externalId).where(sql`${t.creditCardId} is not null`),
+    check('import_tombstones_target_chk', sql`num_nonnulls(${t.accountId}, ${t.creditCardId}) = 1`),
+    check('import_tombstones_external_id_chk', sql`length(${t.externalId}) between 1 and 200`),
+    foreignKey({
+      name: 'import_tombstones_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'import_tombstones_credit_card_fk',
+      columns: [t.workspaceId, t.creditCardId],
+      foreignColumns: [creditCards.workspaceId, creditCards.id],
+    }).onDelete('cascade'),
   ],
 );
 

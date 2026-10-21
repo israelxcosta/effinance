@@ -125,7 +125,8 @@ describe('OFX into an account', () => {
     expect((await user.get(`/transactions?accountId=${accountId}`)).body.total).toBe(4);
     // …and the preview now says so.
     const p2 = (await preview(user, { content: fixture('bb-extrato-ofx1.ofx'), target: { kind: 'account', accountId } })).body;
-    expect(p2.rows.filter((r) => r.duplicate).map((r) => r.note)).toEqual(Array(4).fill('Já importado'));
+    expect(p2.rows.filter((r) => r.duplicate).map((r) => [r.note, r.duplicateKind])).toEqual(Array(4).fill(['Já importado', 'imported']));
+    expect(p2.rows.filter((r) => !r.duplicate).every((r) => r.duplicateKind === null)).toBe(true);
     expect(p2.totals.duplicates).toBe(4);
 
     // Repeated externalIds inside one request are created once.
@@ -147,7 +148,13 @@ describe('OFX into an account', () => {
     });
     const p = (await preview(user, { content: fixture('bb-extrato-ofx1.ofx'), target: { kind: 'account', accountId } })).body;
     const row = p.rows.find((r) => r.amount === 15000)!;
-    expect(row).toMatchObject({ duplicate: true, duplicateTransactionId: manual.body[0].id, skip: true, note: 'Possível duplicado de um lançamento já registrado' });
+    expect(row).toMatchObject({
+      duplicate: true,
+      duplicateKind: 'similar',
+      duplicateTransactionId: manual.body[0].id,
+      skip: true,
+      note: 'Possível duplicado de um lançamento já registrado',
+    });
   });
 });
 
@@ -206,6 +213,11 @@ describe('CSV into a credit card', () => {
     expect(ok.status).toBe(201);
     const tx = (await user.get(`/transactions?creditCardId=${cardId}&search=Padaria`)).body.items[0];
     expect(tx).toMatchObject({ categoryId: food.id, subcategoryId: food.subcategories[0]!.id });
+    // Filter by origin (paginated on the server).
+    await user.post('/transactions', { type: 'expense', description: 'Manual', amount: 100, date: '2026-09-10', creditCardId: cardId });
+    const byOrigin = async (origin: string) => (await user.get(`/transactions?creditCardId=${cardId}&origin=${origin}`)).body.total;
+    expect([await byOrigin('file'), await byOrigin('manual'), await byOrigin('open_finance')]).toEqual([4, 1, 0]);
+    expect((await user.get('/transactions?origin=scraped')).status).toBe(400);
   });
 });
 
@@ -275,15 +287,23 @@ describe('batches', () => {
 
     expect((await user.del(`/imports/${first.id}`)).status).toBe(204);
     expect((await user.get(`/transactions?accountId=${accountId}`)).body.total).toBe(3);
-    expect((await user.get('/imports')).body.items.map((b: { id: string }) => b.id)).toEqual([second.id]);
-    expect((await user.del(`/imports/${first.id}`)).status).toBe(404);
+    // The undone batch stays in the history (traceability) with nothing left.
+    const history = (await user.get('/imports')).body.items as { id: string; remainingCount: number; undoneAt: string | null }[];
+    expect(history.map((b) => [b.id, b.remainingCount, b.undoneAt !== null])).toEqual([
+      [second.id, 3, false],
+      [first.id, 0, true],
+    ]);
+    // Undoing again is a no-op; a file can be imported again after an undo.
+    expect((await user.del(`/imports/${first.id}`)).status).toBe(204);
+    expect((await user.del('/imports/00000000-0000-4000-8000-000000000000')).status).toBe(404);
+    expect((await user.post('/imports', commitBody(p))).body.created).toBe(4);
 
     const workspaceId = (await user.get('/auth/me')).body.workspace.id;
     const logs = await executeRows<{ action: string; metadata: Record<string, unknown> }>(
       admin(),
       sql`select action, metadata from audit_logs where workspace_id = ${workspaceId} and action like 'import.%' order by created_at`,
     );
-    expect(logs.map((l) => l.action)).toEqual(['import.created', 'import.created', 'import.undone']);
+    expect(logs.map((l) => l.action)).toEqual(['import.created', 'import.created', 'import.undone', 'import.created']);
     expect(logs[2]!.metadata).toEqual({ origin: 'file', removed: 3 });
     // No amounts, descriptions or file names in the audit trail.
     expect(JSON.stringify(logs)).not.toMatch(/extrato|SUPERMERCADO|5200/);

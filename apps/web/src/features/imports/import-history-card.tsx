@@ -83,9 +83,11 @@ export function ImportHistoryCard() {
           <>
             <ul className={cn('divide-y divide-border rounded-lg border border-border', batches.isPlaceholderData && 'opacity-60')}>
               {data.items.map((b) => {
-                const undone = b.remainingCount === 0;
+                const undone = Boolean(b.undoneAt);
+                // Every row already deleted by hand: nothing left to undo.
+                const empty = !undone && b.remainingCount === 0;
                 return (
-                  <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                  <li key={b.id} className={cn('flex flex-wrap items-center gap-3 px-4 py-3', undone && 'opacity-70')}>
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-bg-subtle text-muted">
                       {b.origin === 'open_finance' ? <Landmark className="size-4" /> : <FileText className="size-4" />}
                     </span>
@@ -95,7 +97,7 @@ export function ImportHistoryCard() {
                           {title(b)}
                         </span>
                         {b.format ? <Badge tone="brand">{b.format.toUpperCase()}</Badge> : null}
-                        {undone ? <Badge>Desfeita</Badge> : null}
+                        {undone ? <Badge title="Os lançamentos deste lote foram excluídos">Desfeito em {formatDateTime(b.undoneAt!)}</Badge> : null}
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
                         {targetLabel(b, { accounts: accounts.data, cards: cards.data })} · {formatDateTime(b.createdAt)}
@@ -104,10 +106,16 @@ export function ImportHistoryCard() {
                       <p className="mt-0.5 text-xs text-muted">
                         <span className="font-medium text-fg">{pluralize(b.createdCount, 'criado', 'criados')}</span>
                         {b.skippedCount ? ` · ${pluralize(b.skippedCount, 'ignorado', 'ignorados')} (já existiam)` : ''}
-                        {!undone && b.remainingCount < b.createdCount ? ` · ${b.remainingCount} ainda no Effinance` : ''}
+                        {undone
+                          ? ''
+                          : empty
+                            ? ' · nenhum ainda no Effinance'
+                            : b.remainingCount < b.createdCount
+                              ? ` · ${b.remainingCount} ainda no Effinance`
+                              : ''}
                       </p>
                     </div>
-                    {!undone ? (
+                    {!undone && !empty ? (
                       <WriteGate>
                         <Button variant="ghost" size="sm" onClick={() => setToUndo(b)}>
                           <Undo2 /> Desfazer

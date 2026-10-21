@@ -546,7 +546,7 @@ próprio (43+ caracteres), `MAILER=ses`, `APP_URL`/`CORS_ORIGIN` https e valores
 5. *Response headers policy* do site (comportamento padrão):
 
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Tx3gv5eNbn+Hf+VoVYfVEoj6NuvY41vj9EhirVY+UE4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Tx3gv5eNbn+Hf+VoVYfVEoj6NuvY41vj9EhirVY+UE4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src https://connect.pluggy.ai; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -569,16 +569,17 @@ Cross-Origin-Resource-Policy: same-origin
    subdomínios servem HTTPS.
 
    **Widget de consentimento do Open Finance (Pluggy Connect)** — conferido no código do
-   `pluggy-connect-sdk` 2.14.2: o widget abre `https://connect.pluggy.ai` num iframe (ou popup) e os
-   retornos OAuth dos bancos passam por `https://api.pluggy.ai`. Com `OPEN_FINANCE_PROVIDER=pluggy`
-   a política acima precisa de `frame-src https://connect.pluggy.ai` (hoje `'none'`); se o SDK for
-   carregado do CDN em vez de empacotado pelo Vite, também `script-src https://cdn.pluggy.ai`
-   (prefira empacotar: um script de terceiro no `script-src` roda com acesso à sessão). A página não
-   chama `api.pluggy.ai` diretamente (é o iframe que chama), então `connect-src` não muda. O fluxo
-   OAuth abre o app/site do banco: se o widget usar modo popup, `Cross-Origin-Opener-Policy:
-   same-origin` corta o `window.opener` — teste em staging e, se quebrar, use
-   `same-origin-allow-popups` só nas rotas da tela de conexões. A CSP vem de
-   `apps/web/src/lib/csp.ts` (time de frontend) e o teste `csp.test.ts` precisa acompanhar.
+   `pluggy-connect-sdk` 2.14.2 (empacotado pelo Vite no web): o widget abre
+   `https://connect.pluggy.ai` num iframe e os retornos OAuth dos bancos passam por
+   `https://api.pluggy.ai`. Por isso `frame-src https://connect.pluggy.ai` (antes `'none'`), igual ao
+   que `apps/web/src/lib/csp.ts` gera (`PLUGGY_CONNECT_ORIGIN`). Não carregue o SDK do CDN
+   (`cdn.pluggy.ai`): exigiria `script-src` de terceiro com acesso à sessão. A página não chama
+   `api.pluggy.ai` diretamente (é o iframe que chama), então `connect-src` continua `'self'`.
+   **Atenção ao COOP**: o fluxo OAuth abre o app/site do banco a partir do iframe; com
+   `Cross-Origin-Opener-Policy: same-origin` o navegador pode cortar a relação com esse popup
+   (`window.opener` nulo) e o widget não receber o retorno. Valide no sandbox da Pluggy em staging; se
+   quebrar, use `same-origin-allow-popups` (de preferência só para a rota da tela de conexões, por
+   um comportamento próprio do CloudFront).
 6. Route 53: registro CAA (`0 issue "amazon.com"`), DNSSEC opcional.
 
 ### 8. WAF (no CloudFront, escopo `CLOUDFRONT`, criado em `us-east-1`)
@@ -599,10 +600,15 @@ Ordem sugerida das regras (comece em **Count** por 1–2 semanas, revise os logs
    → Block); *rate-based* próprio (ex.: 300 req/5 min por IP). A API compara o segredo em tempo
    constante, é idempotente por `eventId` e sempre reconsulta a Pluggy — o WAF é camada extra; não
    dependa de allowlist de IPs da Pluggy (não é contrato estável).
-   Importação de arquivos: `POST /api/imports/preview` leva o arquivo inteiro (até ~9 MB) e
-   `POST /api/imports` até 4 MB — faça *scope-down* de `SizeRestrictions_BODY` (e, se houver falso
-   positivo com extratos, de `CrossSiteScripting_BODY`/SQLi do corpo) excluindo esses dois caminhos,
-   com *oversize handling* `CONTINUE`; a API valida tamanho, formato e linhas.
+   Importação de arquivos: `POST /api/imports/preview` leva o arquivo inteiro — limite da API
+   `3 × MAX_IMPORT_CONTENT_CHARS + 64 KiB` = 9.065.536 bytes (~8,6 MiB) — e `POST /api/imports` até
+   4 MiB (`IMPORT_COMMIT_BODY_LIMIT`, `apps/api/src/modules/imports/routes.ts`). `SizeRestrictions_BODY`
+   (8 KB) bloquearia os dois: faça *scope-down* dessa sub-regra excluindo exatamente esses dois
+   caminhos com método `POST` (mantendo-a para o resto da API) e, no lugar dela, uma regra própria
+   para eles que bloqueie corpo acima de 9,5 MB; use *oversize handling* `CONTINUE` (o WAF só
+   inspeciona os primeiros 16–64 KB do corpo). Se `CrossSiteScripting_BODY`/SQLi derem falso
+   positivo com extratos, *scope-down* também nesses caminhos — a API valida tamanho, formato,
+   linhas e todo campo, e nunca interpreta o conteúdo como HTML/SQL.
 6. *Rate-based* geral em `/api/*` (ex.: 2000 req/5 min por IP).
 7. Opcionais pagos: Account Takeover Prevention (`AWSManagedRulesATPRuleSet`) no login, Bot Control.
 8. Opcional: bloqueio geográfico fora do Brasil — **exceto** os caminhos dos webhooks.

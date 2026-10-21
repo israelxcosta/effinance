@@ -40,6 +40,7 @@ import {
   goalContributions,
   goals,
   importBatches,
+  importTombstones,
   passwordResets,
   recurrences,
   sessions,
@@ -163,6 +164,10 @@ async function seedTenant(label: string) {
     .insert(importBatches)
     .values({ workspaceId: ws, origin: 'file', format: 'ofx', fileName: 'extrato.ofx', accountId: account!.id, connectionId: connection!.id, createdCount: 1 })
     .returning();
+  const [tombstone] = await db
+    .insert(importTombstones)
+    .values({ workspaceId: ws, accountId: account!.id, externalId: `removed-${label}` })
+    .returning();
   const [tx] = await db
     .insert(transactions)
     .values({
@@ -199,6 +204,7 @@ async function seedTenant(label: string) {
     bankFeed: bankFeed!.id,
     cardFeed: cardFeed!.id,
     batch: batch!.id,
+    tombstone: tombstone!.id,
   };
 }
 
@@ -467,6 +473,16 @@ describe('foreign keys never cross workspaces', () => {
         ],
       ),
       [
+        'import_tombstones.account_id',
+        (tx, id) => tx.insert(importTombstones).values({ workspaceId: b.ws, accountId: id, externalId: randomUUID() }),
+        a.account,
+      ],
+      [
+        'import_tombstones.credit_card_id',
+        (tx, id) => tx.insert(importTombstones).values({ workspaceId: b.ws, creditCardId: id, externalId: randomUUID() }),
+        a.card,
+      ],
+      [
         'bank_connection_accounts.connection_id',
         (tx, id) =>
           tx.insert(bankConnectionAccounts).values({ workspaceId: b.ws, connectionId: id, providerAccountId: 'x', providerAccountHash: randomUUID(), kind: 'bank', name: 'x' }),
@@ -529,6 +545,8 @@ describe('foreign keys never cross workspaces', () => {
     expect(batch).toMatchObject({ workspaceId: a.ws, accountId: null, connectionId: a.connection });
     const [feed] = await admin().select().from(bankConnectionAccounts).where(eq(bankConnectionAccounts.id, a.bankFeed));
     expect(feed).toMatchObject({ workspaceId: a.ws, linkedAccountId: null });
+    // Tombstones belong to the destination account.
+    expect(await countRows('import_tombstones', a.ws)).toBe(0);
 
     // Revoking a connection removes its feeds and keeps the batches (without the connection).
     await withTenant(app.db, a.ws, (tx) => tx.delete(bankConnections).where(eq(bankConnections.id, a.connection)));
@@ -580,6 +598,8 @@ describe('domain checks', () => {
       ['event provider', sql`insert into open_finance_events (provider, event_id, event_type) values ('belvo', 'e1', 'item/updated')`],
       ['event id size', sql`insert into open_finance_events (provider, event_id, event_type) values ('pluggy', ${'e'.repeat(201)}, 'item/updated')`],
       ['platform key name', sql`insert into platform_keys (name, wrapped_key) values ('Bad Name!', 'x')`],
+      ['tombstone without destination', sql`update import_tombstones set account_id = null where id = ${a.tombstone}`],
+      ['tombstone with two destinations', sql`update import_tombstones set credit_card_id = ${a.card} where id = ${a.tombstone}`],
       [
         'invite as owner',
         sql`insert into workspace_invites (workspace_id, email, role, token_hash, expires_at)
