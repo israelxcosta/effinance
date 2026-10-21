@@ -7,3 +7,4 @@ export * from './utils/money';
 export * from './utils/documents';
 export * from './utils/invoice';
 export * from './utils/recurrence';
+export * from './integrations';
