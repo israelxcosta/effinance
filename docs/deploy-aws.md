@@ -527,22 +527,24 @@ reais da API.
 5. *Response headers policy* do site (comportamento padrão):
 
 ```
-Content-Security-Policy: <<PLACEHOLDER — valor final definido pelo auditor web (security-react-web).
-  Fonte da verdade: apps/web/src/lib/csp.ts →
-    contentSecurityPolicy({ scriptHashes: [THEME_SCRIPT_HASH], header: true })
-  = a mesma política do <meta> injetado em dist/index.html + frame-ancestors 'none' e
-  upgrade-insecure-requests (diretivas que o <meta> não aceita). Se o script inline mudar, o hash
-  muda: atualize o header junto. Invariantes: default-src 'self'; object-src 'none';
-  base-uri 'self'; form-action 'self'; frame-ancestors 'none'; sem 'unsafe-eval';
-  connect-src 'self' (API no mesmo domínio).>>
+Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Tx3gv5eNbn+Hf+VoVYfVEoj6NuvY41vj9EhirVY+UE4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
-Referrer-Policy: strict-origin-when-cross-origin
+Referrer-Policy: same-origin
 Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Resource-Policy: same-origin
 ```
+
+   A CSP acima é gerada por `apps/web/src/lib/csp.ts` (`contentSecurityPolicy({ scriptHashes:
+   [THEME_SCRIPT_HASH], header: true })`): é a mesma política da `<meta>` injetada em
+   `dist/index.html`, mais `frame-ancestors` e `upgrade-insecure-requests` (que a `<meta>` não
+   aceita). Se o script inline de `index.html` mudar, o hash muda — o teste `csp.test.ts` falha e o
+   header precisa ser atualizado junto. `style-src 'unsafe-inline'` é exigido por Radix/sonner.
+   Recomendado: `Content-Security-Policy-Report-Only: require-trusted-types-for 'script'` com um
+   endpoint de relatórios. A demo (`dist-demo`) usa a mesma política com `'wasm-unsafe-eval'` em
+   `script-src` (PGlite) e deve ficar em domínio separado.
 
    Ative "Origin override" nesses cabeçalhos. Antes do `preload`, confirme que **todos** os
    subdomínios servem HTTPS.
@@ -663,7 +665,7 @@ Logs do WAF em `aws-waf-logs-effinance` (cifrado) com *redaction* dos cabeçalho
 - [ ] Política da `effinance-data` com contexto obrigatório; nenhuma outra role decifra.
 - [ ] Execution role ≠ task role; migração com roles e segredo próprios.
 - [ ] Imagem implantada por digest; ECR imutável com Inspector; CI verde em `main`.
-- [ ] CSP final do auditor web aplicada no CloudFront; `dist-demo` fora do domínio de produção.
+- [ ] CSP de `apps/web/src/lib/csp.ts` aplicada no CloudFront (hash conferido); `dist-demo` fora do domínio de produção.
 - [ ] WAF fora do modo Count após o período de observação.
 - [ ] Teste de restauração executado e registrado.
 - [ ] Pentest externo e revisão do WAF antes do lançamento.
