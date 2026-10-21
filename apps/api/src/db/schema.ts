@@ -75,7 +75,7 @@ export const users = pgTable(
     /** TOTP secret encrypted with the master key (`KeyProvider.encryptSecret`). Set on setup. */
     mfaSecretEnc: text(),
     mfaEnabled: boolean().notNull().default(false),
-    /** SHA-256 hashes of the unused recovery codes. */
+    /** Salted PBKDF2 hashes of the unused recovery codes (`modules/auth/mfa.ts`; legacy rows: SHA-256). */
     mfaRecoveryCodes: jsonb().$type<string[]>(),
     /** Last accepted TOTP time step (a code is never accepted twice). */
     mfaLastStep: integer(),
