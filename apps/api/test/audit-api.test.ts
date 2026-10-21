@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { buildApp, type App } from '../src/app';
 import { sha256Hex } from '../src/lib/crypto/encoding';
 import { FieldCipher } from '../src/lib/crypto/field-cipher';
+import { sanitizeUrl, serializeError } from '../src/lib/log';
 import type { KeyProvider } from '../src/lib/crypto/key-provider';
 import { configureKeyring, getCipher, keyProvider } from '../src/lib/crypto/keyring';
 import type { Mailer, MemoryMailer } from '../src/lib/mailer';
@@ -439,6 +440,17 @@ describe('finding: http, logs and configuration', () => {
       configureKeyring({ provider: keyProvider(), db: app.db });
       await logged.close();
     }
+  });
+
+  it('scrubs e-mails, documents and SQL parameters from logged errors and URLs (CWE-532)', () => {
+    const ses = new Error('Email address is not verified. The following identities failed the check in region SA-EAST-1: ana.souza@exemplo.com.br');
+    const pg = Object.assign(new Error('invalid input syntax for type uuid: "52998224725"'), { code: '22P02' });
+    const drizzle = Object.assign(new Error('Failed query: select 1 where id = $1\nparams: 52998224725,ana@x.com'), { params: ['x'], cause: pg });
+    const out = JSON.stringify([serializeError(ses), serializeError(drizzle)]);
+    expect(out).not.toMatch(/ana\.souza@|ana@x\.com|52998224725/);
+    expect(out).toContain('"code":"22P02"');
+    expect(sanitizeUrl('/api/contacts?search=Maria%20Silva&page=2')).toBe('/api/contacts?search=[redacted]&page=2');
+    expect(sanitizeUrl('/api/invites/abcDEF123_-xyz/accept')).toBe('/api/invites/[token]/accept');
   });
 
   describe('production environment', () => {
