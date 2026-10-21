@@ -466,7 +466,7 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
                     </div>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px]">
-                    <Field label="Destino">
+                    <Field label={<>Destino<span className="sr-only"> de {a.name}</span></>}>
                       <Select value={row.target} onChange={(e) => setRow({ target: e.target.value as TargetChoice })}>
                         <option value="new">{a.kind === 'credit_card' ? 'Criar novo cartão' : 'Criar nova conta'}</option>
                         <option value="ignore">Ignorar (não sincronizar)</option>
@@ -492,7 +492,7 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
                       </Select>
                     </Field>
                     {row.target !== 'ignore' ? (
-                      <Field label="Importar desde" error={row.syncFrom < minDate || row.syncFrom > today ? `Entre ${formatDateBR(minDate)} e hoje` : undefined}>
+                      <Field label={<>Importar desde<span className="sr-only"> ({a.name})</span></>} error={row.syncFrom < minDate || row.syncFrom > today ? `Entre ${formatDateBR(minDate)} e hoje` : undefined}>
                         <Input type="date" min={minDate} max={today} value={row.syncFrom} onChange={(e) => setRow({ syncFrom: e.target.value })} />
                       </Field>
                     ) : null}
