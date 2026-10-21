@@ -140,6 +140,70 @@ describe('demo api (PGlite)', () => {
     expect((await call('GET', '/billing/plans')).body).toHaveLength(4);
   });
 
+  it('has the seeded integrations and imports/undoes a CSV statement', async () => {
+    const seeded = (await call('GET', '/open-finance/connections')).body;
+    expect(seeded).toEqual([expect.objectContaining({ provider: 'fake', institution: expect.objectContaining({ name: 'Banco Inter', bank: 'inter' }) })]);
+    expect(seeded[0].accounts.find((a: { kind: string }) => a.kind === 'bank').linkedAccountId).not.toBeNull();
+    const batches = (await call('GET', '/imports')).body;
+    expect(batches.items.map((b: { origin: string }) => b.origin).sort()).toEqual(['file', 'open_finance']);
+
+    const accountId = (await call('GET', '/accounts')).body[0].id;
+    const content = `Data;Descrição;Valor\n${from.split('-').reverse().join('/')};Feira do bairro;-42,50\n${from.split('-').reverse().join('/')};Venda de livro usado;30,00\n`;
+    const target = { kind: 'account', accountId };
+    const preview = await call('POST', '/imports/preview', { fileName: 'extrato.csv', content, target });
+    expect(preview.status).toBe(200);
+    expect(preview.body.rows.map((r: { type: string; amount: number }) => [r.type, r.amount])).toEqual([
+      ['expense', 4250],
+      ['income', 3000],
+    ]);
+    const rows = preview.body.rows.map((r: Record<string, unknown>) => ({
+      date: r.date,
+      description: r.description,
+      amount: r.amount,
+      type: r.type,
+      externalId: r.externalId,
+      categoryId: r.categoryId,
+    }));
+    const committed = await call('POST', '/imports', { fileName: 'extrato.csv', format: 'csv', target, rows });
+    expect(committed).toMatchObject({ status: 201, body: { created: 2, skipped: 0, batch: { origin: 'file', remainingCount: 2 } } });
+    // Idempotent.
+    expect((await call('POST', '/imports', { fileName: 'extrato.csv', format: 'csv', target, rows })).body).toMatchObject({ created: 0, skipped: 2 });
+    const imported = (await call('GET', `/transactions?accountId=${accountId}&search=Feira`)).body.items[0];
+    expect(imported).toMatchObject({ origin: 'file', importBatchId: committed.body.batch.id, paid: true });
+    expect((await call('DELETE', `/imports/${committed.body.batch.id}`)).status).toBe(204);
+    expect((await call('GET', `/transactions?accountId=${accountId}&search=Feira`)).body.total).toBe(0);
+  });
+
+  it('connects, links, syncs and disconnects a simulated bank (fake provider)', async () => {
+    expect((await call('GET', '/open-finance/status')).body).toEqual({ enabled: true, provider: 'fake', sandbox: true });
+    const institutions = (await call('GET', '/open-finance/dev/institutions')).body;
+    expect(institutions.map((i: { id: string }) => i.id)).toContain('nubank');
+    expect((await call('POST', '/open-finance/connect-token', {})).body).toMatchObject({ provider: 'fake', sandbox: true });
+    const { itemId } = (await call('POST', '/open-finance/dev/connect', { institutionId: 'nubank' })).body;
+    const created = await call('POST', '/open-finance/connections', { itemId });
+    expect(created.status).toBe(201);
+    const connection = created.body;
+    const card = (await call('GET', '/credit-cards')).body[0];
+    const linked = await call('PUT', `/open-finance/connections/${connection.id}/accounts`, {
+      links: [
+        { connectionAccountId: connection.accounts[0].id, target: { kind: 'new' } },
+        { connectionAccountId: connection.accounts[1].id, target: { kind: 'credit_card', creditCardId: card.id } },
+      ],
+    });
+    expect(linked.status).toBe(200);
+    const sync = await call('POST', `/open-finance/connections/${connection.id}/sync`);
+    expect(sync.status).toBe(200);
+    expect(sync.body.created).toBeGreaterThan(0);
+    const resync = await call('POST', `/open-finance/connections/${connection.id}/sync`);
+    expect(resync.body).toMatchObject({ created: 0, updated: 0 });
+    expect((await call('DELETE', `/open-finance/connections/${connection.id}`)).status).toBe(204);
+    expect((await call('GET', '/open-finance/connections')).body).toHaveLength(1);
+    // Provider ids are stored encrypted in PGlite too.
+    const { client } = await getDemoServer();
+    const ids = (await client.query<{ id: string }>('select provider_item_id as id from bank_connections')).rows;
+    expect(ids.every((r) => r.id.startsWith('v1.') && !r.id.includes(itemId))).toBe(true);
+  });
+
   it('registers new users with default categories', async () => {
     const reg = await call('POST', '/auth/register', { name: 'Teste', email: 'teste@demo.app', password: 'senha12345', acceptTerms: true });
     expect(reg.status).toBe(201);

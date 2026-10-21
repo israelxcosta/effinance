@@ -193,7 +193,11 @@ export default function ImportWizard({ open, onOpenChange, initialTarget }: Impo
         </Button>
         <WriteGate>
           <Button onClick={() => void confirm()} loading={commit.isPending} disabled={!selectedRows.length || tooMany}>
-            {selectedRows.length === 1 ? 'Importar 1 lançamento' : `Importar ${selectedRows.length} lançamentos`}
+            {selectedRows.length === 0
+              ? 'Nenhum lançamento selecionado'
+              : selectedRows.length === 1
+                ? 'Importar 1 lançamento'
+                : `Importar ${selectedRows.length} lançamentos`}
           </Button>
         </WriteGate>
       </>

@@ -219,8 +219,8 @@ function IntroDialog({
       <div className="flex flex-col gap-4">
         <OpenFinanceTransparency />
         <p className="rounded-md bg-surface-muted px-3 py-2.5 text-xs leading-relaxed text-muted">
-          A conexão usa um agregador autorizado pelo Banco Central (Pluggy), que recebe os dados do banco em seu nome. Você escolhe quais contas
-          entram no Effinance e pode desconectar quando quiser — os lançamentos já importados continuam aqui.
+          A conexão é feita pela Pluggy, plataforma de Open Finance que recebe os dados do banco com o seu consentimento e os repassa ao
+          Effinance. Você escolhe quais contas entram e pode desconectar quando quiser — os lançamentos já importados continuam aqui.
         </p>
       </div>
     </Modal>

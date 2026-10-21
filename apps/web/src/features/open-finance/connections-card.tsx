@@ -160,15 +160,25 @@ function ConnectionItem({
             </Badge>
           </div>
           <p className="mt-0.5 text-xs text-muted">
-            {c.lastSyncAt ? `Última sincronização ${formatRelative(c.lastSyncAt)}` : 'Ainda não sincronizado'}
+            {c.lastSyncAt
+              ? `Última sincronização ${Date.now() - new Date(c.lastSyncAt).getTime() < 60_000 ? 'agora há pouco' : formatRelative(c.lastSyncAt)}`
+              : 'Ainda não sincronizado'}
             {c.consentExpiresAt && !expiring ? ` · consentimento até ${formatDateBR(c.consentExpiresAt.slice(0, 10))}` : ''}
           </p>
           {c.statusDetail && c.status !== 'active' ? <p className="mt-1 text-xs text-muted">{c.statusDetail}</p> : null}
         </div>
         <div className="flex items-center gap-1.5">
           <WriteGate>
-            <Button variant="outline" size="sm" onClick={() => void syncNow()} loading={sync.isPending} disabled={c.status === 'syncing'}>
-              {sync.isPending ? null : <RefreshCw />} Sincronizar agora
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void syncNow()}
+              loading={sync.isPending}
+              disabled={c.status === 'syncing'}
+              aria-label="Sincronizar agora"
+            >
+              {sync.isPending ? null : <RefreshCw />}
+              <span className="hidden sm:inline">Sincronizar agora</span>
             </Button>
           </WriteGate>
           <DropdownMenu>
@@ -198,8 +208,8 @@ function ConnectionItem({
 
       {needsConsent ? (
         <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-md bg-warning-soft px-3 py-2.5 text-[13px] text-warning">
-          <TriangleAlert className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1">
+          <TriangleAlert className="size-4 shrink-0 self-start sm:self-center" />
+          <span className="min-w-[12rem] flex-1">
             {c.status === 'outdated' || (days !== null && days < 0)
               ? 'O consentimento expirou: a sincronização está pausada até você renovar.'
               : c.status === 'login_error'

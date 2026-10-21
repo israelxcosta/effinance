@@ -742,6 +742,16 @@ describe('guards: access control', () => {
     ['POST', '/transfers'],
     ['PUT', `/transfers/${FAKE_ID}`],
     ['DELETE', `/transfers/${FAKE_ID}`],
+    // Imports and Open Finance (lib/tenant-scope.ts guards).
+    ['POST', '/imports/preview'],
+    ['POST', '/imports'],
+    ['DELETE', `/imports/${FAKE_ID}`],
+    ['POST', '/open-finance/connect-token'],
+    ['POST', '/open-finance/dev/connect'],
+    ['POST', '/open-finance/connections'],
+    ['PUT', `/open-finance/connections/${FAKE_ID}/accounts`],
+    ['POST', `/open-finance/connections/${FAKE_ID}/sync`],
+    ['DELETE', `/open-finance/connections/${FAKE_ID}`],
   ];
 
   async function call(c: Client, method: string, url: string, body: unknown = {}) {

@@ -106,3 +106,12 @@ export function maskNumber(value: string | null | undefined): string | null {
   const digits = String(value ?? '').replace(/\D/g, '');
   return digits.length >= 2 ? `•••• ${digits.slice(-4)}` : null;
 }
+
+/** Open Finance wiring of the app (`app.platform.openFinance`); null/absent when disabled. */
+export interface OpenFinanceSetup {
+  provider: OpenFinanceProvider;
+  /** Sent with connect tokens: `${API_PUBLIC_URL}/api/open-finance/webhooks/<provider>/<secret>` (null = no webhooks). */
+  webhookUrl: string | null;
+  /** Path secret of the webhook route (null = webhooks refused). */
+  webhookSecret: string | null;
+}

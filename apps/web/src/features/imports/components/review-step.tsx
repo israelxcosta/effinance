@@ -117,7 +117,7 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
         <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-2 text-xs lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_auto_minmax(0,1fr)]">
           <div className="min-w-0">
             <dt className="text-muted">Arquivo</dt>
-            <dd className="mt-0.5 font-semibold break-all text-fg" title={preview.fileName}>
+            <dd className="mt-0.5 font-semibold break-words text-fg" title={preview.fileName}>
               {preview.fileName} <Badge tone="brand" className="ml-0.5 align-middle">{preview.format.toUpperCase()}</Badge>
             </dd>
           </div>
@@ -161,6 +161,12 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
           hint={preview.totals.duplicates ? pluralize(preview.totals.duplicates, 'duplicado', 'duplicados') : 'Nenhum duplicado'}
         />
       </div>
+
+      {preview.rows.length > 0 && preview.rows.every((r) => duplicateKind(r) === 'imported') ? (
+        <p role="status" className="flex items-center gap-2 rounded-md bg-primary-soft px-4 py-3 text-[13px] font-medium text-primary-soft-fg">
+          <CheckCheck className="size-4 shrink-0" /> Todos os lançamentos deste arquivo já foram importados antes — nada novo para trazer.
+        </p>
+      ) : null}
 
       {preview.rows.length === 0 ? (
         <EmptyState
@@ -334,7 +340,7 @@ function ReviewRow({ row, choice, targetKind, categoryValue, onSelected, onCateg
       />
       <span className={cn('tabular hidden text-[13px] text-muted md:block', !choice.selected && 'opacity-60')}>{formatDateBR(row.date)}</span>
       <div className={cn('min-w-0', !choice.selected && 'opacity-60')}>
-        <p className="truncate text-sm font-semibold text-fg" title={row.description}>
+        <p className="line-clamp-2 text-sm font-semibold break-words text-fg md:line-clamp-1" title={row.description}>
           {row.description}
         </p>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted">

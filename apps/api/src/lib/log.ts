@@ -1,6 +1,6 @@
 // Log hygiene (LGPD): request lines and errors must not carry personal data or secrets.
 // - URLs: only known, non-personal query parameters keep their values (`/search?q=<CPF>` does not),
-//   and invite tokens in paths are masked.
+//   and invite tokens and webhook secrets in paths are masked.
 // - Errors: Drizzle puts every bound parameter of a failed query in the message (`params: …`), and
 //   Postgres errors quote offending values in `message`/`detail` (e-mails, names, documents…).
 
@@ -35,7 +35,10 @@ const SAFE_QUERY_KEYS = new Set([
 export function sanitizeUrl(url: string | undefined): string | undefined {
   if (!url) return url;
   const q = url.indexOf('?');
-  const path = (q < 0 ? url : url.slice(0, q)).replace(/(\/invites\/)[^/?]+/, '$1[token]');
+  const path = (q < 0 ? url : url.slice(0, q))
+    .replace(/(\/invites\/)[^/?]+/, '$1[token]')
+    // Open Finance webhooks authenticate with a secret path segment.
+    .replace(/(\/open-finance\/webhooks\/[^/?]+\/)[^/?]+/, '$1[secret]');
   if (q < 0) return path;
   const params = new URLSearchParams(url.slice(q + 1));
   const safe = [...params].map(([k, v]) => `${encodeURIComponent(k)}=${SAFE_QUERY_KEYS.has(k) ? encodeURIComponent(v) : '[redacted]'}`);

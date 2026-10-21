@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
 import { CreditCard, Plug, ShieldCheck, ShieldEllipsis, UserRound, Users } from 'lucide-react';
 import { WORKSPACE_KIND_LABELS } from '@effinance/shared';
@@ -20,6 +21,17 @@ export default function SettingsPage() {
   const raw = params.get('aba');
   const tab: Tab = (TABS as readonly string[]).includes(raw ?? '') ? (raw as Tab) : 'perfil';
 
+  // Narrow screens scroll the tab bar: keep the active tab (e.g. from a link) in view.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const active = tabsRef.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    const bar = tabsRef.current;
+    if (!active || !bar || bar.scrollWidth <= bar.clientWidth) return;
+    const a = active.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    bar.scrollLeft += a.left - b.left - (b.width - a.width) / 2;
+  }, [tab]);
+
   function select(next: Tab) {
     // Tab-specific params (e.g. ?simular= from the fake checkout) don't carry over.
     setParams(next === 'perfil' ? {} : { aba: next }, { replace: true });
@@ -40,7 +52,7 @@ export default function SettingsPage() {
           )
         }
       />
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div ref={tabsRef} className="-mx-1 overflow-x-auto px-1 pb-1">
         <SegmentedControl
           variant="solid"
           ariaLabel="Seções das configurações"

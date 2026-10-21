@@ -17,7 +17,7 @@ import {
   type TransactionInput,
 } from '@effinance/shared';
 import type { DbExecutor } from './client';
-import { accounts, categories, subscriptions, transactions, users, workspaceMembers, workspaces } from './schema';
+import { accounts, categories, creditCards, subscriptions, transactions, users, workspaceMembers, workspaces } from './schema';
 import { withTenant } from '../lib/tenant';
 import { register } from '../modules/auth/service';
 import { seedDefaultCategories } from '../modules/categories/service';
@@ -28,6 +28,9 @@ import { createContact } from '../modules/contacts/service';
 import { addContribution, createGoal } from '../modules/goals/service';
 import { createTransaction } from '../modules/transactions/service';
 import { createTransfer } from '../modules/transfers/service';
+import { commitImport, previewImport } from '../modules/imports/service';
+import { FakeOpenFinanceProvider } from '../modules/open-finance/providers/fake';
+import { createConnection, linkAccounts, syncConnection } from '../modules/open-finance/service';
 
 export const DEMO_EMAIL = 'demo@effinance.app';
 export const DEMO_PASSWORD = 'demo12345';
@@ -739,6 +742,47 @@ async function seedFamily(db: DbExecutor, ownerId: string, partnerId: string): P
   return workspaceId;
 }
 
+/**
+ * Integrations of Marina's workspace: a simulated Open Finance connection (Banco Inter) whose checking
+ * account feeds a new local account, synced once, and a CSV invoice export imported into her
+ * Nubank card — so the import and connection screens have data.
+ */
+async function seedIntegrations(db: DbExecutor, workspaceId: string, userId: string) {
+  const provider = new FakeOpenFinanceProvider();
+  const ctx = { db, of: { provider, webhookUrl: null, webhookSecret: null } };
+  const { itemId } = provider.connect('inter', workspaceId)!;
+  const { connection } = await createConnection(ctx, workspaceId, userId, itemId);
+  const bankFeed = connection.accounts.find((a) => a.kind === 'bank')!;
+  await linkAccounts(db, workspaceId, connection.id, {
+    links: [{ connectionAccountId: bankFeed.id, target: { kind: 'new' }, syncFrom: addDays(todayISO(), -10) }],
+  });
+  await syncConnection(ctx, workspaceId, connection.id, { userId });
+
+  const [card] = await withTenant(db, workspaceId, (tx) =>
+    tx.select({ id: creditCards.id }).from(creditCards).where(and(eq(creditCards.workspaceId, workspaceId), eq(creditCards.name, 'Nubank Mastercard'))),
+  );
+  if (!card) return;
+  const day = (n: number) => addDays(todayISO(), -n);
+  const content = [
+    'date,title,amount',
+    `${day(5)},Livraria Exemplo,89.90`,
+    `${day(4)},Uber *Trip,23.45`,
+    `${day(3)},Padaria Pão Quente,18.70`,
+    `${day(2)},Farmácia Saúde Exemplo,64.30`,
+    `${day(2)},Pagamento recebido,-1200.00`,
+  ].join('\n');
+  const target = { kind: 'credit_card' as const, creditCardId: card.id };
+  const preview = await previewImport(db, workspaceId, { fileName: 'nubank-fatura.csv', content, target });
+  await commitImport(db, workspaceId, userId, {
+    fileName: preview.fileName,
+    format: preview.format,
+    target,
+    rows: preview.rows
+      .filter((r) => !r.skip)
+      .map((r) => ({ date: r.date, description: r.description, amount: r.amount, type: r.type, externalId: r.externalId, categoryId: r.categoryId })),
+  });
+}
+
 export async function seedDemo(db: DbExecutor) {
   await removeDemoUsers(db);
   const { user, workspaceId } = await register(db, {
@@ -747,7 +791,11 @@ export async function seedDemo(db: DbExecutor) {
     password: DEMO_PASSWORD,
     acceptTerms: true,
   });
-  const n = await withTenant(db, workspaceId, (tx) => seedPersonal(tx, workspaceId));
+  await withTenant(db, workspaceId, (tx) => seedPersonal(tx, workspaceId));
+  await seedIntegrations(db, workspaceId, user.id);
+  const [{ n } = { n: 0 }] = await withTenant(db, workspaceId, (tx) =>
+    tx.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(transactions).where(eq(transactions.workspaceId, workspaceId)),
+  );
   const partner = await register(db, {
     name: 'Rafael Costa',
     email: DEMO_PARTNER_EMAIL,

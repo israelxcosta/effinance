@@ -16,6 +16,7 @@ import {
 import { getCipher } from '../../lib/crypto/keyring';
 import { withTenant } from '../../lib/tenant';
 import { CONTACT_ENCRYPTED_FIELDS } from '../contacts/service';
+import { exportOpenFinance } from '../open-finance/service';
 import { getSubscriptionRow, listMembers } from './service';
 import { summarizeSubscription } from '../billing/entitlements';
 import type { Access } from './access';
@@ -43,6 +44,8 @@ export async function exportWorkspace(db: DbExecutor, access: Access) {
       tx.select().from(transactions).orderBy(asc(transactions.date), asc(transactions.createdAt)),
     ]);
     const decrypt = (table: string, column: string, value: string | null) => cipher.decrypt(table, column, value);
+    // Connections and import batches: metadata only (no aggregator ids, blind indexes or cursors).
+    const integrations = await exportOpenFinance(tx);
     return {
       categories: cats,
       accounts: accs,
@@ -60,9 +63,11 @@ export async function exportWorkspace(db: DbExecutor, access: Access) {
           template: { ...r.template, notes: await decrypt('transactions', 'notes', r.template.notes) },
         })),
       ),
+      // externalId is the source's identifier (FITID / aggregator transaction id): not exported.
       transactions: await Promise.all(
-        txRows.map(async (t) => ({ ...t, notes: await decrypt('transactions', 'notes', t.notes) })),
+        txRows.map(async ({ externalId: _external, ...t }) => ({ ...t, notes: await decrypt('transactions', 'notes', t.notes) })),
       ),
+      ...integrations,
     };
   });
 

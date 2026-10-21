@@ -31,7 +31,7 @@ import {
 import { sha256Hex } from '../../lib/crypto/encoding';
 import { UnauthorizedError } from '../../lib/errors';
 import { requestContext } from '../../lib/request-context';
-import { cancelForDeletion } from '../billing/service';
+import { prepareWorkspaceDeletion } from '../workspaces/deletion';
 import { getMe, getUserRow, resolveWorkspaceFor, switchWorkspace } from '../workspaces/service';
 import { disableMfa, enableMfa, setupMfa, verifyMfaCode } from './mfa';
 import {
@@ -190,7 +190,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
     authed.delete('/me', { schema: { body: deleteAccountSchema }, config: limit(5) }, async (req, reply) => {
       const deleted = await deleteAccount(app.db, req.userId, req.body.password, (ids) =>
-        cancelForDeletion(app.db, app.platform, ids),
+        prepareWorkspaceDeletion(app.db, app.platform, ids, req.log),
       );
       await audit(app.db, {
         ...requestContext(req),

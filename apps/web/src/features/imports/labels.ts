@@ -113,7 +113,7 @@ export function targetLabel(
 }
 
 export function batchTitle(batch: ImportBatch): string {
-  if (batch.origin === 'open_finance') return 'Sincronização Open Finance';
+  if (batch.origin === 'open_finance') return 'Open Finance · sincronização';
   return batch.fileName ?? 'Arquivo importado';
 }
 

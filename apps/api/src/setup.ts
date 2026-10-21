@@ -9,7 +9,10 @@ import { createSesMailer } from './lib/mailer-ses';
 import type { Platform } from './lib/platform';
 import { FakeBillingProvider } from './modules/billing/providers/fake';
 import { MercadoPagoProvider } from './modules/billing/providers/mercadopago';
-import type { Env } from './env';
+import { FakeOpenFinanceProvider } from './modules/open-finance/providers/fake';
+import { PluggyProvider } from './modules/open-finance/providers/pluggy';
+import type { OpenFinanceSetup } from './modules/open-finance/providers/types';
+import { openFinanceProviderOf, type Env } from './env';
 
 /** Development/test only: a fixed, public key. Never used when NODE_ENV=production. */
 async function insecureDevMasterKey(): Promise<Bytes> {
@@ -46,8 +49,28 @@ export async function createMailer(env: Env): Promise<Mailer> {
   }
 }
 
+/**
+ * Open Finance wiring. The webhook URL carries the secret as its last path segment (logs mask it);
+ * the aggregator only calls https URLs, so local http setups simply get no webhooks.
+ */
+export function createOpenFinance(env: Env): OpenFinanceSetup | null {
+  const kind = openFinanceProviderOf(env);
+  if (kind === 'disabled') return null;
+  if (kind === 'fake') {
+    return { provider: new FakeOpenFinanceProvider(), webhookUrl: null, webhookSecret: env.OPEN_FINANCE_WEBHOOK_SECRET ?? null };
+  }
+  const secret = env.OPEN_FINANCE_WEBHOOK_SECRET!;
+  const base = env.API_PUBLIC_URL!;
+  return {
+    provider: new PluggyProvider({ clientId: env.PLUGGY_CLIENT_ID!, clientSecret: env.PLUGGY_CLIENT_SECRET!, sandbox: env.PLUGGY_SANDBOX }),
+    webhookUrl: base.startsWith('https://') ? `${base}/api/open-finance/webhooks/pluggy/${secret}` : null,
+    webhookSecret: secret,
+  };
+}
+
 export async function createPlatform(env: Env): Promise<Platform> {
   return {
+    openFinance: createOpenFinance(env),
     appUrl: env.APP_URL,
     relaxedRateLimits: env.NODE_ENV === 'test',
     mailer: await createMailer(env),

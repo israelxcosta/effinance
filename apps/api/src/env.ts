@@ -49,6 +49,24 @@ const envSchema = z
     MP_ACCESS_TOKEN: optional,
     MP_WEBHOOK_SECRET: optional,
 
+    /**
+     * Read-only bank connections (Open Finance Brasil). fake = simulated institutions (development,
+     * tests, demo); pluggy = aggregator (production); disabled = feature hidden. Default: fake outside
+     * production, disabled in production.
+     */
+    OPEN_FINANCE_PROVIDER: z.enum(['fake', 'pluggy', 'disabled']).optional(),
+    PLUGGY_CLIENT_ID: optional,
+    PLUGGY_CLIENT_SECRET: optional,
+    /** Accept Pluggy sandbox connectors (non-Open-Finance test banks). Never in production. */
+    PLUGGY_SANDBOX: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
+    /** Secret path segment of the webhook URL (URL-safe, 32+ characters; 43+ in production). */
+    OPEN_FINANCE_WEBHOOK_SECRET: optional,
+    /** Public base URL of this API (webhook URL given to the aggregator), e.g. https://api.effinance.com.br. */
+    API_PUBLIC_URL: optional.transform((v) => v?.replace(/\/+$/, '')),
+
     /** Shared rate-limit store for multiple API instances. */
     REDIS_URL: optional,
   })
@@ -67,6 +85,20 @@ const envSchema = z
     if (e.MAILER === 'webhook' && !e.MAIL_WEBHOOK_URL) issue('MAIL_WEBHOOK_URL', 'required when MAILER=webhook');
     if (e.DATABASE_SSL === 'verify-full' && !e.DATABASE_CA_FILE) {
       issue('DATABASE_CA_FILE', 'required when DATABASE_SSL=verify-full');
+    }
+    const openFinance = openFinanceProviderOf(e);
+    if (openFinance === 'pluggy') {
+      if (!e.PLUGGY_CLIENT_ID || !e.PLUGGY_CLIENT_SECRET) {
+        issue('PLUGGY_CLIENT_ID', 'PLUGGY_CLIENT_ID and PLUGGY_CLIENT_SECRET are required with OPEN_FINANCE_PROVIDER=pluggy');
+      }
+      if (!e.OPEN_FINANCE_WEBHOOK_SECRET) issue('OPEN_FINANCE_WEBHOOK_SECRET', 'required with OPEN_FINANCE_PROVIDER=pluggy');
+      if (!e.API_PUBLIC_URL) issue('API_PUBLIC_URL', 'required with OPEN_FINANCE_PROVIDER=pluggy (webhook URL)');
+    }
+    if (e.OPEN_FINANCE_WEBHOOK_SECRET && !/^[A-Za-z0-9_-]{32,200}$/.test(e.OPEN_FINANCE_WEBHOOK_SECRET)) {
+      issue('OPEN_FINANCE_WEBHOOK_SECRET', 'must be 32–200 URL-safe characters (it is a path segment): openssl rand -base64 48 | tr "+/" "-_" | tr -d =');
+    }
+    if (e.API_PUBLIC_URL && !/^https?:\/\/[^/\s?#]+(\/[^\s?#]*)?$/.test(e.API_PUBLIC_URL)) {
+      issue('API_PUBLIC_URL', 'must be an absolute http(s) URL without query or fragment');
     }
     if (e.NODE_ENV === 'production') {
       // Fail closed: development defaults must never reach production (docs/deploy-aws.md).
@@ -89,6 +121,17 @@ const envSchema = z
         issue('DATABASE_SSL', 'must be verify-full in production (TLS with certificate and host verification)');
       }
       if (!e.APP_URL.startsWith('https://')) issue('APP_URL', 'must be an https URL in production');
+      if (e.OPEN_FINANCE_PROVIDER === 'fake') {
+        issue('OPEN_FINANCE_PROVIDER', 'the fake provider is not allowed in production (use pluggy or disabled)');
+      }
+      if (openFinance === 'pluggy') {
+        if (e.PLUGGY_SANDBOX) issue('PLUGGY_SANDBOX', 'sandbox connectors are not allowed in production');
+        if (e.API_PUBLIC_URL && !e.API_PUBLIC_URL.startsWith('https://')) issue('API_PUBLIC_URL', 'must be an https URL in production');
+        const secret = e.OPEN_FINANCE_WEBHOOK_SECRET ?? '';
+        if (secret.length < 43 || /dev-?only|change-?me|replace-?me|example|placeholder/i.test(secret)) {
+          issue('OPEN_FINANCE_WEBHOOK_SECRET', 'must be a random secret of 43+ characters in production, not a placeholder');
+        }
+      }
       if (e.CORS_ORIGIN.length === 0 || e.CORS_ORIGIN.some((o) => !o.startsWith('https://'))) {
         issue('CORS_ORIGIN', 'must list only https origins in production');
       }
@@ -96,6 +139,11 @@ const envSchema = z
   });
 
 export type Env = z.infer<typeof envSchema>;
+
+/** Effective Open Finance provider: explicit, or fake outside production and disabled in it. */
+export function openFinanceProviderOf(e: Pick<Env, 'OPEN_FINANCE_PROVIDER' | 'NODE_ENV'>): 'fake' | 'pluggy' | 'disabled' {
+  return e.OPEN_FINANCE_PROVIDER ?? (e.NODE_ENV === 'production' ? 'disabled' : 'fake');
+}
 
 function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);

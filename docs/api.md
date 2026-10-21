@@ -5,7 +5,8 @@ Autenticação: access token JWT de 15 min no cookie httpOnly `effinance_token` 
 login/registro/refresh) **ou** `Authorization: Bearer <token>`; renovação com o refresh token do cookie
 `effinance_refresh` em `POST /api/auth/refresh` (veja "Autenticação e sessões"). Rotas públicas:
 `/api/health`, `/api/auth/{register,login,mfa/verify,refresh,logout,password/forgot,password/reset}`,
-`/api/invites/:token` (prévia), `/api/billing/plans` e o webhook do Mercado Pago. Corpos e queries são validados pelos schemas de `@effinance/shared`
+`/api/invites/:token` (prévia), `/api/billing/plans` e os webhooks do Mercado Pago e do Open Finance
+(este autenticado pelo segredo no caminho). Corpos e queries são validados pelos schemas de `@effinance/shared`
 (`schemas.ts`); respostas seguem `types.ts`.
 
 Valores monetários: **centavos inteiros**. Datas: `YYYY-MM-DD`. Meses: `YYYY-MM`.
@@ -240,3 +241,167 @@ Contrato em `packages/shared/src/saas.ts`.
 (HMAC-SHA256 de `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` com `MP_WEBHOOK_SECRET`), grava
 o evento (idempotência) e consulta `GET /preapproval/:id` para obter o status oficial:
 `authorized → active`, `paused → past_due`, `cancelled → canceled`, `pending → pending`.
+
+---
+
+# Importação de extratos/faturas e Open Finance
+
+Contrato em `packages/shared/src/integrations.ts`. Lançamentos importados são lançamentos comuns
+(aparecem em extrato, fatura, relatórios e podem ser editados), marcados em `Transaction` com
+`origin` (`manual` | `file` | `open_finance`) e `importBatchId` (lote que os criou).
+
+## Endpoints
+
+Autenticados (sessão), no workspace ativo. Mutações exigem papel `editor`/`owner` (`403`) e
+assinatura com escrita (`402`); `viewer` lê. Montados por `lib/tenant-scope.ts` (mesmas
+garantias de `tenant-routes`, em fases: transações RLS curtas e chamadas ao provedor entre elas).
+
+| Método | Rota | Entrada | Resposta |
+| --- | --- | --- | --- |
+| POST | `/api/imports/preview` | `importPreviewSchema` | `ImportPreview` — nada é gravado |
+| POST | `/api/imports` | `importCommitSchema` | `ImportCommitResponse` (201) |
+| GET | `/api/imports?page&pageSize` | `importListQuerySchema` | `Paginated<ImportBatch>` (mais recentes primeiro) |
+| DELETE | `/api/imports/:id` | — | 204 — desfaz: remove os lançamentos restantes do lote e o lote |
+| GET | `/api/open-finance/status` | — | `OpenFinanceStatus` |
+| POST | `/api/open-finance/connect-token` | `connectTokenSchema` | `ConnectTokenResponse` |
+| GET | `/api/open-finance/dev/institutions` | — | `FakeInstitution[]` — **só** provedor `fake` (404 caso contrário) |
+| POST | `/api/open-finance/dev/connect` | `fakeConnectSchema` | `{ itemId }` — **só** provedor `fake` |
+| POST | `/api/open-finance/connections` | `createConnectionSchema` | `BankConnection` (201; 200 se o item já existia: reconsentimento) |
+| GET | `/api/open-finance/connections` | — | `BankConnection[]` |
+| PUT | `/api/open-finance/connections/:id/accounts` | `linkAccountsSchema` | `BankConnection` |
+| POST | `/api/open-finance/connections/:id/sync` | — | `SyncResult` |
+| DELETE | `/api/open-finance/connections/:id` | — | 204 — revoga no provedor; lançamentos importados ficam |
+| POST | `/api/open-finance/webhooks/:provider/:secret` | evento do agregador | `{ received, duplicate }` — **público**, autenticado pelo segredo do caminho |
+
+Erros novos: `422` (arquivo inválido, mais de `MAX_IMPORT_ROWS` linhas, coluna do mapeamento
+inexistente, estorno/crédito enviado para cartão, vínculo incompatível, `syncFrom` fora da janela,
+conector que não é Open Finance), `409` (conta/cartão já alimentado por outra conexão), `502
+provider_unavailable` (agregador não respondeu; detalhes só no log do servidor, sem ids).
+
+## Importação de arquivos (OFX/CSV)
+
+- **Parsers puros** (`modules/imports/{ofx,csv,parse}.ts`, sem APIs do Node; hashes via
+  WebCrypto — a demo roda no navegador): OFX 1.x (SGML, tags sem fechamento) e 2.x (XML), extratos
+  (`STMTRS`) e faturas (`CCSTMTRS`); `TRNAMT` com `.` ou `,`; `DTPOSTED` com hora/fuso (vale a data
+  local do arquivo); `TRNTYPE` corrige valores positivos de saída; `NAME`/`MEMO` combinados;
+  instituição (`ORG` ou código COMPE de `BANKID`/`FID`), `accountHint` (últimos 4 dígitos de
+  `ACCTID`) e período (`DTSTART`/`DTEND` ou mín./máx. das datas).
+- CSV: BOM, aspas (RFC 4180), delimitador (`;` `,` tab `|`) e cabeçalho detectados (linhas de
+  preâmbulo antes do cabeçalho são puladas), linhas de saldo ignoradas, presets por nome de coluna
+  (Nubank cartão `date,title,amount` com compras positivas → `invertSign`; Nubank conta
+  `Data,Valor,Identificador,Descrição`; Inter, Itaú, BB, Bradesco, Santander, C6 —
+  data/lançamento/histórico/descrição/título/valor/débito/crédito) e, sem cabeçalho, colunas
+  deduzidas dos valores. Valores `R$ -1.234,56`, `(1.234,56)`, `1,234.56`, `-50`, `50,00-`,
+  `50,00 D`. Datas nos formatos de `CSV_DATE_FORMATS`. Layout não reconhecido → prévia com
+  `csvColumns`, `csvMapping: null` e `rows: []` (a UI pede o mapeamento).
+- **Mudança aditiva no contrato**: `csvMappingSchema.idColumn` (opcional) — coluna com o id do
+  banco (ex.: "Identificador"); se omitida, é detectada pelo cabeçalho.
+- **externalId**: `fitid:<FITID>` (OFX) ou `id:<id do arquivo>` (CSV); ids repetidos no mesmo
+  arquivo recebem `#n`. Sem id: `h:` + SHA-256 de `data|valor com sinal|descrição normalizada|n-ésima
+  ocorrência idêntica` — o mesmo arquivo gera sempre os mesmos ids. Unicidade no banco por
+  `(workspace, conta, externalId)` e `(workspace, cartão, externalId)`.
+- **Prévia** (`ImportPreviewRow`): `duplicate` quando o externalId já existe no alvo ("Já
+  importado") ou há lançamento (de qualquer origem) com mesma data, tipo, valor e descrição
+  normalizada ("Possível duplicado…"; cada lançamento existente casa com uma linha só);
+  `categoryId` sugerido pelo histórico do workspace (lançamento categorizado mais recente, do mesmo
+  tipo, com descrição normalizada igual ou mesmo prefixo significativo — ex.: "UBER *TRIP 1234" ≈
+  "UBER *TRIP 9876"; pode ser subcategoria; categorias arquivadas são ignoradas);
+  `installment` ("PARC 02/10", "Parcela 2 de 10"; em cartão também "LOJA 02/10" no fim);
+  `skip`+`note` para valor zero, duplicados, pagamento de fatura ("PAGAMENTO RECEBIDO",
+  "PAGTO FATURA"…) e, em cartão, estornos/créditos. `totals` somam todas as linhas do arquivo.
+- **Commit**: conta → receitas/despesas **pagas** com `paidAt = date` (meio de pagamento sugerido:
+  Pix, boleto, débito automático, transferência, débito); cartão → compras **não pagas** com
+  `invoiceMonth = target.invoiceMonth ?? fatura da data de compra`, `paymentMethod = credit_card`.
+  Estornos/créditos em cartão são recusados (`422`, `details.rows`): a fatura soma só compras
+  (`amount > 0`), então um crédito não tem representação coerente — ajuste a compra original.
+  Pagamento de fatura vindo do extrato da conta é sugerido como `skip` (no Effinance ele é a
+  transferência `card_payment` criada ao pagar a fatura). `categoryId` pode ser subcategoria
+  (vira `categoryId` = pai + `subcategoryId`); tipo da categoria deve bater com a linha (`422`);
+  posse de alvo e categorias verificada (`404`). externalIds já existentes no alvo (ou repetidos na
+  requisição) não são criados e contam em `skipped` — reenviar o mesmo commit é idempotente (cria
+  um lote com `createdCount = 0`). `ON CONFLICT DO NOTHING` nos índices únicos cobre corridas.
+- **Lotes**: `remainingCount` = lançamentos do lote que ainda existem (editar não tira do lote;
+  excluir tira). `createdByName` só para quem ainda é membro. `DELETE` remove os lançamentos
+  restantes (inclusive os editados) e o lote.
+- **Limites**: `MAX_IMPORT_CONTENT_CHARS` (3 M caracteres) e `MAX_IMPORT_ROWS` (3000) por arquivo;
+  corpo da prévia até `3 × MAX_IMPORT_CONTENT_CHARS + 64 KiB` (UTF-8 + JSON), do commit até 4 MiB;
+  rate limit por IP: prévia 30/min, commit 20/min, desfazer 30/min.
+- Auditoria: `import.created` (formato, alvo, criados, ignorados) e `import.undone` (origem,
+  removidos) — sem valores, descrições ou nomes de arquivo.
+
+## Open Finance (somente leitura)
+
+- **Provedores** (`OpenFinanceProvider` em `modules/open-finance/providers/`): `PluggyProvider`
+  (fetch puro, sem SDK; caminhos e campos conferidos no código do `pluggy-sdk` 0.92.0) e
+  `FakeOpenFinanceProvider` (dev/testes/demo: Nubank, Itaú, BB, Inter, Bradesco, Santander, C6, cada
+  um com conta corrente e cartão, ~400 dias de movimentos determinísticos por instituição/conta/dia —
+  salário, aluguel, contas, Pix, compras, parcelas, estornos, pagamento de fatura; compras de
+  ontem/hoje ficam pendentes). Configuração: `OPEN_FINANCE_PROVIDER` (`fake` | `pluggy` |
+  `disabled`; padrão `fake` fora de produção e `disabled` em produção), `PLUGGY_CLIENT_ID`,
+  `PLUGGY_CLIENT_SECRET`, `PLUGGY_SANDBOX`, `OPEN_FINANCE_WEBHOOK_SECRET`, `API_PUBLIC_URL`
+  (ver `.env.example`).
+- **Consentimento**: `connect-token` cria um token curto do widget com `clientUserId =
+  workspaceId` e `webhookUrl = ${API_PUBLIC_URL}/api/open-finance/webhooks/pluggy/<segredo>` (só
+  https); com `connectionId`, devolve `updateItemId` para reconsentimento. A chave de API do
+  agregador nunca sai do servidor (cache em memória até 1 min antes de expirar; 401 renova uma vez).
+- **Conexão**: `POST /connections` busca o item **no provedor** (nunca confia no cliente) e exige
+  `item.clientUserId === workspaceId` — item de outro cliente ou inexistente → `404`. Fora de
+  sandbox, exige `connector.isOpenFinance === true` e não-sandbox (`422`): sem raspagem com senha de
+  banco. Grava a conexão e as contas/cartões da instituição (número mascarado `•••• 1234`, saldo,
+  limite, bandeira, dias de fechamento/vencimento); reenviar o mesmo item atualiza (200).
+- **Vínculo** (`PUT …/accounts`): `account`/`credit_card` (posse verificada; conta ↔ conta,
+  cartão ↔ cartão), `new` (cria conta com banco do catálogo `BANKS` reconhecido pelo nome da
+  instituição e ícone `landmark`, ou cartão com bandeira/limite/fechamento/vencimento da instituição
+  e conta de pagamento padrão = conta vinculada da mesma conexão), `ignore` (desvincula). Cada
+  conta/cartão local recebe de no máximo uma conta da instituição (`409`). `syncFrom` padrão
+  `hoje − OPEN_FINANCE_DEFAULT_HISTORY_DAYS`, no máximo `OPEN_FINANCE_MAX_HISTORY_DAYS` atrás;
+  trocar o destino ou o `syncFrom` relê o histórico (sem duplicar). Conta criada por `new`: na
+  primeira sincronização o saldo inicial é ajustado para o saldo atual bater com o da instituição.
+  O vínculo não sincroniza sozinho: chame `POST …/sync`.
+- **Sincronização**: janela `max(syncFrom, min(última sync, transação mais recente vista) − 7
+  dias)` até hoje; transações pendentes ignoradas; direção pelo campo `type` do provedor (DEBIT =
+  saída; no cartão, compra) — nunca pelo sinal do valor, cuja convenção muda entre tipos de conta;
+  compras em moeda estrangeira pelo valor na moeda da conta. Conta: saída = despesa, entrada =
+  receita, pagas na data; débitos de pagamento de fatura são pulados. Cartão: compras na fatura do
+  vencimento da *bill* do provedor quando conhecida, senão pela data de compra; pagamentos e
+  estornos pulados. Dedupe por externalId = id da transação no provedor; valor/data alterados no
+  banco atualizam o lançamento (`updated`; compras já pagas pela fatura não mudam). Um lote
+  `open_finance` por conta vinculada quando há lançamentos novos. Status da conexão vem do item
+  (`UPDATED→active`, `UPDATING/MERGING→syncing`, `LOGIN_ERROR→login_error`,
+  `WAITING_USER_INPUT/ACTION→waiting_user_input`, `OUTDATED→outdated`) com `statusDetail` fixo em
+  pt-BR (nunca a mensagem do banco); item inexistente → `error` ("não existe mais…"). Sincronizações
+  simultâneas da mesma conexão são serializadas (`SELECT … FOR UPDATE`).
+- **Desconectar**: apaga o item no provedor (o agregador apaga os dados coletados; 404 = já
+  apagado) e depois a conexão; lotes ficam sem `connectionId`, lançamentos permanecem. Excluir
+  workspace (`DELETE /workspaces/current`) ou conta (`DELETE /auth/me`) revoga antes todos os itens
+  dos workspaces excluídos (falha do provedor aborta a exclusão: tente de novo).
+- **Webhook** `POST /api/open-finance/webhooks/pluggy/<segredo>` (o `:provider` precisa ser o
+  configurado): segredo comparado em tempo constante (SHA-256 dos dois lados) → `401`; envelope
+  validado (`event`, `eventId` ≤ 200, `itemId`) → `400`; idempotente por `(provider, eventId)`
+  (`open_finance_events`, retenção 30 dias) → repetido responde `{ duplicate: true }` sem
+  processar. Responde `200` imediatamente e processa depois (tarefas acompanhadas e aguardadas no
+  `close` do app): o `itemId` só serve para rotear (HMAC no índice global → workspace/conexão); o
+  item, as contas e as transações são **relidos do provedor** pela sincronização normal, que
+  reconfere `clientUserId`. Falha no processamento fica no log (sem PII) e o evento sem
+  `processed_at`; o próximo evento ou uma sincronização manual recupera (sincronização idempotente).
+  Eventos: `item/*` e `transactions/*` → sincronizar; `item/deleted` → marca a conexão.
+- **LGPD**: a exportação (`GET /workspaces/current/export`) inclui `bankConnections` (instituição,
+  status, consentimento, contas mascaradas e vínculos) e `importBatches`, **sem** ids do provedor,
+  índices cegos ou cursores; `externalId` dos lançamentos não é exportado.
+- Auditoria: `open_finance.connected` (`metadata.reconnected`), `open_finance.synced` (`trigger`
+  manual/webhook, contagens), `open_finance.disconnected` — sem ids do provedor.
+
+## Banco (migração 0005)
+
+- Tenant (RLS `ENABLE`+`FORCE`, política `USING`/`WITH CHECK`, `UNIQUE (workspace_id, id)`, FKs
+  compostas, `GRANT SELECT, INSERT, UPDATE, DELETE` só para `effinance_app`): `import_batches`,
+  `bank_connections` (`provider_item_id` cifrado com a chave do workspace + `provider_item_hash`,
+  índice cego), `bank_connection_accounts` (`provider_account_id` cifrado + hash; vínculos com
+  `ON DELETE SET NULL (coluna)`; um feed por conta/cartão local). `transactions` ganhou `origin`
+  (CHECK), `import_batch_id` (FK composta, `SET NULL` só na coluna), `external_id` e os índices
+  únicos parciais por conta/cartão.
+- Globais (sem dados pessoais, fora do RLS, acessadas só pelo login da API): `platform_keys`
+  (chaves aleatórias embrulhadas pelo `KeyProvider` — KMS em produção — `SELECT, INSERT`),
+  `open_finance_items` (HMAC de `provider:itemId` com a chave de plataforma → workspace/conexão;
+  apagado em cascata com a conexão; `SELECT, INSERT`) e `open_finance_events` (`SELECT, INSERT,
+  UPDATE`). Um dump do banco não revela ids de item: o índice é um HMAC com chave protegida pelo KMS.

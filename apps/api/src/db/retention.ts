@@ -5,16 +5,19 @@
 
 import { and, isNotNull, lt, or } from 'drizzle-orm';
 import type { DbExecutor } from './client';
-import { passwordResets, sessions, workspaceInvites } from './schema';
+import { openFinanceEvents, passwordResets, sessions, workspaceInvites } from './schema';
 
 const DAY_MS = 86_400_000;
 /** Accepted/expired invites stay visible this long (support questions), then go. */
 export const INVITE_RETENTION_DAYS = 30;
+/** Webhook event ids are kept this long for idempotency (aggregators retry for hours, not weeks). */
+export const WEBHOOK_EVENT_RETENTION_DAYS = 30;
 
 export interface PurgeResult {
   sessions: number;
   passwordResets: number;
   invites: number;
+  webhookEvents: number;
 }
 
 export async function purgeExpiredSecurityRows(db: DbExecutor, now: Date = new Date()): Promise<PurgeResult> {
@@ -38,5 +41,14 @@ export async function purgeExpiredSecurityRows(db: DbExecutor, now: Date = new D
       ),
     )
     .returning({ id: workspaceInvites.id });
-  return { sessions: deletedSessions.length, passwordResets: deletedResets.length, invites: deletedInvites.length };
+  const deletedEvents = await db
+    .delete(openFinanceEvents)
+    .where(lt(openFinanceEvents.createdAt, new Date(now.getTime() - WEBHOOK_EVENT_RETENTION_DAYS * DAY_MS)))
+    .returning({ id: openFinanceEvents.id });
+  return {
+    sessions: deletedSessions.length,
+    passwordResets: deletedResets.length,
+    invites: deletedInvites.length,
+    webhookEvents: deletedEvents.length,
+  };
 }

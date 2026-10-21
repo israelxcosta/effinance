@@ -26,7 +26,7 @@ export async function runMigrations(url?: string) {
     }
     const purged = await purgeExpiredSecurityRows(db);
     console.log(
-      `✔ retention: ${purged.sessions} sessions, ${purged.passwordResets} reset links, ${purged.invites} invites removed`,
+      `✔ retention: ${purged.sessions} sessions, ${purged.passwordResets} reset links, ${purged.invites} invites, ${purged.webhookEvents} webhook events removed`,
     );
   } finally {
     await client.end();

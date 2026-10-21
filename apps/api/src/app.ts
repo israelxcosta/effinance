@@ -20,6 +20,8 @@ import type { Platform } from './lib/platform';
 import { tenantRoutes } from './lib/tenant-routes';
 import { authRoutes } from './modules/auth/routes';
 import { billingRoutes } from './modules/billing/routes';
+import { openFinanceWebhookRoutes } from './modules/open-finance/routes';
+import { settleOpenFinanceJobs } from './modules/open-finance/webhooks';
 import { isMutation } from './modules/workspaces/access';
 import { inviteRoutes, workspaceRoutes } from './modules/workspaces/routes';
 import { domainRoutes, scopedRoutes } from './routes';
@@ -79,6 +81,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
   app.decorate('platform', { ...(await createPlatform(env)), ...options.platform });
   const redis = env.REDIS_URL ? new Redis(env.REDIS_URL, { lazyConnect: false, maxRetriesPerRequest: 1 }) : null;
   app.addHook('onClose', async () => {
+    // Webhook syncs still running use the pool.
+    await settleOpenFinanceJobs();
     await client.end({ timeout: 5 });
     await redis?.quit();
   });
@@ -161,6 +165,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
       await api.register(billingRoutes, { prefix: '/billing' });
       await api.register(tenantRoutes, { routes: domainRoutes });
       for (const { prefix, plugin } of scopedRoutes) await api.register(plugin, { prefix });
+      // Public: authenticated by the secret in the path (never by a session).
+      await api.register(openFinanceWebhookRoutes, { prefix: '/open-finance/webhooks' });
     },
     { prefix: '/api' },
   );

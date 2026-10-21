@@ -100,7 +100,7 @@ A API usa a `effinance-data` de dois jeitos (`apps/api/src/lib/crypto/aws-kms.ts
 | Operação | Ações | Encryption context |
 | --- | --- | --- |
 | Chave de dados por workspace | `GenerateDataKey`, `Decrypt` | `{ workspaceId }` |
-| Segredos pequenos (semente TOTP) | `Encrypt`, `Decrypt` | `{ purpose: "secret", context }` |
+| Segredos pequenos (semente TOTP; chaves de plataforma `platform_keys`, ex.: índice dos webhooks do Open Finance) | `Encrypt`, `Decrypt` | `{ purpose: "secret", context }` |
 
 Política da `effinance-data` — cada ação só com o *formato* de contexto correspondente, ninguém além
 das roles da aplicação consegue cifrar/decifrar, e o uso só vale pelo endpoint de VPC:
@@ -263,7 +263,12 @@ TO effinance_api;
 GRANT SELECT, INSERT, UPDATE ON subscriptions, billing_events, sessions TO effinance_api;
 -- Trilha de auditoria: só acrescenta.
 GRANT SELECT, INSERT ON audit_logs TO effinance_api;
--- Tabelas financeiras: NENHUM grant para effinance_api. Só effinance_app (com RLS).
+-- Open Finance (migração 0005, sem dados pessoais): chave de plataforma e índice dos webhooks são só
+-- inseridos (o índice some em cascata com a conexão); eventos recebem processed_at.
+GRANT SELECT, INSERT ON platform_keys, open_finance_items TO effinance_api;
+GRANT SELECT, INSERT, UPDATE ON open_finance_events TO effinance_api;
+-- Tabelas financeiras (inclusive import_batches, bank_connections, bank_connection_accounts):
+-- NENHUM grant para effinance_api. Só effinance_app (com RLS).
 ```
 
 Os grants são os mesmos de `apps/api/test/db-roles.ts` (`IDENTITY_GRANTS`) — a suíte de testes
@@ -278,7 +283,8 @@ SELECT rolsuper, rolbypassrls, rolinherit FROM pg_roles WHERE rolname = 'effinan
 SELECT table_name FROM information_schema.role_table_grants
  WHERE grantee = 'effinance_api' AND table_name NOT IN
   ('users','workspaces','workspace_members','workspace_invites','subscriptions',
-   'billing_events','sessions','password_resets','audit_logs');
+   'billing_events','sessions','password_resets','audit_logs',
+   'platform_keys','open_finance_items','open_finance_events');
 ```
 
 ### 4. Segredos (Secrets Manager)
@@ -291,6 +297,7 @@ principal que não seja a execution role correspondente (e a role de break-glass
 | `effinance/api/database-url` | `postgres://effinance_api:<senha>@<endpoint>:5432/effinance` | execution role da API |
 | `effinance/api/jwt-secret` | 48+ bytes aleatórios (`openssl rand -base64 48`) | execution role da API |
 | `effinance/api/mercadopago` | JSON `{"MP_ACCESS_TOKEN": "...", "MP_WEBHOOK_SECRET": "..."}` | execution role da API |
+| `effinance/api/pluggy` | JSON `{"PLUGGY_CLIENT_ID": "...", "PLUGGY_CLIENT_SECRET": "...", "OPEN_FINANCE_WEBHOOK_SECRET": "<43+ caracteres URL-safe>"}` | execution role da API |
 | `effinance/api/redis-url` | `rediss://<usuário>:<senha>@<endpoint>:6379` | execution role da API |
 | `effinance/migrator/database-url` | `postgres://effinance_owner:<senha>@<endpoint>:5432/effinance` | execution role da migração |
 
@@ -307,6 +314,12 @@ principal que não seja a execution role correspondente (e a role de break-glass
     tokens emitidos (15 min). Em incidente, revogue também as sessões no banco.
   - Mercado Pago: renove as credenciais no painel, atualize o segredo e faça o deploy; regenere a
     assinatura secreta do webhook do mesmo jeito (o MP reenvia notificações que falharem).
+  - Pluggy: gere um novo `PLUGGY_CLIENT_SECRET` no dashboard, atualize o segredo e faça o deploy
+    (a API key é renovada sozinha). `OPEN_FINANCE_WEBHOOK_SECRET` vai na URL de webhook gravada em
+    cada item no momento do consentimento: trocá-lo faz os itens antigos baterem em `401` até serem
+    atualizados (reconsentimento, ou `PATCH /items/:id` com o novo `webhookUrl` por script). Enquanto
+    isso a sincronização manual continua funcionando. Gere com
+    `openssl rand -base64 48 | tr '+/' '-_' | tr -d '='`.
 - `ENCRYPTION_MASTER_KEY` **não** existe em produção (`KEY_PROVIDER=aws`).
 
 ### 5. Imagem (ECR)
@@ -428,7 +441,10 @@ Task definition `effinance-api` (ARM64, 0.5 vCPU / 1 GB para começar) — campo
         { "name": "JWT_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/jwt-secret-<sufixo>" },
         { "name": "MP_ACCESS_TOKEN", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/mercadopago-<sufixo>:MP_ACCESS_TOKEN::" },
         { "name": "MP_WEBHOOK_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/mercadopago-<sufixo>:MP_WEBHOOK_SECRET::" },
-        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/redis-url-<sufixo>" }
+        { "name": "REDIS_URL", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/redis-url-<sufixo>" },
+        { "name": "PLUGGY_CLIENT_ID", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/pluggy-<sufixo>:PLUGGY_CLIENT_ID::" },
+        { "name": "PLUGGY_CLIENT_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/pluggy-<sufixo>:PLUGGY_CLIENT_SECRET::" },
+        { "name": "OPEN_FINANCE_WEBHOOK_SECRET", "valueFrom": "arn:aws:secretsmanager:sa-east-1:<conta>:secret:effinance/api/pluggy-<sufixo>:OPEN_FINANCE_WEBHOOK_SECRET::" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "wget -q -T 2 -O /dev/null http://127.0.0.1:3333/api/health || exit 1"],
@@ -463,8 +479,10 @@ AWS_REGION=sa-east-1
 MAILER=ses                    # obrigatório: "console" grava os e-mails (links de redefinição) no log
 MAIL_FROM=Effinance <nao-responda@effinance.com.br>
 BILLING_PROVIDER=mercadopago
+OPEN_FINANCE_PROVIDER=pluggy     # ou disabled (padrão em produção); "fake" é recusado
+API_PUBLIC_URL=https://app.effinance.com.br   # /api/* chega à API pelo CloudFront; https obrigatório
 LOG_LEVEL=info
-# nunca: EFFINANCE_TODAY (só testes), ENCRYPTION_MASTER_KEY
+# nunca: EFFINANCE_TODAY (só testes), ENCRYPTION_MASTER_KEY, PLUGGY_SANDBOX=true
 ```
 
 Log group `/effinance/api` cifrado com `effinance-ops`, retenção 90 dias.
@@ -489,8 +507,8 @@ expirados e, se houver workspaces sem chave (dados antigos), gera as chaves e ci
 sensíveis (idempotente) — por isso precisa da chave KMS. Hoje ele valida o ambiente completo da
 API (com as regras de produção de `.env.example`): dê à tarefa de migração `JWT_SECRET` aleatório
 próprio (43+ caracteres), `MAILER=ses`, `APP_URL`/`CORS_ORIGIN` https e valores fictícios para
-`MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (ela não fala com o Mercado Pago nem envia e-mails) —
-**nunca** os segredos reais da API.
+`MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (ela não fala com o Mercado Pago nem envia e-mails) e
+`OPEN_FINANCE_PROVIDER=disabled` (ela não fala com a Pluggy) — **nunca** os segredos reais da API.
 
 ### 7. Web (S3 + CloudFront)
 
@@ -549,6 +567,18 @@ Cross-Origin-Resource-Policy: same-origin
 
    Ative "Origin override" nesses cabeçalhos. Antes do `preload`, confirme que **todos** os
    subdomínios servem HTTPS.
+
+   **Widget de consentimento do Open Finance (Pluggy Connect)** — conferido no código do
+   `pluggy-connect-sdk` 2.14.2: o widget abre `https://connect.pluggy.ai` num iframe (ou popup) e os
+   retornos OAuth dos bancos passam por `https://api.pluggy.ai`. Com `OPEN_FINANCE_PROVIDER=pluggy`
+   a política acima precisa de `frame-src https://connect.pluggy.ai` (hoje `'none'`); se o SDK for
+   carregado do CDN em vez de empacotado pelo Vite, também `script-src https://cdn.pluggy.ai`
+   (prefira empacotar: um script de terceiro no `script-src` roda com acesso à sessão). A página não
+   chama `api.pluggy.ai` diretamente (é o iframe que chama), então `connect-src` não muda. O fluxo
+   OAuth abre o app/site do banco: se o widget usar modo popup, `Cross-Origin-Opener-Policy:
+   same-origin` corta o `window.opener` — teste em staging e, se quebrar, use
+   `same-origin-allow-popups` só nas rotas da tela de conexões. A CSP vem de
+   `apps/web/src/lib/csp.ts` (time de frontend) e o teste `csp.test.ts` precisa acompanhar.
 6. Route 53: registro CAA (`0 issue "amazon.com"`), DNSSEC opcional.
 
 ### 8. WAF (no CloudFront, escopo `CLOUDFRONT`, criado em `us-east-1`)
@@ -563,12 +593,25 @@ Ordem sugerida das regras (comece em **Count** por 1–2 semanas, revise os logs
 4. *Rate-based* em `/api/auth/*` (ex.: 100 req/5 min por IP, resposta 429) — além do rate limit da API.
 5. Webhook `/api/billing/webhooks/mercadopago`: bloquear método ≠ `POST`, ausência do cabeçalho
    `x-signature` e corpo > 64 KB; *rate-based* próprio (ex.: 300 req/5 min por IP).
+   Webhook do Open Finance (`/api/open-finance/webhooks/pluggy/<segredo>`): regra que só deixa
+   passar `POST` com URI casando `^/api/open-finance/webhooks/pluggy/[A-Za-z0-9_-]{43,200}$`,
+   `content-type: application/json` e corpo ≤ 64 KB (tudo o mais sob `/api/open-finance/webhooks/`
+   → Block); *rate-based* próprio (ex.: 300 req/5 min por IP). A API compara o segredo em tempo
+   constante, é idempotente por `eventId` e sempre reconsulta a Pluggy — o WAF é camada extra; não
+   dependa de allowlist de IPs da Pluggy (não é contrato estável).
+   Importação de arquivos: `POST /api/imports/preview` leva o arquivo inteiro (até ~9 MB) e
+   `POST /api/imports` até 4 MB — faça *scope-down* de `SizeRestrictions_BODY` (e, se houver falso
+   positivo com extratos, de `CrossSiteScripting_BODY`/SQLi do corpo) excluindo esses dois caminhos,
+   com *oversize handling* `CONTINUE`; a API valida tamanho, formato e linhas.
 6. *Rate-based* geral em `/api/*` (ex.: 2000 req/5 min por IP).
 7. Opcionais pagos: Account Takeover Prevention (`AWSManagedRulesATPRuleSet`) no login, Bot Control.
-8. Opcional: bloqueio geográfico fora do Brasil — **exceto** o caminho do webhook.
+8. Opcional: bloqueio geográfico fora do Brasil — **exceto** os caminhos dos webhooks.
 
 Logs do WAF em `aws-waf-logs-effinance` (cifrado) com *redaction* dos cabeçalhos `cookie` e
-`authorization`.
+`authorization`. O segredo do webhook do Open Finance está no **caminho** (a URL do webhook por
+item não aceita cabeçalhos): os logs da API o mascaram (`[secret]`), mas os logs de acesso do
+CloudFront, do ALB e do WAF gravam a URI inteira — mantenha esses logs com acesso restrito (mesma
+classificação de segredo) ou filtre o caminho no envio.
 
 ### 9. E-mail (SES)
 
@@ -595,6 +638,26 @@ Logs do WAF em `aws-waf-logs-effinance` (cifrado) com *redaction* dos cabeçalho
    contrato estável e uma mudança derrubaria a cobrança em silêncio). Use as regras do WAF (§8)
    como camada extra.
 4. Teste com usuários de teste do Mercado Pago antes de virar a chave.
+
+### 10b. Open Finance (Pluggy)
+
+1. Conta na Pluggy com 2FA; aplicação de **produção** com conectores **Open Finance** (a API
+   recusa conectores que não sejam Open Finance — nada de raspagem com senha de banco — e
+   conectores sandbox). Copie `client_id`/`client_secret` para `effinance/api/pluggy` (§4).
+2. `OPEN_FINANCE_PROVIDER=pluggy`, `API_PUBLIC_URL=https://app.effinance.com.br` e
+   `OPEN_FINANCE_WEBHOOK_SECRET` (43+ caracteres URL-safe). A API passa, em cada *connect token*,
+   `clientUserId = <workspace>` e `webhookUrl = ${API_PUBLIC_URL}/api/open-finance/webhooks/pluggy/<segredo>`;
+   não cadastre outro webhook no dashboard para os mesmos eventos (evita entregas duplicadas —
+   seriam ignoradas por `eventId`, mas geram carga).
+3. Ao registrar uma conexão, a API busca o item na Pluggy e exige `clientUserId` igual ao workspace:
+   um `itemId` de outro cliente é recusado. Ids de item/conta ficam cifrados com a chave do
+   workspace; o índice global dos webhooks é um HMAC com chave de plataforma protegida pelo KMS.
+4. Desconectar, excluir workspace ou conta apaga o item na Pluggy (que apaga os dados coletados).
+   Se a Pluggy estiver fora do ar, a exclusão falha com `502` e deve ser repetida.
+5. Teste com os conectores sandbox (`PLUGGY_SANDBOX=true`) **apenas** em desenvolvimento — em
+   produção a API se recusa a subir com sandbox ligado.
+6. Alarmes (metric filter no log da API): `open finance provider call failed` e
+   `open finance webhook processing failed` acima do normal.
 
 ### 11. Observabilidade e resposta a incidentes
 
@@ -668,5 +731,8 @@ Logs do WAF em `aws-waf-logs-effinance` (cifrado) com *redaction* dos cabeçalho
 - [ ] Imagem implantada por digest; ECR imutável com Inspector; CI verde em `main`.
 - [ ] CSP de `apps/web/src/lib/csp.ts` aplicada no CloudFront (hash conferido); `dist-demo` fora do domínio de produção.
 - [ ] WAF fora do modo Count após o período de observação.
+- [ ] Open Finance: `OPEN_FINANCE_PROVIDER=pluggy` (ou `disabled`), credenciais e segredo do webhook
+      só no Secrets Manager, grants das tabelas globais da 0005 (§3), regra do WAF do webhook e
+      `frame-src https://connect.pluggy.ai` na CSP do site (§7).
 - [ ] Teste de restauração executado e registrado.
 - [ ] Pentest externo e revisão do WAF antes do lançamento.

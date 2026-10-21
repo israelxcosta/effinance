@@ -679,7 +679,11 @@ describe('data protection', () => {
       { workspaceId: a.ws, email: 'pendente@teste.com', role: 'viewer', tokenHash: 'i-live', expiresAt: at(5) },
     ]);
 
-    expect(await purgeExpiredSecurityRows(admin(), now)).toEqual({ sessions: 1, passwordResets: 2, invites: 2 });
+    await admin().execute(sql`insert into open_finance_events (provider, event_id, event_type, created_at) values
+      ('pluggy', 'evt-old', 'item/updated', ${at(-31).toISOString()}::timestamptz), ('pluggy', 'evt-recent', 'item/updated', ${at(-2).toISOString()}::timestamptz)`);
+
+    expect(await purgeExpiredSecurityRows(admin(), now)).toEqual({ sessions: 1, passwordResets: 2, invites: 2, webhookEvents: 1 });
+    expect((await rows<{ event_id: string }>(sql`select event_id from open_finance_events`)).map((r) => r.event_id)).toEqual(['evt-recent']);
     expect((await admin().select({ h: sessions.tokenHash }).from(sessions)).map((r) => r.h)).toEqual(['s-live']);
     expect((await admin().select({ h: passwordResets.tokenHash }).from(passwordResets)).map((r) => r.h)).toEqual(['r-live']);
     expect((await admin().select({ h: workspaceInvites.tokenHash }).from(workspaceInvites)).map((r) => r.h).sort()).toEqual([

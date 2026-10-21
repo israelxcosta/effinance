@@ -11,6 +11,7 @@ import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAccounts } from '@/features/accounts/api';
 import { WriteGate } from '@/features/auth/permissions';
 import { useCards } from '@/features/cards/api';
+import { useBankConnections, useOpenFinanceStatus } from '@/features/open-finance/api';
 import { formatDateTime } from '@/lib/datetime';
 import { cn, pluralize } from '@/lib/utils';
 import { useImportBatches } from './api';
@@ -26,7 +27,13 @@ export function ImportHistoryCard() {
   const batches = useImportBatches({ page, pageSize: PAGE_SIZE });
   const accounts = useAccounts({ includeArchived: true });
   const cards = useCards({ includeArchived: true });
+  const openFinance = useOpenFinanceStatus();
+  const connections = useBankConnections(openFinance.enabled);
   const { openImport } = useImportActions();
+  const title = (b: ImportBatch) => {
+    const institution = b.connectionId ? connections.data?.find((c) => c.id === b.connectionId)?.institution.name : undefined;
+    return institution ? `Open Finance · ${institution}` : batchTitle(b);
+  };
   const undo = useUndoImportAction();
   const [toUndo, setToUndo] = useState<ImportBatch | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -84,11 +91,10 @@ export function ImportHistoryCard() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-fg">
-                        <span className="truncate" title={batchTitle(b)}>
-                          {batchTitle(b)}
+                        <span className="truncate" title={title(b)}>
+                          {title(b)}
                         </span>
                         {b.format ? <Badge tone="brand">{b.format.toUpperCase()}</Badge> : null}
-                        {b.origin === 'open_finance' ? <Badge tone="brand">Open Finance</Badge> : null}
                         {undone ? <Badge>Desfeita</Badge> : null}
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
@@ -136,7 +142,7 @@ export function ImportHistoryCard() {
         title="Desfazer importação?"
         description={
           toUndo
-            ? `${pluralize(toUndo.remainingCount, 'lançamento criado', 'lançamentos criados')} por "${batchTitle(toUndo)}" ${toUndo.remainingCount === 1 ? 'será excluído' : 'serão excluídos'}. Lançamentos manuais não são afetados.`
+            ? `${pluralize(toUndo.remainingCount, 'lançamento criado', 'lançamentos criados')} por "${title(toUndo)}" ${toUndo.remainingCount === 1 ? 'será excluído' : 'serão excluídos'}. Lançamentos manuais não são afetados.`
             : undefined
         }
         confirmLabel="Desfazer importação"

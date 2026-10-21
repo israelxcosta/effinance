@@ -1,5 +1,6 @@
 // In-browser API for the demo build: PGlite (Postgres in WASM) + the real API route plugins,
-// including Row Level Security, field encryption (fixed demo key), workspaces and fake billing.
+// including Row Level Security, field encryption (fixed demo key), workspaces, fake billing, file
+// imports and Open Finance with the simulated provider (no webhooks in the browser).
 // Data persists per browser in IndexedDB; the demo users are seeded on first boot.
 
 import type {} from '@api/app'; // brings Fastify type augmentations (app.db, req.workspaceId) into scope
@@ -16,9 +17,10 @@ import { tenantRoutes } from '@api/lib/tenant-routes';
 import { setSessionWorkspace } from '@api/modules/auth/sessions';
 import { FakeBillingProvider } from '@api/modules/billing/providers/fake';
 import { billingRoutes } from '@api/modules/billing/routes';
+import { FakeOpenFinanceProvider } from '@api/modules/open-finance/providers/fake';
 import { loadAccess } from '@api/modules/workspaces/access';
 import { inviteRoutes, workspaceRoutes } from '@api/modules/workspaces/routes';
-import { domainRoutes } from '@api/routes';
+import { domainRoutes, scopedRoutes } from '@api/routes';
 import { demoAuthRoutes } from './auth-routes';
 import { DemoRouter, type DemoReply, type DemoRequest } from './fake-fastify';
 import { getSession, setSession } from './session';
@@ -28,7 +30,7 @@ export { DEMO_EMAIL, DEMO_PARTNER_EMAIL, DEMO_PASSWORD };
 const DATA_DIR = 'idb://effinance-demo';
 const IDB_NAME = '/pglite/effinance-demo';
 /** Bump to reseed browsers that hold demo data from an older version. */
-const SEED_VERSION = 'seed:saas-v1';
+const SEED_VERSION = 'seed:integrations-v1';
 
 // Drizzle migrations, applied in order and tracked in a local table.
 const migrations = import.meta.glob('../../../api/drizzle/*.sql', {
@@ -112,7 +114,12 @@ async function boot() {
   }
 
   const appUrl = demoAppUrl();
-  const platform: Platform = { appUrl, mailer: new ConsoleMailer(), billing: new FakeBillingProvider(appUrl) };
+  const platform: Platform = {
+    appUrl,
+    mailer: new ConsoleMailer(),
+    billing: new FakeBillingProvider(appUrl),
+    openFinance: { provider: new FakeOpenFinanceProvider(), webhookUrl: null, webhookSecret: null },
+  };
 
   const router = new DemoRouter({
     db,
@@ -142,6 +149,7 @@ async function boot() {
       await api.register(inviteRoutes, { prefix: '/invites' });
       await api.register(billingRoutes, { prefix: '/billing' });
       await api.register(tenantRoutes, { routes: domainRoutes });
+      for (const { prefix, plugin } of scopedRoutes) await api.register(plugin, { prefix });
     },
     { prefix: '/api' },
   );

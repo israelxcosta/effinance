@@ -10,7 +10,7 @@
 // purchase, CREDIT a payment/refund) — never from the sign of `amount`, whose convention differs
 // between account types. Foreign-currency card purchases use `amountInAccountCurrency`.
 
-import { todayISO, type BankConnectionStatus, type ISODate } from '@effinance/shared';
+import type { BankConnectionStatus, ISODate } from '@effinance/shared';
 import {
   ProviderError,
   safeImageUrl,
@@ -314,9 +314,4 @@ export class PluggyProvider implements OpenFinanceProvider {
     }
     return out;
   }
-}
-
-/** Today in Brasília (for date filters sent to the provider). */
-export function brasiliaToday(): ISODate {
-  return todayISO(new Date(Date.now() - 3 * 3_600_000));
 }

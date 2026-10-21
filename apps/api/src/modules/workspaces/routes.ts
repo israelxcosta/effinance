@@ -18,8 +18,8 @@ import { ValidationError } from '../../lib/errors';
 import { oneLine } from '../../lib/mailer';
 import { rateLimited } from '../../lib/platform';
 import { requestContext } from '../../lib/request-context';
-import { cancelForDeletion } from '../billing/service';
 import { assertCanWrite, assertOwner } from './access';
+import { prepareWorkspaceDeletion } from './deletion';
 import { exportWorkspace } from './export';
 import {
   acceptInvite,
@@ -73,7 +73,7 @@ export const workspaceRoutes: FastifyPluginAsyncZod = async (app) => {
     if (req.body.confirmName.trim() !== req.access.workspaceName.trim()) {
       throw new ValidationError('Digite o nome do espaço exatamente como aparece para confirmar');
     }
-    await cancelForDeletion(app.db, app.platform, [req.workspaceId]);
+    await prepareWorkspaceDeletion(app.db, app.platform, [req.workspaceId], req.log);
     await deleteWorkspaceRow(app.db, req.workspaceId);
     await audit(app.db, { ...requestContext(req), action: 'workspace.deleted', userId: req.userId, entity: 'workspace', entityId: req.workspaceId });
     const next = await resolveWorkspaceFor(app.db, req.userId);

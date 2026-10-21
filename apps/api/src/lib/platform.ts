@@ -3,6 +3,7 @@
 // modules never import `env.ts` directly.
 
 import type { BillingProvider } from '../modules/billing/providers/types';
+import type { OpenFinanceSetup } from '../modules/open-finance/providers/types';
 import type { Mailer } from './mailer';
 
 export interface Platform {
@@ -10,6 +11,8 @@ export interface Platform {
   appUrl: string;
   mailer: Mailer;
   billing: BillingProvider;
+  /** Read-only bank connections (Pluggy, or the simulated provider); null/absent = feature disabled. */
+  openFinance?: OpenFinanceSetup | null;
   /** Tests only: per-IP route limits become 1000/window so suites can hammer an endpoint. */
   relaxedRateLimits?: boolean;
 }

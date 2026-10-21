@@ -32,7 +32,7 @@ import {
   updateProfile,
 } from '@api/modules/auth/service';
 import { createSession, listSessions, revokeFamily, revokeUserSession, setSessionWorkspace } from '@api/modules/auth/sessions';
-import { cancelForDeletion } from '@api/modules/billing/service';
+import { prepareWorkspaceDeletion } from '@api/modules/workspaces/deletion';
 import { getMe, getUserRow, resolveWorkspaceFor, switchWorkspace } from '@api/modules/workspaces/service';
 import type { DemoReply, DemoRequest, DemoScope } from './fake-fastify';
 import { getSession, setSession } from './session';
@@ -142,7 +142,7 @@ export async function demoAuthRoutes(app: Scope) {
 
     authed.delete('/me', { schema: { body: deleteAccountSchema } }, async (req: DemoRequest, reply: DemoReply) => {
       await deleteAccount(app.db, req.userId, (req.body as { password: string }).password, (ids) =>
-        cancelForDeletion(app.db, app.platform, ids),
+        prepareWorkspaceDeletion(app.db, app.platform, ids),
       );
       setSession(null);
       return reply.code(204).send();
