@@ -13,7 +13,7 @@
 # - non-root numeric user, application files owned by root (read-only for the process), works
 #   with a read-only root filesystem, tini as PID 1 (signal forwarding, zombie reaping).
 
-FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS node
+FROM node:26.12.0-alpine3.24@sha256:6f08a523443ddedf52941874c203475b0ad503e859ad70cb26ab8be9a517dbd5 AS node
 
 FROM node AS build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0
