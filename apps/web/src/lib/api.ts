@@ -62,9 +62,10 @@ export interface RequestOptions {
 
 let bearerToken: string | null = null;
 let unauthorizedHandler: (() => void) | null = null;
+let expectedWorkspace: string | null = null;
 
 /** Errors the app reacts to globally (toast + navigation), whatever screen made the request. */
-export type AccessErrorKind = 'subscription_required' | 'forbidden';
+export type AccessErrorKind = 'subscription_required' | 'forbidden' | 'workspace_mismatch';
 let accessErrorHandler: ((kind: AccessErrorKind, error: ApiRequestError) => void) | null = null;
 
 /**
@@ -73,6 +74,14 @@ let accessErrorHandler: ((kind: AccessErrorKind, error: ApiRequestError) => void
  */
 export function setBearerToken(token: string | null): void {
   bearerToken = token;
+}
+
+/**
+ * Workspace this tab is showing. Sent as `X-Workspace-Id` so the API refuses (409
+ * `workspace_mismatch`) a write meant for it after another tab switched the shared session.
+ */
+export function setExpectedWorkspace(id: string | null): void {
+  expectedWorkspace = id;
 }
 
 /** Called when the session cannot be renewed (refresh token missing, expired or revoked). */
@@ -109,6 +118,8 @@ export function refreshSession(): Promise<boolean> {
   })
     .then((res) => {
       if (res.ok) bearerToken = null;
+      // Only the status matters; release the (error) body instead of leaving the response open.
+      void res.body?.cancel().catch(() => {});
       return res.ok;
     })
     .catch(() => false)
@@ -134,6 +145,7 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (bearerToken) headers.Authorization = `Bearer ${bearerToken}`;
+  if (expectedWorkspace) headers['X-Workspace-Id'] = expectedWorkspace;
   try {
     return await transport(`/api${path}${buildQuery(query)}`, {
       method,
@@ -158,8 +170,11 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   // Expired access token: renew once and replay. If the replay still gets 401 the session is valid
   // and the request itself was refused (e.g. wrong current password), so it surfaces as an error.
   if (response.status === 401 && !NO_REFRESH.has(path)) {
-    if (await refreshSession()) response = await send(path, options);
-    else unauthorizedHandler?.();
+    if (await refreshSession()) {
+      // The replay replaces this 401: release its body instead of leaving the response open.
+      void response.body?.cancel().catch(() => {});
+      response = await send(path, options);
+    } else unauthorizedHandler?.();
   }
 
   if (response.status === 204) return undefined as T;
@@ -178,6 +193,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     const error = new ApiRequestError(response.status, data as Partial<ApiError> | null);
     if (response.status === 402 || error.code === 'subscription_required') accessErrorHandler?.('subscription_required', error);
     else if (response.status === 403) accessErrorHandler?.('forbidden', error);
+    else if (error.code === 'workspace_mismatch') accessErrorHandler?.('workspace_mismatch', error);
     throw error;
   }
 
@@ -186,7 +202,9 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
 /** Errors already explained by the global access toast (no need for a second one). */
 export function isAccessError(error: unknown): boolean {
-  return error instanceof ApiRequestError && (error.status === 402 || error.status === 403);
+  return (
+    error instanceof ApiRequestError && (error.status === 402 || error.status === 403 || error.code === 'workspace_mismatch')
+  );
 }
 
 export function errorMessage(error: unknown): string {

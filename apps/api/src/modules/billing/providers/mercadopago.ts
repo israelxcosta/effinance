@@ -29,6 +29,16 @@ interface PreapprovalResponse {
   } | null;
 }
 
+/** Checkout links we redirect users to: https on Mercado Pago's own domains only. */
+export function isMercadoPagoCheckoutUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && /(^|\.)mercadopago\.com(\.br)?$/i.test(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 /** The plan a preapproval charges for (BRL amount + billing frequency), or null. */
 export function planForCharge(auto: PreapprovalResponse['auto_recurring']): PlanCode | null {
   if (!auto || auto.currency_id !== 'BRL' || auto.frequency_type !== 'months' || typeof auto.transaction_amount !== 'number') {
@@ -92,6 +102,8 @@ export class MercadoPagoProvider implements BillingProvider {
       },
     });
     if (!out.init_point) throw new Error('Mercado Pago não retornou o link de pagamento');
+    // The browser is sent there: never to anything else, whatever the API (or a proxy) answered.
+    if (!isMercadoPagoCheckoutUrl(out.init_point)) throw new Error('Mercado Pago retornou um link de pagamento inesperado');
     return { checkoutUrl: out.init_point, providerSubscriptionId: out.id };
   }
 

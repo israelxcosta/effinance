@@ -14,7 +14,7 @@ import { env } from './env';
 import { createDb, type Database } from './db/client';
 import { authPlugin } from './lib/auth';
 import { configureKeyring } from './lib/crypto/keyring';
-import { AppError, ForbiddenError } from './lib/errors';
+import { AppError, ForbiddenError, fromDatabaseError } from './lib/errors';
 import { serializeError, serializeRequest } from './lib/log';
 import type { Platform } from './lib/platform';
 import { tenantRoutes } from './lib/tenant-routes';
@@ -134,6 +134,11 @@ export async function buildApp(options: BuildAppOptions = {}) {
     }
     if (error.statusCode === 429) {
       return reply.code(429).send({ error: 'too_many_requests', message: 'Muitas tentativas. Aguarde um pouco.' });
+    }
+    const conflict = fromDatabaseError(error);
+    if (conflict) {
+      const body: ApiError = { error: conflict.code, message: conflict.message };
+      return reply.code(conflict.statusCode).send(body);
     }
     if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
       return reply.code(error.statusCode).send({ error: error.code ?? 'bad_request', message: error.message });

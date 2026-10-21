@@ -48,7 +48,8 @@ export async function createAwsKmsKeyProvider(options: { keyId: string; region?:
     async decryptSecret(ciphertext: string, context: string): Promise<string> {
       const blob = ciphertext.startsWith('kms.') ? fromBase64Url(ciphertext.slice(4)) : fromBase64(ciphertext);
       const out = await client.send(
-        new DecryptCommand({ CiphertextBlob: blob, EncryptionContext: { purpose: 'secret', context } }),
+        // KeyId pins the CMK: a ciphertext produced under any other key of the account is refused.
+        new DecryptCommand({ CiphertextBlob: blob, KeyId: keyId, EncryptionContext: { purpose: 'secret', context } }),
       );
       if (!out.Plaintext) throw new Error('KMS Decrypt sem resultado');
       return fromUtf8(out.Plaintext);

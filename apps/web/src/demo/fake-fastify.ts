@@ -6,7 +6,7 @@
 import { ZodError, type ZodType } from 'zod';
 import type { ApiError } from '@effinance/shared';
 import type { DbExecutor } from '@api/db/client';
-import { AppError } from '@api/lib/errors';
+import { AppError, fromDatabaseError } from '@api/lib/errors';
 import type { Access } from '@api/modules/workspaces/access';
 
 export interface DemoRequest {
@@ -250,6 +250,9 @@ export class DemoRouter {
       if (error instanceof AppError) {
         return { status: error.statusCode, body: { error: error.code, message: error.message, details: error.details } };
       }
+      // Same mapping as the API's error handler (unique / foreign-key violations → 409).
+      const conflict = fromDatabaseError(error);
+      if (conflict) return { status: conflict.statusCode, body: { error: conflict.code, message: conflict.message } };
       console.error('[demo api]', method, url, error);
       return { status: 500, body: { error: 'internal_error', message: 'Erro inesperado. Tente novamente.' } };
     }

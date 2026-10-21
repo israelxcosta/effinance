@@ -487,9 +487,10 @@ aws ecs run-task --cluster effinance --task-definition effinance-migrate \
 `migrate.js` aplica o SQL (inclusive papéis e políticas de RLS), apaga registros de segurança
 expirados e, se houver workspaces sem chave (dados antigos), gera as chaves e cifra os campos
 sensíveis (idempotente) — por isso precisa da chave KMS. Hoje ele valida o ambiente completo da
-API: dê à tarefa de migração `JWT_SECRET` aleatório próprio e valores fictícios para
-`MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (ela não fala com o Mercado Pago) — **nunca** os segredos
-reais da API.
+API (com as regras de produção de `.env.example`): dê à tarefa de migração `JWT_SECRET` aleatório
+próprio (43+ caracteres), `MAILER=ses`, `APP_URL`/`CORS_ORIGIN` https e valores fictícios para
+`MP_ACCESS_TOKEN`/`MP_WEBHOOK_SECRET` (ela não fala com o Mercado Pago nem envia e-mails) —
+**nunca** os segredos reais da API.
 
 ### 7. Web (S3 + CloudFront)
 

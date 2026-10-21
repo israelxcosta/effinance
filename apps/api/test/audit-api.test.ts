@@ -4,14 +4,21 @@
 
 import { Writable } from 'node:stream';
 import { sql } from 'drizzle-orm';
+import Fastify from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp, type App } from '../src/app';
+import { accounts } from '../src/db/schema';
+import { env } from '../src/env';
+import { today } from '../src/lib/clock';
 import { sha256Hex } from '../src/lib/crypto/encoding';
 import { FieldCipher } from '../src/lib/crypto/field-cipher';
 import { sanitizeUrl, serializeError } from '../src/lib/log';
 import type { KeyProvider } from '../src/lib/crypto/key-provider';
 import { configureKeyring, getCipher, keyProvider } from '../src/lib/crypto/keyring';
+import { fromDatabaseError } from '../src/lib/errors';
 import type { Mailer, MemoryMailer } from '../src/lib/mailer';
+import { tenantRoutes } from '../src/lib/tenant-routes';
+import { createKeyProvider } from '../src/setup';
 import { executeRows } from '../src/lib/sql';
 import { totpCode, totpStep } from '../src/lib/totp';
 import { MercadoPagoProvider } from '../src/modules/billing/providers/mercadopago';
@@ -158,6 +165,14 @@ describe('finding: sessions and passwords', () => {
     expect((await login(user.email, 'outra-senha-987')).statusCode).toBe(200);
   });
 
+  it('puts the reset token in the URL fragment (kept out of server/CDN logs and Referer, CWE-598)', async () => {
+    const user = await registerUser(app, 'Fragmento');
+    await forgot(user.email);
+    const text = outbox().at(-1)!.text;
+    expect(text).toMatch(/\/redefinir-senha#token=[\w-]{40,}/);
+    expect(text).not.toMatch(/\?token=/);
+  });
+
   it('caps the absolute lifetime of a session however often it is refreshed (CWE-613)', async () => {
     const user = await registerUser(app, 'Sessão Eterna');
     const start = Date.now();
@@ -190,6 +205,119 @@ describe('finding: sessions and passwords', () => {
     const user = await registerUser(app, 'Caixa Cheia');
     for (let i = 0; i < 8; i++) expect((await forgot(user.email)).statusCode).toBe(204);
     expect(outbox().filter((m) => m.to === user.email)).toHaveLength(5);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Findings: tenant transaction boundary, integrity errors and token claims
+// ---------------------------------------------------------------------------------------------
+
+describe('finding: request boundary', () => {
+  it('answers only after COMMIT: no success for a rolled-back write, read-your-writes after 201 (CWE-362)', async () => {
+    const user = await registerUser(app, 'Commit');
+    const workspaceId = (await user.get('/auth/me')).body.workspace.id as string;
+    const probe = Fastify({ logger: false });
+    probe.decorate('db', app.db);
+    probe.decorateRequest('userId', '');
+    probe.decorateRequest('workspaceId', '');
+    probe.decorateRequest('sessionId', null);
+    probe.decorateRequest('access', null as never);
+    probe.decorateRequest('db', null as never);
+    probe.decorate('authenticate', async (req: { userId: string; workspaceId: string; access: unknown }) => {
+      req.userId = user.userId;
+      req.workspaceId = workspaceId;
+      req.access = { role: 'owner', subscription: { canWrite: true } };
+    });
+    await probe.register(tenantRoutes, {
+      routes: [
+        {
+          prefix: '/probe',
+          plugin: async (p) => {
+            p.post('/fails-after-send', async (req, reply) => {
+              await req.db.insert(accounts).values({ workspaceId: req.workspaceId, name: 'Fantasma', type: 'checking', color: '#152B61', icon: 'wallet' });
+              reply.code(201).send({ ok: true });
+              throw new Error('falhou depois do send');
+            });
+            p.post('/slow-commit', async (req, reply) => {
+              await req.db.insert(accounts).values({ workspaceId: req.workspaceId, name: 'Visível', type: 'checking', color: '#152B61', icon: 'wallet' });
+              reply.code(201).send({ ok: true });
+              await new Promise((r) => setTimeout(r, 300));
+            });
+            p.post('/returns-reply', async (_req, reply) => {
+              reply.code(202).send({ ok: true });
+              return reply;
+            });
+          },
+        },
+      ],
+    });
+    await probe.ready();
+    try {
+      expect((await probe.inject({ method: 'POST', url: '/probe/fails-after-send' })).statusCode).toBe(500);
+      const slow = await probe.inject({ method: 'POST', url: '/probe/slow-commit' });
+      expect(slow.statusCode).toBe(201);
+      // The client has the answer: the row is already committed (visible to any other connection).
+      const names = await executeRows<{ name: string }>(
+        admin(),
+        sql`select name from accounts where workspace_id = ${workspaceId} and name in ('Fantasma', 'Visível')`,
+      );
+      expect(names.map((n) => n.name)).toEqual(['Visível']);
+      const returned = await probe.inject({ method: 'POST', url: '/probe/returns-reply' });
+      expect(returned.statusCode).toBe(202);
+      expect(returned.json()).toEqual({ ok: true });
+    } finally {
+      await probe.close();
+    }
+  });
+
+  it('maps unique and foreign-key violations to 409 instead of 500', async () => {
+    const pending = Object.assign(new Error('Failed query: insert …'), {
+      cause: Object.assign(new Error('duplicate key value'), { code: '23505', constraint_name: 'workspace_invites_pending_email_uq' }),
+    });
+    expect(fromDatabaseError(pending)).toMatchObject({ statusCode: 409, message: 'Já existe um convite pendente para este e-mail' });
+    expect(fromDatabaseError({ code: '23503' })).toMatchObject({ statusCode: 409 });
+    expect(fromDatabaseError(new Error('boom'))).toBeNull();
+
+    // Concurrent invites to the same address race on the "one pending invite per e-mail" index.
+    const owner = await registerUser(app, 'Convites Simultâneos');
+    await familyOf(owner);
+    const results = await Promise.all(
+      [1, 2, 3, 4, 5, 6].map(() => owner.post('/workspaces/current/invites', { email: 'mesma@teste.com', role: 'viewer' })),
+    );
+    expect(results.every((r) => r.status === 201 || r.status === 409)).toBe(true);
+    expect((await owner.get('/workspaces/current/invites')).body).toHaveLength(1);
+  });
+
+  it('rejects tokens whose claims are not UUIDs with 401, not a database error (CWE-20)', async () => {
+    const user = await registerUser(app, 'Claims');
+    const forged = app.jwt.sign({ typ: 'access', sub: user.userId, wid: 'not-a-uuid', sid: FAKE_ID });
+    const res = await app.inject({ method: 'GET', url: '/api/accounts', headers: { authorization: `Bearer ${forged}` } });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('refuses requests from a tab that still shows another workspace (X-Workspace-Id)', async () => {
+    const user = await registerUser(app, 'Duas Abas');
+    const personal = (await user.get('/auth/me')).body.workspace.id as string;
+    const family = await familyOf(user, 'Outra Aba');
+    const post = (workspaceHeader: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/accounts',
+        headers: { authorization: `Bearer ${user.token}`, 'x-workspace-id': workspaceHeader },
+        payload: { name: 'Conta', type: 'checking' },
+      });
+    const stale = await post(personal);
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().error).toBe('workspace_mismatch');
+    expect((await post(family)).statusCode).toBe(201);
+    // The stale tab can still read and resynchronize.
+    const me = await app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { authorization: `Bearer ${user.token}`, 'x-workspace-id': personal },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(me.json().workspace.id).toBe(family);
   });
 });
 
@@ -245,6 +373,7 @@ function fakeMercadoPago() {
   const calls: { method: string; url: string; body?: any }[] = [];
   let counter = 0;
   let failGets = 0;
+  let initPointHost = 'https://www.mercadopago.com.br';
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
@@ -254,7 +383,7 @@ function fakeMercadoPago() {
       new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
     if (method === 'POST' && url.endsWith('/preapproval')) {
       const id = `pre_${++counter}`;
-      preapprovals.set(id, { ...body, id, status: 'pending', init_point: `https://mp.example/checkout?preapproval_id=${id}` });
+      preapprovals.set(id, { ...body, id, status: 'pending', init_point: `${initPointHost}/subscriptions/checkout?preapproval_id=${id}` });
       return json(preapprovals.get(id));
     }
     const pre = /\/preapproval\/([^/?]+)$/.exec(url);
@@ -276,6 +405,9 @@ function fakeMercadoPago() {
     fetchImpl,
     failNextGets(n: number) {
       failGets = n;
+    },
+    answerCheckoutFrom(host: string) {
+      initPointHost = host;
     },
   };
 }
@@ -344,6 +476,18 @@ describe('finding: billing', () => {
       maxMembers: 5,
     });
     expect(mp.preapprovals.get('pre_1')!.status).toBe('cancelled');
+  });
+
+  it('only sends the browser to Mercado Pago checkout URLs (open redirect, CWE-601)', async () => {
+    const owner = await registerUser(app, 'Checkout Desviado');
+    mp.answerCheckoutFrom('https://mercadopago.com.br.evil.example');
+    expect((await owner.post('/billing/checkout', { planCode: 'individual_monthly' })).status).toBe(500);
+    mp.answerCheckoutFrom('http://www.mercadopago.com.br');
+    expect((await owner.post('/billing/checkout', { planCode: 'individual_monthly' })).status).toBe(500);
+    mp.answerCheckoutFrom('https://www.mercadopago.com');
+    const ok = await owner.post('/billing/checkout', { planCode: 'individual_monthly' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.checkoutUrl).toMatch(/^https:\/\/www\.mercadopago\.com\//);
   });
 
   it('processes a notification again when the first attempt failed (lost payment, CWE-754)', async () => {
@@ -496,10 +640,42 @@ describe('finding: http, logs and configuration', () => {
       ['plain-http app URL', { APP_URL: 'http://app.effinance.com.br' }, 'APP_URL'],
       ['localhost CORS origin', { CORS_ORIGIN: 'http://localhost:5173' }, 'CORS_ORIGIN'],
       ['placeholder JWT secret', { JWT_SECRET: 'change-me-to-a-long-random-secret-of-32-chars-or-more' }, 'JWT_SECRET'],
+      ['dev-only JWT secret', { JWT_SECRET: 'dev-only-not-a-secret-replace-before-deploying-anywhere' }, 'JWT_SECRET'],
+      ['short JWT secret', { JWT_SECRET: 'k'.repeat(40) }, 'JWT_SECRET'],
+      ['local master key', { KEY_PROVIDER: 'local', ENCRYPTION_MASTER_KEY: Buffer.alloc(32, 7).toString('base64') }, 'KEY_PROVIDER'],
+      ['unauthenticated mail webhook', { MAILER: 'webhook', MAIL_WEBHOOK_URL: 'https://mail.internal/send' }, 'MAIL_WEBHOOK_SECRET'],
+      ['plain-http mail webhook', { MAILER: 'webhook', MAIL_WEBHOOK_URL: 'http://mail.internal/send', MAIL_WEBHOOK_SECRET: 's' }, 'MAIL_WEBHOOK_URL'],
     ])('refuses to start with %s (CWE-1188)', async (_label, overrides, variable) => {
       const message = await loadEnv(overrides);
       expect(message).toContain(variable);
     });
+  });
+
+  it('never pins the calendar date in production (EFFINANCE_TODAY)', () => {
+    expect(today()).toBe('2026-10-20');
+    vi.stubEnv('NODE_ENV', 'production');
+    try {
+      expect(today()).not.toBe('2026-10-20');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('uses the public development master key only when NODE_ENV says development/test (CWE-1188)', async () => {
+    const devLike = { ...env, NODE_ENV: 'development' as const, KEY_PROVIDER: 'local' as const, ENCRYPTION_MASTER_KEY: undefined };
+    vi.stubEnv('NODE_ENV', undefined);
+    try {
+      // NODE_ENV missing: the schema defaults it to "development", but the dev key must not be used.
+      await expect(createKeyProvider(devLike, () => {})).rejects.toThrow(/ENCRYPTION_MASTER_KEY/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    vi.stubEnv('NODE_ENV', 'development');
+    try {
+      expect((await createKeyProvider(devLike, () => {})).name).toBe('local');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('never replaces a data key another instance already stored (legacy workspaces, CWE-362)', async () => {

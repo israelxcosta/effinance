@@ -9,13 +9,16 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { DbExecutor } from '../db/client';
 import { env } from '../env';
 import { type IssuedSession, REFRESH_TTL_MS, setSessionWorkspace } from '../modules/auth/sessions';
-import { type Access, loadAccess } from '../modules/workspaces/access';
-import { UnauthorizedError } from './errors';
+import { type Access, isMutation, loadAccess } from '../modules/workspaces/access';
+import { AppError, UnauthorizedError } from './errors';
 
 export const AUTH_COOKIE = 'effinance_token';
 export const REFRESH_COOKIE = 'effinance_refresh';
 export const ACCESS_TTL_SECONDS = 15 * 60;
 const MFA_TTL_SECONDS = 5 * 60;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Optional header with the workspace the client believes is active (tabs that switched elsewhere). */
+export const WORKSPACE_HEADER = 'x-workspace-id';
 
 export interface AccessClaims {
   typ: 'access';
@@ -123,7 +126,22 @@ export const authPlugin = fp(async (app) => {
     } catch {
       throw new UnauthorizedError();
     }
-    if (claims.typ !== 'access' || !claims.wid || !claims.sid) throw new UnauthorizedError();
+    // Claims feed SQL parameters and the tenant setting: anything but UUIDs is a broken/forged token.
+    if (claims.typ !== 'access' || ![claims.sub, claims.wid, claims.sid].every((v) => typeof v === 'string' && UUID_RE.test(v))) {
+      throw new UnauthorizedError();
+    }
+    // A tab still showing another workspace must not write into the one this cookie points at.
+    // Reads and /auth/* (me, switch-workspace, logout…) stay allowed so the tab can resynchronize.
+    const expected = request.headers[WORKSPACE_HEADER];
+    if (
+      typeof expected === 'string' &&
+      expected !== '' &&
+      isMutation(request.method) &&
+      !request.url.startsWith('/api/auth/') &&
+      expected.toLowerCase() !== claims.wid.toLowerCase()
+    ) {
+      throw new AppError(409, 'workspace_mismatch', 'Você trocou de espaço em outra aba. Atualize a página para continuar.');
+    }
     const access = await loadAccess(app.db, claims.sub, claims.wid, claims.sid);
     // Revoked session or membership removed: the client refreshes (which picks a valid workspace).
     if (!access) throw new UnauthorizedError();

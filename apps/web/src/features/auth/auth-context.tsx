@@ -12,7 +12,7 @@ import type {
   UpdateProfileInput,
   WorkspaceSummary,
 } from '@effinance/shared';
-import { api, ApiRequestError, onUnauthorized, setBearerToken } from '@/lib/api';
+import { api, ApiRequestError, onUnauthorized, setBearerToken, setExpectedWorkspace } from '@/lib/api';
 import { qk } from '@/lib/query-keys';
 import { announceSessionChange, onSessionChange } from '@/lib/session-sync';
 
@@ -38,6 +38,8 @@ interface AuthContextValue {
   /** Adopts a session the server just changed (invite accepted, workspace created or deleted). */
   applySession: (me: MeResponse) => void;
   refreshMe: () => Promise<unknown>;
+  /** Reloads the session from the server and drops cached tenant data (session moved elsewhere). */
+  resyncSession: () => void;
   /** Forgets the session locally (the server already ended it, e.g. account deleted). */
   clearSession: () => void;
 }
@@ -83,22 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Another tab signed in/out or switched workspace: the shared cookies now point elsewhere, so
   // reload the session from the server instead of showing (and editing) stale tenant data.
-  useEffect(
-    () =>
-      onSessionChange(() => {
-        const previous = qc.getQueryData<MeResponse | null>(qk.me)?.workspace ?? null;
-        setBearerToken(null);
-        void fetchMe()
-          .then((session) => {
-            applySession(session);
-            if (previous && session?.workspace && session.workspace.id !== previous.id) {
-              toast.info(`Espaço alterado em outra aba. Agora você está em ${session.workspace.name}.`, { id: 'session-sync' });
-            }
-          })
-          .catch(() => void qc.invalidateQueries({ queryKey: qk.me }));
-      }),
-    [applySession, qc],
-  );
+  const resyncSession = useCallback(() => {
+    const previous = qc.getQueryData<MeResponse | null>(qk.me)?.workspace ?? null;
+    setBearerToken(null);
+    void fetchMe()
+      .then((session) => {
+        applySession(session);
+        if (previous && session?.workspace && session.workspace.id !== previous.id) {
+          toast.info(`Espaço alterado em outra aba. Agora você está em ${session.workspace.name}.`, { id: 'session-sync' });
+        }
+      })
+      .catch(() => void qc.invalidateQueries({ queryKey: qk.me }));
+  }, [applySession, qc]);
+  useEffect(() => onSessionChange(resyncSession), [resyncSession]);
+
+  // Writes carry the workspace on screen; the API answers 409 if the session moved elsewhere.
+  const activeWorkspaceId = me.data?.workspace?.id ?? null;
+  useEffect(() => setExpectedWorkspace(activeWorkspaceId), [activeWorkspaceId]);
 
   const startSession = useCallback(
     async (res: AuthResponse) => {
@@ -202,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       switchWorkspace,
       applySession: adopt,
       refreshMe,
+      resyncSession,
       clearSession,
     }),
     [
@@ -215,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       switchWorkspace,
       adopt,
       refreshMe,
+      resyncSession,
       clearSession,
     ],
   );

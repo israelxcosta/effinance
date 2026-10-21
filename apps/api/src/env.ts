@@ -70,14 +70,20 @@ const envSchema = z
     }
     if (e.NODE_ENV === 'production') {
       // Fail closed: development defaults must never reach production (docs/deploy-aws.md).
-      if (/change-?me|example|placeholder|secret-of-32/i.test(e.JWT_SECRET)) {
-        issue('JWT_SECRET', 'looks like the .env.example placeholder: generate a random secret (openssl rand -base64 48)');
+      if (e.JWT_SECRET.length < 43 || /dev-?only|change-?me|replace-?me|example|placeholder|secret-of-32/i.test(e.JWT_SECRET)) {
+        issue('JWT_SECRET', 'must be a random secret of 43+ characters in production (openssl rand -base64 48), not a placeholder');
+      }
+      if (e.KEY_PROVIDER !== 'aws') {
+        issue('KEY_PROVIDER', 'must be "aws" in production (data keys wrapped by KMS; no master key in the environment)');
       }
       if (e.MAILER !== 'ses' && e.MAILER !== 'webhook') {
         issue('MAILER', 'must be "ses" or "webhook" in production (the console mailer writes reset/invite links to the logs)');
       }
       if (e.MAILER === 'webhook' && e.MAIL_WEBHOOK_URL && !e.MAIL_WEBHOOK_URL.startsWith('https://')) {
         issue('MAIL_WEBHOOK_URL', 'must use https in production');
+      }
+      if (e.MAILER === 'webhook' && !e.MAIL_WEBHOOK_SECRET) {
+        issue('MAIL_WEBHOOK_SECRET', 'required with MAILER=webhook in production (the endpoint must authenticate us)');
       }
       if (e.DATABASE_SSL !== 'verify-full') {
         issue('DATABASE_SSL', 'must be verify-full in production (TLS with certificate and host verification)');

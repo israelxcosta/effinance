@@ -21,6 +21,11 @@ export async function createKeyProvider(env: Env, warn: (msg: string) => void = 
   if (env.KEY_PROVIDER === 'aws') return createAwsKmsKeyProvider({ keyId: env.KMS_KEY_ID!, region: env.AWS_REGION });
   if (env.ENCRYPTION_MASTER_KEY) return LocalKeyProvider.create(fromBase64(env.ENCRYPTION_MASTER_KEY));
   if (env.NODE_ENV === 'production') throw new Error('ENCRYPTION_MASTER_KEY is required in production');
+  // The public development key only when the environment SAYS development/test: a deploy that
+  // forgot NODE_ENV (default "development") must not silently encrypt real data with it.
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    throw new Error('ENCRYPTION_MASTER_KEY (or KEY_PROVIDER=aws) is required unless NODE_ENV is explicitly development or test');
+  }
   if (env.NODE_ENV !== 'test') {
     warn('⚠ ENCRYPTION_MASTER_KEY não definida: usando a chave de desenvolvimento (insegura). Não use em produção.');
   }

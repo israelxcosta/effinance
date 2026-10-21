@@ -16,7 +16,7 @@ import { Field, Input } from '@/components/ui/input';
 import { ErrorState } from '@/components/ui/misc';
 import { Sheet } from '@/components/ui/sheet';
 import { SkeletonRows } from '@/components/ui/skeleton';
-import { errorMessage } from '@/lib/api';
+import { ApiRequestError, errorMessage } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { formatDateTime, formatRelative } from '@/lib/datetime';
 import { toastError } from '@/lib/notify';
@@ -148,6 +148,10 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   const [data, setData] = useState<MfaSetupResponse | null>(null);
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
+  // The API asks for the password so a stolen session can't enroll the attacker's authenticator.
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [saved, setSaved] = useState(false);
   const started = useRef(false);
@@ -162,6 +166,7 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       const timer = setTimeout(() => {
         setData(null);
         setCode('');
+        setPassword('');
         setRecoveryCodes(null);
         setSaved(false);
         resetSetup();
@@ -174,23 +179,37 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     setData(null);
     setCode('');
     setCodeError(null);
+    setPassword('');
+    setPasswordError(null);
     setRecoveryCodes(null);
     setSaved(false);
     startSetup(undefined, { onSuccess: setData });
   }, [open, startSetup, resetSetup, resetEnable]);
 
   async function confirm(value = code) {
+    if (!password) {
+      setPasswordError('Informe sua senha atual.');
+      return;
+    }
+    setPasswordError(null);
     if (!/^\d{6}$/.test(value)) {
       setCodeError('Digite os 6 dígitos do aplicativo.');
       return;
     }
     setCodeError(null);
     try {
-      const res = await enable.mutateAsync({ code: value });
+      const res = await enable.mutateAsync({ code: value, password });
       setRecoveryCodes(res.recoveryCodes);
+      setPassword('');
       void refreshMe();
     } catch (error) {
-      setCodeError(errorMessage(error));
+      // The API answers 422 "Senha incorreta" for the password; other errors belong to the code.
+      if (error instanceof ApiRequestError && error.status === 422 && /senha/i.test(error.message)) {
+        setPasswordError(error.message);
+        setPassword('');
+      } else {
+        setCodeError(errorMessage(error));
+      }
       setCode('');
     }
   }
@@ -262,7 +281,24 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
               </div>
             </div>
           </Step>
-          <Step n={2} title="Digite o código de 6 dígitos">
+          <Step n={2} title="Confirme sua senha">
+            <div className="mt-3 flex max-w-xs flex-col gap-1.5">
+              <PasswordInput
+                show={showPassword}
+                onToggle={() => setShowPassword((v) => !v)}
+                autoComplete="current-password"
+                aria-label="Senha atual"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {passwordError ? (
+                <p role="alert" className="text-xs font-medium text-danger">
+                  {passwordError}
+                </p>
+              ) : null}
+            </div>
+          </Step>
+          <Step n={3} title="Digite o código de 6 dígitos">
             <div className="mt-3 flex max-w-xs flex-col gap-1.5">
               <CodeInput value={code} onChange={setCode} onComplete={(v) => void confirm(v)} invalid={!!codeError} disabled={enable.isPending} />
               {codeError ? (

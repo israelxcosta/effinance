@@ -15,7 +15,7 @@ import { IS_DEMO } from '@/lib/demo';
 import { DemoBanner } from './demo-banner';
 
 export function AppShell() {
-  const { user, workspace, loading, refreshMe } = useAuth();
+  const { user, workspace, loading, refreshMe, resyncSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -25,6 +25,12 @@ export function AppShell() {
   // since the subscription or the member's role may have changed since it was loaded.
   useEffect(() => {
     onAccessError((kind, error) => {
+      if (kind === 'workspace_mismatch') {
+        // Another tab switched the shared session: reload it before the user retries.
+        resyncSession();
+        toast.error(error.message, { id: 'workspace-mismatch' });
+        return;
+      }
       void refreshMe();
       if (kind === 'subscription_required') {
         toast.error('Assinatura necessária', {
@@ -37,7 +43,7 @@ export function AppShell() {
       }
     });
     return () => onAccessError(null);
-  }, [navigate, refreshMe, role]);
+  }, [navigate, refreshMe, resyncSession, role]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

@@ -132,17 +132,28 @@ Contrato em `packages/shared/src/saas.ts`.
 
 ## Autenticação e sessões
 
-- Access token JWT curto (15 min) em cookie httpOnly `effinance_token`; refresh token opaco
-  (30 dias) em cookie httpOnly `effinance_refresh` (path `/api/auth`), guardado como hash em
-  `sessions`, **rotacionado a cada uso** e com detecção de reuso (revoga a família). Logout, troca de
-  senha e "encerrar sessão" revogam no servidor.
-- 2FA por TOTP (aplicativo autenticador) com códigos de recuperação de uso único.
-- Recuperação de senha por e-mail (token de uso único, 30 min, guardado como hash).
+- Access token JWT curto (15 min) em cookie httpOnly `effinance_token` (path `/api`); refresh token
+  opaco (30 dias) em cookie httpOnly `effinance_refresh` (path `/api/auth`), guardado como hash em
+  `sessions`, **rotacionado a cada uso** e com detecção de reuso (revoga a família). A sessão dura no
+  máximo 90 dias, mesmo renovada. Logout, troca de senha e "encerrar sessão" revogam no servidor;
+  trocar a senha também invalida links de redefinição pendentes.
+- 2FA por TOTP (aplicativo autenticador) com códigos de recuperação de uso único (PBKDF2). Cada
+  código é consumido de forma atômica (sem reuso em requisições simultâneas). Ativar exige `password`
+  em `/auth/mfa/enable`, salvo login feito há menos de 15 min (`422` pede a senha).
+- Recuperação de senha por e-mail: link `${APP_URL}/redefinir-senha#token=…` (o token fica no
+  fragmento, fora de logs e do `Referer`), uso único, 30 min, guardado como hash.
 - Senhas: scrypt; novas senhas com 10+ caracteres, letras e números.
-- Limite de tentativas em login/2FA/recuperação (Redis opcional via `REDIS_URL` para múltiplas
-  instâncias); CSP restritiva nas respostas da API; requisições que alteram dados exigem JSON e
-  origem permitida (CSRF).
-- Log de auditoria (login, 2FA, membros, assinatura, exportação, exclusões) sem dados pessoais.
+- Limites (429): por IP em login/2FA/recuperação/convites/exportação/checkout/webhook (Redis
+  opcional via `REDIS_URL` para múltiplas instâncias); por conta, 10 falhas de código 2FA a cada
+  15 min e 5 e-mails de redefinição por hora (a resposta continua 204); 20 convites por workspace por
+  hora; até 10 workspaces próprios por usuário.
+- CSP restritiva e `Cache-Control: no-store` nas respostas da API; requisições que alteram dados
+  exigem JSON e origem permitida (CSRF).
+- Cabeçalho opcional `X-Workspace-Id`: o web envia o workspace exibido; uma gravação (fora de
+  `/api/auth/`) para outro workspace → `409 workspace_mismatch` (outra aba trocou a sessão).
+- Conflitos de unicidade/integridade (convite pendente repetido, dono único) → `409`.
+- Log de auditoria (login, 2FA, membros, assinatura, exportação, exclusões) sem dados pessoais; os
+  logs da aplicação removem parâmetros SQL, CPF em buscas, tokens no caminho e e-mails.
 
 ## Permissões e assinatura
 

@@ -158,7 +158,8 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post('/password/forgot', { schema: { body: forgotPasswordSchema }, config: limit(5, '15 minutes') }, async (req, reply) => {
     const result = await requestPasswordReset(app.db, req.body.email, requestContext(req));
     if (result) {
-      const link = `${app.platform.appUrl}/redefinir-senha?token=${result.token}`;
+      // In the fragment: never sent to the server/CDN (no access logs) nor leaked in Referer headers.
+      const link = `${app.platform.appUrl}/redefinir-senha#token=${result.token}`;
       // Not awaited: the answer must take the same time whether or not the e-mail has an account
       // (waiting for SES/the webhook would reveal it). Delivery failures are logged.
       app.platform.mailer
