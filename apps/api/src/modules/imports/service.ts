@@ -20,7 +20,7 @@ import { NotFoundError, ValidationError } from '../../lib/errors';
 import { inTenant } from '../../lib/tenant-scope';
 import { getAccountOrThrow, getCardOrThrow } from '../common/ownership';
 import { invoiceMonthFor } from '../transactions/series';
-import { installmentHint, isCardBillPayment, normalizeDescription } from './describe';
+import { cleanFileName, installmentHint, isCardBillPayment, normalizeDescription } from './describe';
 import { ImportParseError, parseImportFile, type ParsedRow } from './parse';
 import { loadCategorySuggester } from './suggest';
 import { addTombstones, existingByExternalId, insertImported, targetCondition, type ImportedRow, type ResolvedTarget } from './writer';
@@ -114,7 +114,7 @@ export async function previewImport(db: DbExecutor, workspaceId: string, input: 
     }
     return {
       format: parsed.format,
-      fileName: input.fileName,
+      fileName: cleanFileName(input.fileName),
       target: input.target,
       institution: parsed.institution,
       accountHint: parsed.accountHint,
@@ -236,7 +236,7 @@ export async function commitImport(
         workspaceId,
         origin: 'file',
         format: input.format,
-        fileName: input.fileName,
+        fileName: cleanFileName(input.fileName),
         accountId: target.kind === 'account' ? target.account.id : null,
         creditCardId: target.kind === 'credit_card' ? target.card.id : null,
         invoiceMonth: input.target.kind === 'credit_card' ? (input.target.invoiceMonth ?? null) : null,
@@ -301,7 +301,8 @@ export function toImportBatch(row: ImportBatchRow, remaining: number, names: Map
     id: row.id,
     origin: row.origin,
     format: row.format,
-    fileName: row.fileName,
+    // Also for batches stored before names were cleaned.
+    fileName: row.fileName === null ? null : cleanFileName(row.fileName),
     connectionId: row.connectionId,
     accountId: row.accountId,
     creditCardId: row.creditCardId,

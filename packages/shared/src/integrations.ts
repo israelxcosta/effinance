@@ -305,6 +305,11 @@ export interface BankConnection {
   consentExpiresAt: string | null;
   lastSyncAt: string | null;
   createdAt: string;
+  /**
+   * User who connected the institution (null if they left). Only they or the workspace owner may
+   * revoke or renew the consent; other editors can still sync and link accounts.
+   */
+  createdBy: string | null;
   accounts: BankConnectionAccount[];
 }
 

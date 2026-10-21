@@ -86,3 +86,22 @@ export function cleanDescription(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
 }
+
+// Control characters (C0, DEL, C1) and invisible / bidirectional formatting characters: a file name
+// such as "fatura‮fdp.exe" would render reversed in the batch history shown to every member.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_NAME_CHARS = /[\u0000-\u001f\u007f-\u009f؜​-‏‪-‮⁠-⁩﻿]/g;
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+export const MAX_FILE_NAME = 255;
+
+/** File name as stored and shown: no control/invisible/bidi characters, trimmed, ≤ 255 UTF-16 units. */
+export function cleanFileName(name: string): string {
+  const clean = name.replace(LONE_SURROGATE, '').replace(UNSAFE_NAME_CHARS, ' ').replace(/\s+/g, ' ').trim();
+  let out = '';
+  for (const ch of clean) {
+    // Whole code points only: a cut never leaves half of a surrogate pair.
+    if (out.length + ch.length > MAX_FILE_NAME) break;
+    out += ch;
+  }
+  return out.trim() || 'arquivo';
+}

@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/misc';
 import { SkeletonRows } from '@/components/ui/skeleton';
 import { useAccounts } from '@/features/accounts/api';
+import { useAuth } from '@/features/auth/auth-context';
 import { usePermissions, WriteGate } from '@/features/auth/permissions';
 import { useCards } from '@/features/cards/api';
 import { formatRelative } from '@/lib/datetime';
@@ -118,6 +119,13 @@ function ConnectionItem({
   const accounts = useAccounts();
   const cards = useCards();
   const [confirming, setConfirming] = useState(false);
+  const { user } = useAuth();
+  const { isOwner } = usePermissions();
+  // Revoking or renewing acts on the bank consent of whoever connected it (the API enforces it too).
+  const manageReason =
+    isOwner || (user && c.createdBy === user.id)
+      ? null
+      : 'Somente quem conectou a instituição ou o proprietário do espaço pode renovar ou desconectar.';
   const days = c.consentExpiresAt ? daysUntil(c.consentExpiresAt) : null;
   const expiring = days !== null && days <= CONSENT_WARNING_DAYS;
   const needsConsent = expiring || c.status === 'outdated' || c.status === 'login_error' || c.status === 'waiting_user_input';
@@ -195,12 +203,13 @@ function ConnectionItem({
               <DropdownMenuItem icon={<Settings2 />} disabled={readOnly} onSelect={onManage}>
                 Gerenciar contas
               </DropdownMenuItem>
-              <DropdownMenuItem icon={<RefreshCw />} disabled={readOnly} onSelect={onRenew}>
+              <DropdownMenuItem icon={<RefreshCw />} disabled={readOnly || !!manageReason} onSelect={onRenew}>
                 Renovar consentimento
               </DropdownMenuItem>
-              <DropdownMenuItem icon={<Unplug />} tone="danger" disabled={readOnly} onSelect={() => setConfirming(true)}>
+              <DropdownMenuItem icon={<Unplug />} tone="danger" disabled={readOnly || !!manageReason} onSelect={() => setConfirming(true)}>
                 Desconectar
               </DropdownMenuItem>
+              {manageReason && !readOnly ? <p className="max-w-60 px-2 py-1.5 text-xs text-muted">{manageReason}</p> : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -218,7 +227,7 @@ function ConnectionItem({
                   ? 'O banco aguarda a sua confirmação para continuar.'
                   : `O consentimento expira ${days === 0 ? 'hoje' : days === 1 ? 'amanhã' : `em ${days} dias`} (${formatDateBR(c.consentExpiresAt!.slice(0, 10))}).`}
           </span>
-          <WriteGate>
+          <WriteGate reason={manageReason}>
             <Button size="xs" variant="outline" onClick={onRenew}>
               Renovar consentimento
             </Button>

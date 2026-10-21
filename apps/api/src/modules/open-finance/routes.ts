@@ -21,6 +21,7 @@ import {
   listConnections,
   openFinanceStatus,
   syncConnection,
+  type ConnectionManager,
   type LogLike,
   type OpenFinanceContext,
 } from './service';
@@ -31,11 +32,15 @@ const quietLog: LogLike = { warn: () => {} };
 export const openFinanceRoutes: FastifyPluginAsyncZod = async (app) => {
   tenantGuards(app);
   const ctx = (req: { log?: LogLike }): OpenFinanceContext => ({ db: app.db, of: app.platform.openFinance, log: req.log ?? quietLog });
+  const manager = (req: { userId: string; access: { role: ConnectionManager['role'] } }): ConnectionManager => ({
+    userId: req.userId,
+    role: req.access.role,
+  });
 
   app.get('/status', async () => openFinanceStatus(app.platform.openFinance));
 
   app.post('/connect-token', { schema: { body: connectTokenSchema }, config: rateLimited(app.platform, 20, '1 minute') }, async (req) =>
-    createConnectToken(ctx(req), req.workspaceId, req.body.connectionId),
+    createConnectToken(ctx(req), req.workspaceId, req.body.connectionId, manager(req)),
   );
 
   // Simulated consent widget (fake provider only; 404 otherwise).
@@ -47,7 +52,7 @@ export const openFinanceRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/connections', async (req) => listConnections(app.db, req.workspaceId));
 
   app.post('/connections', { schema: { body: createConnectionSchema }, config: rateLimited(app.platform, 20, '1 minute') }, async (req, reply) => {
-    const { connection, created } = await createConnection(ctx(req), req.workspaceId, req.userId, req.body.itemId);
+    const { connection, created } = await createConnection(ctx(req), req.workspaceId, manager(req), req.body.itemId);
     await audit(app.db, {
       ...requestContext(req),
       action: 'open_finance.connected',
@@ -79,7 +84,7 @@ export const openFinanceRoutes: FastifyPluginAsyncZod = async (app) => {
   });
 
   app.delete('/connections/:id', { schema: { params: idParams }, config: rateLimited(app.platform, 20, '1 minute') }, async (req, reply) => {
-    await deleteConnection(ctx(req), req.workspaceId, req.params.id);
+    await deleteConnection(ctx(req), req.workspaceId, req.params.id, manager(req));
     await audit(app.db, {
       ...requestContext(req),
       action: 'open_finance.disconnected',

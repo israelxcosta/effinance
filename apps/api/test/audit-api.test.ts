@@ -1049,3 +1049,69 @@ describe('finding: Open Finance', () => {
     expect(bad[0]!.n).toBe(0);
   });
 });
+
+describe('finding: imports and connections shown to every member', () => {
+  it('cleans file names: no control, invisible or bidi characters, ≤ 255 units, no split surrogate (CWE-451)', async () => {
+    const user = await registerUser(app, 'Nome de Arquivo');
+    const accountId = await createAccount(user);
+    const content = 'Data;Descrição;Valor\n01/10/2026;Padaria;-10,00\n';
+    // Within the schema's 255 units (longer names are refused with 400), with a lone surrogate at the end.
+    const hostile = `fatura\u202Efdp.exe\u0007\u200B\u0085\uFEFF${'a'.repeat(200)}😀😀😀😀😀😀😀😀\ud83d`;
+    const preview = await user.post('/imports/preview', { fileName: hostile, content, target: { kind: 'account', accountId } });
+    expect(preview.status).toBe(200);
+    const commit = await user.post('/imports', {
+      fileName: hostile,
+      format: 'csv',
+      target: { kind: 'account', accountId },
+      rows: preview.body.rows.map((r: Record<string, unknown>) => ({
+        date: r.date,
+        description: r.description,
+        amount: r.amount,
+        type: r.type,
+        externalId: r.externalId,
+        categoryId: null,
+      })),
+    });
+    expect(commit.status).toBe(201);
+    const listed = (await user.get('/imports')).body.items[0].fileName as string;
+    for (const name of [preview.body.fileName as string, commit.body.batch.fileName as string, listed]) {
+      expect(name).not.toMatch(/[\u0000-\u001f\u007f-\u009f؜​-‏‪-‮⁠-⁩﻿]/);
+      expect(name.length).toBeLessThanOrEqual(255);
+      expect(name).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/);
+      expect(name.startsWith('fatura fdp.exe')).toBe(true);
+    }
+  });
+
+  it('only the member who connected a bank (or the owner) revokes or renews its consent (CWE-285)', async () => {
+    const original = app.platform.openFinance;
+    app.platform.openFinance = { provider: new FakeOpenFinanceProvider(), webhookUrl: null, webhookSecret: null };
+    try {
+      const owner = await registerUser(app, 'Dona Consentimento');
+      await familyOf(owner, 'Casa Consentimento');
+      const join = async (name: string, email: string) => {
+        const inv = await owner.post('/workspaces/current/invites', { email, role: 'editor' });
+        const member = await registerUser(app, name, email);
+        expect((await member.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+        return member;
+      };
+      const ana = await join('Ana Titular', 'ana-titular@teste.com');
+      const bruno = await join('Bruno Editor', 'bruno-editor@teste.com');
+
+      const { itemId } = (await ana.post('/open-finance/dev/connect', { institutionId: 'itau' })).body;
+      const connection = (await ana.post('/open-finance/connections', { itemId })).body;
+      // Another editor can neither renew Ana's consent nor revoke it (which deletes the data at the aggregator)…
+      expect((await bruno.post('/open-finance/connect-token', { connectionId: connection.id })).status).toBe(403);
+      expect((await bruno.post('/open-finance/connections', { itemId })).status).toBe(403);
+      expect((await bruno.del(`/open-finance/connections/${connection.id}`)).status).toBe(403);
+      // …but still syncs and uses the data like any editor.
+      expect((await bruno.post(`/open-finance/connections/${connection.id}/sync`)).status).toBe(200);
+      // The creator and the owner can.
+      expect((await ana.post('/open-finance/connect-token', { connectionId: connection.id })).status).toBe(200);
+      expect((await owner.post('/open-finance/connect-token', { connectionId: connection.id })).status).toBe(200);
+      expect((await owner.del(`/open-finance/connections/${connection.id}`)).status).toBe(204);
+    } finally {
+      await settleOpenFinanceJobs();
+      app.platform.openFinance = original;
+    }
+  });
+});

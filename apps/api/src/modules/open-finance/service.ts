@@ -39,7 +39,7 @@ import {
 import { getCipher } from '../../lib/crypto/keyring';
 import { platformHmac } from '../../lib/crypto/platform-keys';
 import { today } from '../../lib/clock';
-import { AppError, ConflictError, NotFoundError, ValidationError } from '../../lib/errors';
+import { AppError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../../lib/errors';
 import { serializeError } from '../../lib/log';
 import { inTenant } from '../../lib/tenant-scope';
 import { accountMovements } from '../accounts/balances';
@@ -110,6 +110,23 @@ async function call<T>(ctx: OpenFinanceContext, op: string, fn: () => Promise<T>
   }
 }
 
+/** Who asks to revoke or renew a connection. */
+export interface ConnectionManager {
+  userId: string;
+  role: 'owner' | 'editor' | 'viewer';
+}
+
+/**
+ * Revoking (which deletes the data at the aggregator) and renewing consent act on the bank consent
+ * of the person who connected the institution: only that person or the workspace owner may do it.
+ * Other editors still sync, link accounts and edit the imported rows.
+ */
+function assertCanManageConnection(row: BankConnectionRow, actor: ConnectionManager): void {
+  if (actor.role !== 'owner' && row.createdBy !== actor.userId) {
+    throw new ForbiddenError('Somente quem conectou a instituição ou o proprietário do espaço pode revogar ou renovar esta conexão');
+  }
+}
+
 export function openFinanceStatus(of: OpenFinanceSetup | null | undefined): OpenFinanceStatus {
   return of ? { enabled: true, provider: of.provider.name, sandbox: of.provider.sandbox } : { enabled: false, provider: null, sandbox: false };
 }
@@ -153,6 +170,7 @@ function toConnectionDto(row: BankConnectionRow, feeds: BankConnectionAccountRow
     consentExpiresAt: row.consentExpiresAt?.toISOString() ?? null,
     lastSyncAt: row.lastSyncAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
+    createdBy: row.createdBy,
     accounts: feeds
       .filter((f) => f.connectionId === row.id)
       .sort((a, b) => a.kind.localeCompare(b.kind) || a.createdAt.getTime() - b.createdAt.getTime())
@@ -266,11 +284,13 @@ export async function createConnectToken(
   ctx: OpenFinanceContext,
   workspaceId: string,
   connectionId: string | undefined,
+  actor: ConnectionManager,
 ): Promise<ConnectTokenResponse> {
   const { provider, webhookUrl } = requireSetup(ctx.of);
   let updateItemId: string | null = null;
   if (connectionId) {
     const row = await inTenant(ctx.db, workspaceId, (tx) => getConnectionRow(tx, workspaceId, connectionId));
+    assertCanManageConnection(row, actor);
     if (row.provider !== provider.name) throw new ValidationError('Esta conexão foi criada com outro provedor de Open Finance');
     updateItemId = await openItem(row);
   }
@@ -310,9 +330,12 @@ export function fakeConnect(of: OpenFinanceSetup | null | undefined, workspaceId
 export async function createConnection(
   ctx: OpenFinanceContext,
   workspaceId: string,
-  userId: string,
+  /** The requester; a bare user id = internal caller (demo seed) acting for the workspace. */
+  requester: ConnectionManager | string,
   itemId: string,
 ): Promise<{ connection: BankConnection; created: boolean }> {
+  const actor: ConnectionManager = typeof requester === 'string' ? { userId: requester, role: 'owner' } : requester;
+  const userId = actor.userId;
   const { provider } = requireSetup(ctx.of);
   const item = await call(ctx, 'getItem', () => provider.getItem(itemId));
   if (!item || item.clientUserId !== workspaceId) {
@@ -346,6 +369,8 @@ export async function createConnection(
     };
     let id: string;
     if (existing) {
+      // Re-sending a known item is a consent renewal.
+      assertCanManageConnection(existing, actor);
       await tx.update(bankConnections).set(info).where(eq(bankConnections.id, existing.id));
       id = existing.id;
     } else {
@@ -750,8 +775,14 @@ async function categoryColumns(tx: DbExecutor, id: string | null): Promise<{ cat
 // ---------------------------------------------------------------------------
 
 /** Revokes the item at the provider (deleting its data there), then removes the connection. Imported rows stay. */
-export async function deleteConnection(ctx: OpenFinanceContext, workspaceId: string, connectionId: string): Promise<void> {
+export async function deleteConnection(
+  ctx: OpenFinanceContext,
+  workspaceId: string,
+  connectionId: string,
+  actor: ConnectionManager,
+): Promise<void> {
   const row = await inTenant(ctx.db, workspaceId, (tx) => getConnectionRow(tx, workspaceId, connectionId));
+  assertCanManageConnection(row, actor);
   const provider = ctx.of?.provider;
   if (provider && provider.name === row.provider) {
     const itemId = await openItem(row);
