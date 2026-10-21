@@ -16,7 +16,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { cn, pluralize } from '@/lib/utils';
 import { useImportBatches } from './api';
 import { useImportActions } from './import-actions';
-import { batchTitle, targetLabel } from './labels';
+import { batchState, batchTitle, targetLabel } from './labels';
 import { useUndoImportAction } from './use-undo-import';
 
 const PAGE_SIZE = 10;
@@ -83,9 +83,10 @@ export function ImportHistoryCard() {
           <>
             <ul className={cn('divide-y divide-border rounded-lg border border-border', batches.isPlaceholderData && 'opacity-60')}>
               {data.items.map((b) => {
-                const undone = Boolean(b.undoneAt);
+                const state = batchState(b);
+                const undone = state === 'undone';
                 // Every row already deleted by hand: nothing left to undo.
-                const empty = !undone && b.remainingCount === 0;
+                const empty = state === 'empty';
                 return (
                   <li key={b.id} className={cn('flex flex-wrap items-center gap-3 px-4 py-3', undone && 'opacity-70')}>
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-bg-subtle text-muted">

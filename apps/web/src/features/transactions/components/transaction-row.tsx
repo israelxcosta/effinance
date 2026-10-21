@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useTransactionActions } from '../transaction-actions';
+import { transactionOrigin } from '../origin';
 
 export function SeriesBadge({ tx }: { tx: Transaction }) {
   if (tx.recurrenceKind === 'installment' && tx.installmentNumber)
@@ -40,8 +41,8 @@ export function SeriesBadge({ tx }: { tx: Transaction }) {
 
 /** "Importado" / "Open Finance" for rows that did not come from the form (tolerates APIs without `origin`). */
 export function OriginBadge({ tx }: { tx: Transaction }) {
-  const origin = (tx as Partial<Pick<Transaction, 'origin'>>).origin;
-  if (origin !== 'file' && origin !== 'open_finance') return null;
+  const origin = transactionOrigin(tx);
+  if (origin === 'manual') return null;
   return (
     <Badge
       tone="neutral"

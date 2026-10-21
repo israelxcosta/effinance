@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { csvMappingSchema, type ImportPreviewRow } from '@effinance/shared';
-import { defaultCsvMapping, duplicateKind } from './labels';
+import { csvMappingSchema, type ImportBatch, type ImportPreviewRow } from '@effinance/shared';
+import { batchState, defaultCsvMapping, duplicateKind } from './labels';
 
 describe('defaultCsvMapping (fallback when the API cannot detect the CSV layout)', () => {
   it('debit/credit columns, short dates and comma decimals (Banco do Brasil style)', () => {
@@ -54,5 +54,15 @@ describe('duplicateKind', () => {
     expect(duplicateKind(legacy({ duplicate: true, note: 'Já importado' }))).toBe('imported');
     expect(duplicateKind(legacy({ duplicate: true, note: 'Possível duplicado' }))).toBe('similar');
     expect(duplicateKind(legacy({ duplicate: false, note: 'Já importado' }))).toBeNull();
+  });
+});
+
+describe('batchState (history)', () => {
+  const batch = (patch: Partial<ImportBatch>) => ({ remainingCount: 3, undoneAt: null, ...patch }) as ImportBatch;
+  it('undone batches stay listed (undoneAt) and are not undoable again', () => {
+    expect(batchState(batch({ undoneAt: '2026-10-21T12:00:00.000Z', remainingCount: 0 }))).toBe('undone');
+    expect(batchState(batch({}))).toBe('active');
+    // Rows deleted one by one: nothing left, but the batch was not undone.
+    expect(batchState(batch({ remainingCount: 0 }))).toBe('empty');
   });
 });

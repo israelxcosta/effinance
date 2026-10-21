@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ChevronLeft, ChevronRight, Plus, Receipt, Search, HandCoins, X } from 'lucide-react';
-import { formatBRL, todayISO, TRANSACTION_ORIGIN_LABELS, TRANSACTION_ORIGINS, type TransactionOrigin, type TransactionStatus } from '@effinance/shared';
+import { formatBRL, todayISO, TRANSACTION_ORIGIN_LABELS, TRANSACTION_ORIGINS, type TransactionStatus } from '@effinance/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -21,6 +21,7 @@ import { useTransactions } from '../api';
 import { useTransactionActions } from '../transaction-actions';
 import { TransactionRow } from './transaction-row';
 import { WriteGate } from '@/features/auth/permissions';
+import { ORIGIN_PARAM, originFromParam } from '../origin';
 
 const PAGE_SIZE = 50;
 
@@ -43,8 +44,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
   const contactId = params.get('contato') ?? '';
   // `origem` (older) is the account/card; how the row was created (manual, file, Open Finance) is `entrada`.
   const source = params.get('origem') ?? '';
-  const rawOrigin = params.get('entrada') ?? '';
-  const origin = (TRANSACTION_ORIGINS as readonly string[]).includes(rawOrigin) ? (rawOrigin as TransactionOrigin) : '';
+  const origin = originFromParam(params.get(ORIGIN_PARAM));
   const page = Number(params.get('pagina') ?? '1') || 1;
   const [searchInput, setSearchInput] = useState(params.get('busca') ?? '');
   const search = useDebounced(searchInput.trim());
@@ -201,7 +201,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
               </optgroup>
             ) : null}
           </Select>
-          <Select size_="sm" value={origin} onChange={(e) => update({ entrada: e.target.value })} aria-label="Origem">
+          <Select size_="sm" value={origin} onChange={(e) => update({ [ORIGIN_PARAM]: e.target.value })} aria-label="Origem">
             <option value="">Todas as origens</option>
             {TRANSACTION_ORIGINS.map((o) => (
               <option key={o} value={o}>
@@ -215,7 +215,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
               size="sm"
               onClick={() => {
                 setSearchInput('');
-                update({ categoria: null, contato: null, origem: null, entrada: null, busca: null });
+                update({ categoria: null, contato: null, origem: null, [ORIGIN_PARAM]: null, busca: null });
               }}
             >
               <X /> Limpar

@@ -128,6 +128,12 @@ export function targetLabel(
   return '—';
 }
 
+/** History state: undone (kept with `undoneAt`), emptied by hand (nothing left) or undoable. */
+export function batchState(batch: ImportBatch): 'undone' | 'empty' | 'active' {
+  if ((batch as Partial<Pick<ImportBatch, 'undoneAt'>>).undoneAt) return 'undone';
+  return batch.remainingCount === 0 ? 'empty' : 'active';
+}
+
 export function batchTitle(batch: ImportBatch): string {
   if (batch.origin === 'open_finance') return 'Open Finance · sincronização';
   return batch.fileName ?? 'Arquivo importado';
