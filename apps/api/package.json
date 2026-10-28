@@ -15,7 +15,7 @@
     "db:migrate:prod": "node --env-file-if-exists=.env dist/migrate.js"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1153.0",
+    "@aws-sdk/client-kms": "^3.1156.0",
     "@aws-sdk/client-sesv2": "^3.1153.0",
     "@effinance/shared": "workspace:*",
     "@fastify/cookie": "^11.1.3",
