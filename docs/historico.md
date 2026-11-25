@@ -173,3 +173,8 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-25: barra flutuante só com ícones; desktop sem espaços compartilhados nem aba Membros.
 - 2026-11-25: pasta sincronizada removida; o backup na nuvem é só "Entrar com Google" (API do Drive),
   com o registro OAuth embutido no instalador.
+- 2026-11-25: registro OAuth do Google criado pelo usuário (projeto "My First Project" da organização
+  efficio.com.br, Externo, Em produção, escopo só `drive.file`, domínio autorizado efficio.com.br) e
+  secrets `GOOGLE_OAUTH_CLIENT_ID/SECRET` no GitHub; o instalador passa a sair com "Entrar com Google"
+  pronto. Ícone do app estava ignorado pelo `.gitignore` (`build/`): liberado `apps/desktop/build/`.
+  Pendência: página de Política de Privacidade real em efficio.com.br (hoje aponta para a home).

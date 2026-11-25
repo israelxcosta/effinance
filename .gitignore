@@ -4,6 +4,8 @@ dist-demo/
 dist-desktop/
 apps/desktop/release/
 build/
+# electron-builder resources (app icon), not a build output
+!apps/desktop/build/
 coverage/
 *.log
 .DS_Store
