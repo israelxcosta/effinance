@@ -56,7 +56,11 @@ jobs:
       - name: Build the web app (desktop mode)
         run: pnpm --filter @effinance/web build:desktop
       - name: Build the Electron main process
-        run: pnpm --filter @effinance/desktop build
+        run: |
+          pnpm --filter @effinance/desktop build
+          # Says whether "Entrar com Google" is ready in this installer, never the values.
+          if [ -n "$GOOGLE_OAUTH_CLIENT_ID" ] && [ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then embedded=sim; else embedded=não; fi
+          echo "Login com Google embutido no instalador: $embedded" >> "$GITHUB_STEP_SUMMARY"
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
