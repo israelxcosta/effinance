@@ -9,7 +9,7 @@ export default function RestorePage() {
   return (
     <AuthLayout
       title="Restaurar backup"
-      subtitle="Traga seus dados de outro computador: entre no Google Drive ou escolha um arquivo de backup."
+      subtitle="Traga seus dados de outro computador pelo Google Drive ou por um arquivo de backup."
       footer={
         <Link to="/login" className="font-semibold text-brand-text hover:underline">
           Voltar para o login

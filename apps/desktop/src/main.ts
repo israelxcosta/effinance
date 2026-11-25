@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, protocol, safeStorage, shell } from 'electron';
 import { BackupService, type RestoreSource } from './backup-service';
 import { GoogleDrive } from './drive';
+import { DRIVE_DOWNLOAD_URL, SYNC_SUBFOLDER, detectGoogleDriveFolder } from './drive-folder';
 import { LocalBackups } from './local-backups';
 import { APP_URL, HOST, SCHEME, serveAsset } from './protocol';
 import { Store, type Encryptor } from './store';
@@ -102,7 +103,26 @@ app.whenReady().then(async () => {
       : null;
   const drive = new GoogleDrive({ store, openExternal: (url) => shell.openExternal(url), defaultClient: builtInClient });
   const local = new LocalBackups(join(app.getPath('documents'), 'Effinance', 'Backups'));
-  const backup = new BackupService({ store, local, drive, getSnapshot: requestSnapshot });
+  // Google Drive for desktop: the backups folder inside "Meu Drive" (detected, chosen, or off).
+  const detectDrive = () => detectGoogleDriveFolder({ home: app.getPath('home') });
+  const syncRoot = () => {
+    const chosen = store.settings().syncFolder;
+    return chosen === '' ? null : (chosen ?? detectDrive());
+  };
+  const synced = () => {
+    const root = syncRoot();
+    return root ? new LocalBackups(join(root, SYNC_SUBFOLDER)) : null;
+  };
+  const syncStatus = () => {
+    const chosen = store.settings().syncFolder;
+    const root = syncRoot();
+    return {
+      mode: chosen === '' ? 'off' : chosen ? 'custom' : 'auto',
+      folder: root ? join(root, SYNC_SUBFOLDER) : null,
+      detected: detectDrive(),
+    };
+  };
+  const backup = new BackupService({ store, local, synced, drive, getSnapshot: requestSnapshot });
 
   ipcMain.handle('desktop:master-key', () => store.secrets().masterKey);
   ipcMain.handle('backup:status', () => backup.status());
@@ -125,6 +145,7 @@ app.whenReady().then(async () => {
       if (picked.canceled || !picked.filePaths[0]) return null;
       resolved = { kind: 'file', text: await readFile(picked.filePaths[0], 'utf8') };
     } else if (source.kind === 'local' && source.date) resolved = { kind: 'local', date: source.date };
+    else if (source.kind === 'synced' && source.date) resolved = { kind: 'synced', date: source.date };
     else if (source.kind === 'drive' && source.id) resolved = { kind: 'drive', id: source.id };
     else throw new Error('Origem do backup inválida.');
     const payload = await backup.read(resolved, String(password));
@@ -137,6 +158,21 @@ app.whenReady().then(async () => {
     restorePassword = null;
     win?.webContents.reload();
   });
+  ipcMain.handle('sync:status', () => syncStatus());
+  ipcMain.handle('sync:set-enabled', (_e, enabled: boolean) => {
+    store.updateSettings({ syncFolder: enabled ? undefined : '' });
+    return syncStatus();
+  });
+  ipcMain.handle('sync:choose', async () => {
+    const picked = await dialog.showOpenDialog(win!, {
+      title: 'Escolha a pasta do Google Drive (por exemplo, G:\\Meu Drive)',
+      defaultPath: syncRoot() ?? app.getPath('home'),
+      properties: ['openDirectory'],
+    });
+    if (!picked.canceled && picked.filePaths[0]) store.updateSettings({ syncFolder: picked.filePaths[0] });
+    return syncStatus();
+  });
+  ipcMain.handle('sync:open-download', () => shell.openExternal(DRIVE_DOWNLOAD_URL));
   ipcMain.handle('drive:status', () => drive.status());
   ipcMain.handle('drive:configure', (_e, id: string, secret: string) => drive.configure(String(id), String(secret)));
   ipcMain.handle('drive:connect', () => drive.connect());

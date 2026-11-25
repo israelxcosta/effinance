@@ -25,6 +25,8 @@ export interface Settings {
   lastBackupAt?: string;
   lastError?: string | null;
   driveFolderId?: string;
+  /** Google Drive for desktop folder: absent = detect it, '' = turned off, path = chosen by the person. */
+  syncFolder?: string;
 }
 
 /** Atomic write: a crash mid-write never leaves a half file. */

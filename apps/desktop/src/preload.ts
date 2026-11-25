@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('effinanceDesktop', {
     read: (source: unknown, password: string) => invoke('backup:read', source, password),
     finishRestore: (masterKey: string) => invoke('backup:finish-restore', masterKey),
   },
+  sync: {
+    status: () => invoke('sync:status'),
+    setEnabled: (enabled: boolean) => invoke('sync:set-enabled', enabled),
+    choose: () => invoke('sync:choose'),
+    openDownload: () => invoke('sync:open-download'),
+  },
   drive: {
     status: () => invoke('drive:status'),
     configure: (clientId: string, clientSecret: string) => invoke('drive:configure', clientId, clientSecret),

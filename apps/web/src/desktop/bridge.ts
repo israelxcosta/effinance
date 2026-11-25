@@ -7,7 +7,9 @@ export interface BackupEntry {
   /** Size in bytes of the encrypted file. */
   size: number;
   local: boolean;
-  /** Google Drive file id when the day was uploaded. */
+  /** In the Google Drive for desktop folder (synced to Drive by Google's app). */
+  synced: boolean;
+  /** Google Drive file id when the day was uploaded through the API (advanced option). */
   driveId: string | null;
 }
 
@@ -19,6 +21,15 @@ export interface BackupStatus {
   /** Days kept, locally and on Google Drive. */
   retentionDays: number;
   localFolder: string;
+}
+
+export interface SyncStatus {
+  /** auto = Google Drive for desktop detected; custom = folder chosen; off = turned off. */
+  mode: 'auto' | 'custom' | 'off';
+  /** Where the backups are copied ("…\\Meu Drive\\Effinance Backups"), or null. */
+  folder: string | null;
+  /** "Meu Drive" folder found on this computer, if any. */
+  detected: string | null;
 }
 
 export interface DriveStatus {
@@ -33,7 +44,7 @@ export interface RestorePayload {
   snapshot: string;
 }
 
-export type RestoreSource = { kind: 'local'; date: string } | { kind: 'drive'; id: string } | { kind: 'file' };
+export type RestoreSource = { kind: 'local'; date: string } | { kind: 'synced'; date: string } | { kind: 'drive'; id: string } | { kind: 'file' };
 
 export interface DesktopBridge {
   version: string;
@@ -50,6 +61,14 @@ export interface DesktopBridge {
     /** After the snapshot is in the database: saves the backup's master key and reloads the window. */
     finishRestore(masterKey: string): Promise<void>;
   };
+  /** Copy in the Google Drive for desktop folder (no Google Cloud, no sign-in in Effinance). */
+  sync: {
+    status(): Promise<SyncStatus>;
+    setEnabled(enabled: boolean): Promise<SyncStatus>;
+    choose(): Promise<SyncStatus>;
+    openDownload(): Promise<void>;
+  };
+  /** Advanced: upload through the Drive API (needs an OAuth client from Google Cloud). */
   drive: {
     status(): Promise<DriveStatus>;
     configure(clientId: string, clientSecret: string): Promise<DriveStatus>;

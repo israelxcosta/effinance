@@ -1,8 +1,9 @@
 # Effinance para Windows
 
 O mesmo Effinance da web, instalado no computador: funciona sem internet, guarda os dados só
-neste computador e faz **backup automático ao fechar**, no próprio computador e no Google Drive,
-mantendo os **últimos 30 dias**.
+neste computador e faz **backup automático ao fechar**, no próprio computador e no seu **Google
+Drive** (pela pasta do app gratuito Google Drive para computador), mantendo os **últimos 30 dias**.
+Não é preciso Google Cloud nem nenhum cadastro de desenvolvedor.
 
 ## Como funciona por dentro
 
@@ -28,8 +29,9 @@ mantendo os **últimos 30 dias**.
 
 - **Computador novo, sem dados:** clique em **Criar conta neste computador**. A conta é local
   (e-mail e senha só para abrir o app).
-- **Já usava em outro computador:** clique em **Restaurar backup**, conecte o Google Drive (ou
-  escolha um arquivo), escolha o dia, digite a **senha do backup** e entre com seu e-mail e senha.
+- **Já usava em outro computador:** instale o Google Drive para computador e entre com a sua conta;
+  no Effinance, clique em **Restaurar backup**, escolha o dia (selo "Google Drive"), digite a
+  **senha do backup** e entre com seu e-mail e senha. Sem o Drive, use **Restaurar de um arquivo**.
 
 ## Backup automático
 
@@ -39,7 +41,8 @@ mantendo os **últimos 30 dias**.
 2. Ao **fechar o aplicativo**, ele mostra "Salvando o backup antes de fechar…" e:
    - grava `effinance-backup-AAAA-MM-DD.txt` em **Documentos\Effinance\Backups** (um por dia; fechar
      de novo no mesmo dia substitui o arquivo do dia);
-   - envia o mesmo arquivo para a pasta **Effinance Backups** do seu Google Drive, se conectado;
+   - copia o mesmo arquivo para **Meu Drive\Effinance Backups**, a pasta do Google Drive para
+     computador, que o app do Google envia ao seu Drive sozinho;
    - apaga, nos dois lugares, os arquivos com mais de **30 dias**.
 3. Também dá para **Fazer backup agora** na mesma tela.
 
@@ -48,10 +51,25 @@ PBKDF2-SHA256, 600 mil iterações): abri-lo num editor mostra só letras e núm
 dos dados, por isso restaura em qualquer computador só com a senha. Se o envio ao Drive falhar
 (sem internet), a cópia local fica salva e a tela de Backup mostra o erro.
 
-## Google Drive: credenciais do Google Cloud (uma vez)
+## Google Drive (sincronização)
 
-O app usa o login oficial do Google para apps instalados e o escopo **`drive.file`**: ele só enxerga
-os arquivos que ele mesmo criou, nunca o resto do seu Drive.
+1. Instale o **Google Drive para computador** (gratuito, do Google:
+   <https://www.google.com/drive/download/>) e entre com a sua conta Google. Ele cria a unidade
+   **G:** com a pasta **Meu Drive**, que sincroniza sozinha com o seu Drive.
+2. Abra o Effinance: em **Configurações → Backup → Google Drive** aparece "Sincronizando com o
+   Google Drive" e o caminho `G:\Meu Drive\Effinance Backups`. Pronto: cada backup ao fechar vai
+   para lá e o Google envia para a nuvem.
+3. Se a pasta não for encontrada (outra letra ou outro idioma), use **Escolher a pasta manualmente**
+   e aponte para o seu "Meu Drive". **Desligar** deixa os backups só no computador.
+
+Se o Google Drive para computador estiver fechado na hora do backup, a cópia local fica salva e a
+tela de Backup mostra o aviso; o próximo fechamento tenta de novo.
+
+## Avançado: envio direto pela API do Drive (para desenvolvedores)
+
+Só se você não quiser instalar o app do Google. O Effinance envia pela internet com o login oficial
+do Google para apps instalados e o escopo **`drive.file`** (só enxerga os arquivos que ele criou).
+Exige um projeto no Google Cloud, feito uma vez:
 
 1. Acesse <https://console.cloud.google.com/> com sua conta Google e crie um projeto
    (ex.: "Effinance").
@@ -65,7 +83,7 @@ os arquivos que ele mesmo criou, nunca o resto do seu Drive.
    - Tipo de aplicativo: **App para computador**; nome "Effinance Windows".
    - Copie o **ID do cliente** (termina em `.apps.googleusercontent.com`) e a **Chave secreta**.
 5. Escolha uma das opções:
-   - **No app:** cole os dois em **Configurações → Backup → Google Drive** e clique em
+   - **No app:** em **Configurações → Backup → Google Drive → Avançado**, cole os dois e clique em
      **Entrar com Google**. Em cada computador novo, cole de novo antes de restaurar.
    - **No instalador (recomendado):** no GitHub, em **Settings → Secrets and variables → Actions**,
      crie `GOOGLE_OAUTH_CLIENT_ID` e `GOOGLE_OAUTH_CLIENT_SECRET`. Os próximos instaladores já vêm
