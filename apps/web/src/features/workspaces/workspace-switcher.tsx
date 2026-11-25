@@ -16,6 +16,7 @@ import { toastError } from '@/lib/notify';
 import { useAuth } from '@/features/auth/auth-context';
 import { useCreateWorkspace } from './api';
 import { WORKSPACE_KIND_ICONS } from './kind-icon';
+import { IS_DESKTOP } from '@/lib/demo';
 
 /** Switches the active workspace: the server re-issues the session, cached data is dropped. */
 export function useSwitchWorkspace() {
@@ -131,7 +132,7 @@ export function WorkspaceSheet({ open, onOpenChange }: { open: boolean; onOpenCh
       onOpenChange(false);
       form.reset({ name: '', kind: 'family' });
       await switchTo(ws, { to: '/configuracoes?aba=membros', silent: true });
-      toast.success(`${ws.name} criado com ${TRIAL_DAYS} dias grátis. Convide quem vai participar.`);
+      toast.success(IS_DESKTOP ? `${ws.name} criado.` : `${ws.name} criado com ${TRIAL_DAYS} dias grátis. Convide quem vai participar.`);
     } catch (error) {
       toastError(error);
     }
@@ -173,7 +174,7 @@ export function WorkspaceSheet({ open, onOpenChange }: { open: boolean; onOpenCh
           <Input placeholder={kind === 'family' ? 'Ex.: Família Costa' : 'Ex.: Costa Design Ltda.'} {...form.register('name')} />
         </Field>
         <div className="rounded-xl border border-border bg-surface-muted px-4 py-3.5 text-label">
-          <p className="font-semibold text-fg">{TRIAL_DAYS} dias grátis, sem cartão</p>
+          <p className="font-semibold text-fg">{IS_DESKTOP ? 'Neste computador' : `${TRIAL_DAYS} dias grátis, sem cartão`}</p>
           <p className="mt-1 text-muted">
             {kind === 'family'
               ? 'Organize as contas da casa com quem mora com você.'

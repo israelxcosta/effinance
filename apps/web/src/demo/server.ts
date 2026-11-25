@@ -2,6 +2,8 @@
 // including Row Level Security, field encryption (fixed demo key), workspaces, fake billing, file
 // imports and Open Finance with the simulated provider (no webhooks in the browser).
 // Data persists per browser in IndexedDB; the demo users are seeded on first boot.
+// The desktop build (IS_DESKTOP) uses the same server with its own database, no sample data, the
+// master key from the Electron shell, a local license and Open Finance turned off.
 
 import type {} from '@api/app'; // brings Fastify type augmentations (app.db, req.workspaceId) into scope
 import { backfillEncryption, needsBackfill } from '@api/db/backfill';
@@ -21,14 +23,17 @@ import { FakeOpenFinanceProvider } from '@api/modules/open-finance/providers/fak
 import { loadAccess } from '@api/modules/workspaces/access';
 import { inviteRoutes, workspaceRoutes } from '@api/modules/workspaces/routes';
 import { domainRoutes, scopedRoutes } from '@api/routes';
+import { IS_DESKTOP } from '@/lib/demo';
+import { desktopBridge } from '@/desktop/bridge';
+import { installLocalLicense } from '@/desktop/license';
 import { demoAuthRoutes } from './auth-routes';
 import { DemoRouter, type DemoReply, type DemoRequest } from './fake-fastify';
 import { getSession, setSession } from './session';
 
 export { DEMO_EMAIL, DEMO_PARTNER_EMAIL, DEMO_PASSWORD };
 
-const DATA_DIR = 'idb://effinance-demo';
-const IDB_NAME = '/pglite/effinance-demo';
+const DATA_DIR = IS_DESKTOP ? 'idb://effinance' : 'idb://effinance-demo';
+const IDB_NAME = IS_DESKTOP ? '/pglite/effinance' : '/pglite/effinance-demo';
 /** Bump to reseed browsers that hold demo data from an older version. */
 const SEED_VERSION = 'seed:integrations-v1';
 
@@ -65,11 +70,18 @@ async function openDb() {
   const fsBundle = await loadFsBundle();
   if (typeof indexedDB === 'undefined') return createPgliteDb(undefined, { fsBundle });
   try {
-    return await createPgliteDb(DATA_DIR, { fsBundle });
+    // The desktop database is the person's real data: no background flushing there.
+    return await createPgliteDb(DATA_DIR, { fsBundle, ...(IS_DESKTOP ? { relaxedDurability: false } : {}) });
   } catch (error) {
     console.warn('[demo] IndexedDB indisponível, usando banco em memória', error);
     return createPgliteDb(undefined, { fsBundle });
   }
+}
+
+/** Desktop: a random key created by the shell on first run and kept with Windows DPAPI. */
+async function desktopKeyProvider() {
+  const hex = await desktopBridge().getMasterKey();
+  return LocalKeyProvider.create(Uint8Array.from(hex.match(/../g)!.map((h) => parseInt(h, 16))));
 }
 
 /** The demo is public: its master key is a fixed, published value (never use it elsewhere). */
@@ -104,10 +116,11 @@ async function boot() {
     await client.query('insert into __demo_migrations (name) values ($1)', [name]);
   }
 
-  configureKeyring({ provider: await demoKeyProvider(), db });
+  configureKeyring({ provider: IS_DESKTOP ? await desktopKeyProvider() : await demoKeyProvider(), db });
   // Data from a demo version without field encryption gets encrypted before anything reads it.
   if (await needsBackfill(db)) await backfillEncryption(db);
-  if (!applied.has(SEED_VERSION)) {
+  if (IS_DESKTOP) await installLocalLicense(client);
+  else if (!applied.has(SEED_VERSION)) {
     await seedDemo(db);
     await client.query('insert into __demo_migrations (name) values ($1) on conflict do nothing', [SEED_VERSION]);
     setSession(null);
@@ -118,7 +131,8 @@ async function boot() {
     appUrl,
     mailer: new ConsoleMailer(),
     billing: new FakeBillingProvider(appUrl),
-    openFinance: { provider: new FakeOpenFinanceProvider(), webhookUrl: null, webhookSecret: null },
+    // Bank connections need a server (Pluggy webhooks); the desktop app imports files instead.
+    openFinance: IS_DESKTOP ? null : { provider: new FakeOpenFinanceProvider(), webhookUrl: null, webhookSecret: null },
   };
 
   const router = new DemoRouter({
@@ -143,7 +157,7 @@ async function boot() {
   });
   await router.root.register(
     async (api) => {
-      api.get('/health', async () => ({ status: 'ok', mode: 'demo' }));
+      api.get('/health', async () => ({ status: 'ok', mode: IS_DESKTOP ? 'desktop' : 'demo' }));
       await api.register(demoAuthRoutes, { prefix: '/auth' });
       await api.register(workspaceRoutes, { prefix: '/workspaces' });
       await api.register(inviteRoutes, { prefix: '/invites' });

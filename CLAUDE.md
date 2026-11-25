@@ -9,6 +9,8 @@ Sistema financeiro pessoal (pt-BR). Monorepo pnpm:
 - `apps/web` — React 19 + Vite + Tailwind v4 + TanStack Query. Ver `docs/design-system.md`.
   `--mode demo` (`src/demo/`) roda as rotas da API no navegador sobre PGlite: mantenha os módulos
   de `apps/api/src/modules` livres de imports exclusivos do Node (exceto `lib/password`, trocado por alias).
+- `apps/desktop` — Effinance para Windows (Electron): o build `--mode desktop` do web com banco local,
+  backup cifrado ao fechar (computador + Google Drive, 30 dias). Ver `docs/desktop.md`.
 
 ## Agentes por função (`.claude/agents/`)
 

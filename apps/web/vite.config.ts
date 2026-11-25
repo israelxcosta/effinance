@@ -38,16 +38,16 @@ function pgliteFsBundle(): Plugin {
  * Production build: a CSP <meta> right after the charset, with the hashes of the inline scripts.
  * The CDN sends the same policy as a header plus frame-ancestors (not allowed in <meta>). The demo
  * build gets none: its host embeds the page in its own HTML, where a <meta> CSP would also bind
- * the host's scripts.
+ * the host's scripts. The desktop build gets it with WebAssembly allowed (PGlite).
  */
-function cspMeta(): Plugin {
+function cspMeta({ demo = false }: { demo?: boolean } = {}): Plugin {
   return {
     name: 'effinance:csp-meta',
     apply: 'build',
     transformIndexHtml: {
       order: 'post',
       async handler(html) {
-        const policy = contentSecurityPolicy({ scriptHashes: await inlineScriptHashes(html) });
+        const policy = contentSecurityPolicy({ scriptHashes: await inlineScriptHashes(html), demo });
         const charset = /<meta charset="UTF-8" \/>/i;
         if (!charset.test(html)) throw new Error('index.html: <meta charset> not found, CSP not injected');
         return html.replace(charset, (tag) => `${tag}\n    <meta http-equiv="Content-Security-Policy" content="${policy}" />`);
@@ -57,11 +57,14 @@ function cspMeta(): Plugin {
 }
 
 // `--mode demo` builds a self-contained app: the API route plugins run in the browser on PGlite.
+// `--mode desktop` is the same app for the Windows build (apps/desktop), without the sample data.
 export default defineConfig(({ mode }) => {
-  const demo = mode === 'demo';
+  const desktop = mode === 'desktop';
+  const local = mode === 'demo' || desktop;
   return {
-    base: demo ? './' : '/',
-    plugins: [react(), tailwindcss(), ...(demo ? [pgliteFsBundle()] : [cspMeta()])],
+    base: local ? './' : '/',
+    // The desktop app owns its whole page, so it gets the CSP <meta> too (with WebAssembly for PGlite).
+    plugins: [react(), tailwindcss(), ...(local ? [pgliteFsBundle(), ...(desktop ? [cspMeta({ demo: true })] : [])] : [cspMeta()])],
     resolve: {
       alias: [
         { find: '@api', replacement: fileURLToPath(new URL('../api/src', import.meta.url)) },
@@ -74,7 +77,8 @@ export default defineConfig(({ mode }) => {
       ],
     },
     define: {
-      'import.meta.env.VITE_DEMO': JSON.stringify(demo ? 'true' : 'false'),
+      'import.meta.env.VITE_DEMO': JSON.stringify(local ? 'true' : 'false'),
+      'import.meta.env.VITE_DESKTOP': JSON.stringify(desktop ? 'true' : 'false'),
       // Only read by the API clock (test pinning); never set in the browser.
       'process.env.EFFINANCE_TODAY': 'undefined',
     },
@@ -84,7 +88,7 @@ export default defineConfig(({ mode }) => {
     server: { port: 5173, proxy: apiProxy },
     preview: { port: 4173, proxy: apiProxy },
     build: {
-      outDir: demo ? 'dist-demo' : 'dist',
+      outDir: desktop ? 'dist-desktop' : local ? 'dist-demo' : 'dist',
       // Never publish source maps (they would expose the full source and comments).
       sourcemap: false,
       // Fonts stay files: inlined as data: URLs they would need `font-src data:` in the CSP.

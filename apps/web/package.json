@@ -8,6 +8,8 @@
     "dev:demo": "vite --mode demo",
     "build": "tsc -p tsconfig.json && vite build",
     "build:demo": "tsc -p tsconfig.json && vite build --mode demo",
+    "build:desktop": "tsc -p tsconfig.json && vite build --mode desktop",
+    "dev:desktop": "vite --mode desktop",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"

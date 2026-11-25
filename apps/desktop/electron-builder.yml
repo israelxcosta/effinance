@@ -1,0 +1,38 @@
+# Windows installer (NSIS). Built by .github/workflows/desktop.yml on windows-latest; works on Linux too.
+appId: br.com.efficio.effinance
+productName: Effinance
+copyright: Effinance
+directories:
+  output: release
+  buildResources: build
+# Only the bundled main/preload: every runtime dependency is inside dist/*.cjs.
+files:
+  - dist/**
+  - package.json
+extraResources:
+  # The web app (API + database in the page), served by the app:// protocol.
+  - from: ../web/dist-desktop
+    to: renderer
+    filter:
+      - "**/*"
+      - "!assets/pglite-*.data" # the build loads assets/pglite-fs.txt instead
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Effinance
+  installerLanguages: [pt_BR]
+  language: "1046"
+  artifactName: Effinance-Setup-${version}.exe
+  # Uninstalling keeps the data and the backups (Documentos\Effinance\Backups).
+  deleteAppDataOnUninstall: false

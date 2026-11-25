@@ -11,6 +11,7 @@ import { errorMessage } from '@/lib/api';
 import { useAuth } from '../auth-context';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './login';
+import { IS_DESKTOP } from '@/lib/demo';
 import { PasswordChecklist } from '../password-checklist';
 import { FullPageLoader } from '@/components/layout/app-shell';
 import { safeInternalPath } from '@/lib/safe-url';
@@ -36,7 +37,11 @@ export default function RegisterPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       await signUp(values);
-      toast.success(`Conta criada! Você tem ${TRIAL_DAYS} dias grátis, com categorias e uma carteira prontas.`);
+      toast.success(
+        IS_DESKTOP
+          ? 'Conta criada neste computador, com categorias e uma carteira prontas.'
+          : `Conta criada! Você tem ${TRIAL_DAYS} dias grátis, com categorias e uma carteira prontas.`,
+      );
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(errorMessage(error));

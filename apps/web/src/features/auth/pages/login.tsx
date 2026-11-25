@@ -13,7 +13,7 @@ import { ApiRequestError, errorMessage } from '@/lib/api';
 import { useAuth } from '../auth-context';
 import { AuthLayout } from './auth-layout';
 import { FullPageLoader } from '@/components/layout/app-shell';
-import { IS_DEMO } from '@/lib/demo';
+import { IS_DEMO, IS_DESKTOP } from '@/lib/demo';
 import { safeInternalPath } from '@/lib/safe-url';
 
 type LoginForm = z.input<typeof loginSchema>;
@@ -22,6 +22,8 @@ export default function LoginPage() {
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  // Desktop: set after a backup restore (see desktop/runtime.ts).
+  const restored = new URLSearchParams(location.search).has('restaurado');
   const [show, setShow] = useState(false);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const form = useForm<LoginForm, unknown, z.output<typeof loginSchema>>({
@@ -70,11 +72,25 @@ export default function LoginPage() {
         <>
           Ainda não tem conta?{' '}
           <Link to="/cadastro" state={location.state} className="font-semibold text-brand-text hover:underline">
-            Criar conta grátis
+            {IS_DESKTOP ? 'Criar conta neste computador' : 'Criar conta grátis'}
           </Link>
+          {IS_DESKTOP ? (
+            <>
+              <br />
+              Veio de outro computador?{' '}
+              <Link to="/restaurar" className="font-semibold text-brand-text hover:underline">
+                Restaurar backup
+              </Link>
+            </>
+          ) : null}
         </>
       }
     >
+      {IS_DESKTOP && restored ? (
+        <p role="status" className="mb-4 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-label text-fg">
+          <strong className="font-semibold">Backup restaurado.</strong> Entre com o e-mail e a senha da sua conta.
+        </p>
+      ) : null}
       {IS_DEMO ? (
         <p className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-label text-fg">
           <strong className="font-semibold">Ambiente de testes.</strong> A conta de demonstração já está
@@ -89,9 +105,12 @@ export default function LoginPage() {
           label="Senha"
           error={form.formState.errors.password?.message}
           aside={
-            <Link to="/esqueci-senha" className="text-xs font-semibold text-brand-text hover:underline">
-              Esqueci minha senha
-            </Link>
+            // The desktop app sends no e-mail: a forgotten password is recovered from a backup.
+            IS_DESKTOP ? undefined : (
+              <Link to="/esqueci-senha" className="text-xs font-semibold text-brand-text hover:underline">
+                Esqueci minha senha
+              </Link>
+            )
           }
         >
           <PasswordInput show={show} onToggle={() => setShow((s) => !s)} autoComplete="current-password" {...form.register('password')} />

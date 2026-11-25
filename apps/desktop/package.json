@@ -1,0 +1,23 @@
+{
+  "name": "@effinance/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Effinance para Windows: o app web com banco local e backup automático",
+  "author": "Effinance",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "start": "pnpm --filter @effinance/web build:desktop && tsup && electron .",
+    "dist:win": "pnpm --filter @effinance/web build:desktop && tsup && electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}

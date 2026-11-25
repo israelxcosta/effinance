@@ -8,6 +8,9 @@ packages:
 # added here (or to ignoredBuiltDependencies).
 onlyBuiltDependencies:
   - esbuild
+# Squirrel installer support pulled in by electron-builder (apps/desktop); the Windows build uses NSIS.
+ignoredBuiltDependencies:
+  - electron-winstaller
 strictDepBuilds: true
 # New versions are only resolvable 24 h after publication (most malicious releases are pulled
 # within hours). For an urgent security patch, add the package to minimumReleaseAgeExclude.
@@ -24,3 +27,7 @@ overrides:
   # GHSA-67mh-4wv8-2f99 (esbuild <=0.24.2, dev server). drizzle-kit 0.31 still declares the
   # deprecated @esbuild-kit/esm-loader (unused by its CLI); reuse the esbuild 0.25 it already ships.
   '@esbuild-kit/core-utils>esbuild': ^0.25.0
+  # GHSA-g3hv-75wg-m249 (minimatch <11.0.1, ReDoS). Build-time only: electron-builder (apps/desktop)
+  # globs its own file patterns.
+  'app-builder-lib>minimatch': ^11.0.1
+  '@electron/universal>minimatch': ^11.0.1

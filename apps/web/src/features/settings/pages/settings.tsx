@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router';
-import { CreditCard, Plug, ShieldCheck, ShieldEllipsis, UserRound, Users } from 'lucide-react';
+import { CreditCard, DatabaseBackup, Plug, ShieldCheck, ShieldEllipsis, UserRound, Users } from 'lucide-react';
 import { WORKSPACE_KIND_LABELS } from '@effinance/shared';
 import { PageHeader } from '@/components/ui/misc';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -11,9 +11,16 @@ import { MembersTab } from '../tabs/members-tab';
 import { SubscriptionTab } from '../tabs/subscription-tab';
 import { PrivacyTab } from '../tabs/privacy-tab';
 import { IntegrationsTab } from '../tabs/integrations-tab';
+import { IS_DESKTOP } from '@/lib/demo';
 
-const TABS = ['perfil', 'seguranca', 'membros', 'assinatura', 'integracoes', 'privacidade'] as const;
-type Tab = (typeof TABS)[number];
+// The backup screens pull in the in-browser database: the inlined env check drops them from other builds.
+const BackupSettings =
+  import.meta.env.VITE_DESKTOP === 'true' ? lazy(() => import('@/desktop/backup-panel').then((m) => ({ default: m.BackupSettings }))) : () => null;
+
+const ALL_TABS = ['perfil', 'seguranca', 'membros', 'assinatura', 'backup', 'integracoes', 'privacidade'] as const;
+type Tab = (typeof ALL_TABS)[number];
+// The desktop app has no subscription; it has local backups instead.
+const TABS: readonly Tab[] = ALL_TABS.filter((t) => (IS_DESKTOP ? t !== 'assinatura' : t !== 'backup'));
 
 export default function SettingsPage() {
   const { workspace } = useAuth();
@@ -62,7 +69,9 @@ export default function SettingsPage() {
             { value: 'perfil', label: 'Perfil', icon: <UserRound /> },
             { value: 'seguranca', label: 'Segurança', icon: <ShieldCheck /> },
             { value: 'membros', label: 'Membros', icon: <Users /> },
-            { value: 'assinatura', label: 'Assinatura', icon: <CreditCard /> },
+            ...(IS_DESKTOP
+              ? [{ value: 'backup' as const, label: 'Backup', icon: <DatabaseBackup /> }]
+              : [{ value: 'assinatura' as const, label: 'Assinatura', icon: <CreditCard /> }]),
             { value: 'integracoes', label: 'Integrações', icon: <Plug /> },
             { value: 'privacidade', label: 'Privacidade', icon: <ShieldEllipsis /> },
           ]}
@@ -72,6 +81,11 @@ export default function SettingsPage() {
       {tab === 'seguranca' ? <SecurityTab /> : null}
       {tab === 'membros' ? <MembersTab /> : null}
       {tab === 'assinatura' ? <SubscriptionTab /> : null}
+      {tab === 'backup' ? (
+        <Suspense fallback={null}>
+          <BackupSettings />
+        </Suspense>
+      ) : null}
       {tab === 'integracoes' ? <IntegrationsTab /> : null}
       {tab === 'privacidade' ? <PrivacyTab /> : null}
     </div>

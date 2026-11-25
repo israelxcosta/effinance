@@ -1,6 +1,8 @@
 node_modules/
 dist/
 dist-demo/
+dist-desktop/
+apps/desktop/release/
 build/
 coverage/
 *.log

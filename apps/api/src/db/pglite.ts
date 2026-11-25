@@ -8,8 +8,10 @@ import * as schema from './schema';
 /**
  * @param dataDir e.g. `idb://effinance-demo` to persist in IndexedDB; omit for in-memory.
  * @param options.fsBundle Postgres runtime files, when they are not served next to the WASM.
+ * @param options.relaxedDurability false = every write reaches IndexedDB before the query returns
+ *   (desktop app: the person's only copy of the data).
  */
-export async function createPgliteDb(dataDir?: string, options: { fsBundle?: Blob } = {}) {
+export async function createPgliteDb(dataDir?: string, options: { fsBundle?: Blob; relaxedDurability?: boolean } = {}) {
   // relaxedDurability: IndexedDB is flushed in the background instead of after every statement,
   // which would make the demo seed (hundreds of writes) take minutes.
   const client = await PGlite.create(dataDir, { relaxedDurability: true, ...options });

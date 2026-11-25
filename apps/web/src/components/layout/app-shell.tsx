@@ -12,7 +12,8 @@ import { Sidebar } from './sidebar';
 import { QuickBar } from './quick-bar';
 import { MobileNav } from './mobile-nav';
 import { CommandPalette } from './command-palette';
-import { IS_DEMO } from '@/lib/demo';
+import { IS_DEMO, IS_DESKTOP } from '@/lib/demo';
+import { BackupReminder } from '@/desktop/backup-reminder';
 import { DemoBanner } from './demo-banner';
 
 export function AppShell() {
@@ -72,6 +73,7 @@ export function AppShell() {
         <div className="lg:pl-[76px]">
           <main className="mx-auto max-w-[1440px] px-4 pt-6 pb-28 sm:px-6 lg:pt-8 lg:pb-32">
             <DemoBanner />
+            {IS_DESKTOP ? <BackupReminder /> : null}
             <SubscriptionBanner key={workspace?.id} />
             <Suspense fallback={<PageLoader />}>
               <Outlet />

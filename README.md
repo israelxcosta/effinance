@@ -20,12 +20,14 @@ conta, transferências e investimentos, e relatórios com insights.
 apps/
   api/         Fastify + Drizzle (rotas em /api)
   web/         SPA React (Vite, porta 5173, proxy /api → 3333)
+  desktop/     Effinance para Windows (Electron, banco local, backup no Google Drive)
 packages/
   shared/      contrato compartilhado
 docs/
   api.md             endpoints e regras de negócio
   deploy-aws.md      produção na AWS (RDS, KMS, ECS, CloudFront, WAF, SES, Mercado Pago)
   design-system.md   tokens, componentes e padrões de tela
+  desktop.md         app para Windows: instalação, backup automático, Google Drive
 .claude/agents/      agentes por função (backend, frontend, UI designer)
 ```
 
@@ -65,6 +67,14 @@ Para testar localmente: `pnpm --filter @effinance/web dev:demo`.
 
 Para produção use a API real (Node + PostgreSQL): ela é a fonte da verdade, com autenticação por
 cookie httpOnly e dados no servidor.
+
+## Effinance para Windows
+
+`apps/desktop` empacota o mesmo app num instalador `.exe` (Electron): funciona sem internet, guarda os
+dados no computador e, **ao fechar**, salva um backup cifrado em texto em `Documentos\Effinance\Backups`
+e no Google Drive, mantendo os últimos 30 dias. O workflow `Desktop (Windows)` gera o instalador a cada
+push e o anexa ao rascunho de release "Effinance para Windows (teste)". Guia completo, inclusive as
+credenciais do Google Cloud: [`docs/desktop.md`](docs/desktop.md).
 
 ## Scripts
 

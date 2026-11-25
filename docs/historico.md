@@ -94,6 +94,31 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - **Publicar ou atualizar:** `pnpm --filter @effinance/web build:demo` e republicar
   `dist-demo/index.html` com os `assets/` no **mesmo artifact** (URL acima), sem o `.data`.
 
+### Effinance para Windows (desktop)
+
+- `apps/desktop` (Electron 45 + electron-builder NSIS) carrega o build `vite build --mode desktop`
+  (`dist-desktop`) pelo protocolo `app://effinance/`. Flags em `lib/demo.ts`: `IS_LOCAL_API` (API no
+  navegador, rotas por hash), `IS_DESKTOP`, `IS_DEMO = local && !desktop`.
+- Banco PGlite em `idb://effinance`, **sem relaxedDurability**, sem seed; chave mestra aleatória do
+  Electron (DPAPI/safeStorage); "licença local" (trigger em `subscriptions` → sempre ativa,
+  `business_monthly`); Open Finance desligado; aba Assinatura vira **Backup**; sem "Esqueci a senha".
+- **Pedido do usuário:** backup **automático ao fechar**, em **texto (.txt)**, guardando os **últimos
+  30 dias** (um arquivo por dia: `effinance-backup-AAAA-MM-DD.txt`), no computador
+  (`Documentos\Effinance\Backups`) e no Google Drive (pasta "Effinance Backups").
+- Formato: `EFFINANCE-BACKUP 1` + cabeçalho JSON + base64 de AES-256-GCM(gzip(JSON {masterKey,
+  snapshot})); senha do backup → PBKDF2-SHA256 600k; cabeçalho autenticado (AAD). O snapshot é JSON
+  de todas as tabelas (`json_agg`), restaurado com `json_populate_recordset` numa transação com
+  `session_replication_role = replica` (`apps/web/src/desktop/snapshot.ts`).
+- Drive: OAuth de app instalado (navegador do sistema, loopback 127.0.0.1, PKCE), escopo **só
+  `drive.file`**. Credenciais do Google Cloud digitadas no app ou embutidas no build pelos secrets
+  `GOOGLE_OAUTH_CLIENT_ID/SECRET`. Publicar o app OAuth "Em produção" (no modo Teste o token expira em
+  7 dias).
+- Instalador: workflow `.github/workflows/desktop.yml` (windows-latest) → rascunho de release
+  `desktop-latest` (via `gh`, sem action de terceiros). No Linux o NSIS exige Wine 32 bits.
+- Teste ponta a ponta com o Electron real (Xvfb + CDP): criar conta, lançar despesa, senha, fechar →
+  backup de ~6 KB; perfil novo restaura e mostra a despesa. Fechar por `window.close()` ou SIGTERM
+  não dispara o evento `close`; usar `BrowserWindow.close()` (inspetor do main).
+
 ### SaaS e segurança
 
 - Workspaces (pessoal, família ou empresa) com papéis owner, editor e viewer, e convites por link.
@@ -131,3 +156,5 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   pt-BR.
 - 2026-11-25: instalada a skill `ui-taste` (uizze.sh); auditoria visual publicada e polimento aplicado
   (tipos, cores AA, alturas, raios, totais à direita, linha de lançamento no celular).
+- 2026-11-25: app para Windows (Electron) com banco local e backup cifrado ao fechar (30 dias, local +
+  Google Drive); instalador gerado pelo GitHub Actions.

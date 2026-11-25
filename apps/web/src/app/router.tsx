@@ -2,7 +2,7 @@ import { lazy } from 'react';
 import { createBrowserRouter, createHashRouter, Link } from 'react-router';
 import { AppShell } from '@/components/layout/app-shell';
 import { Button } from '@/components/ui/button';
-import { IS_DEMO } from '@/lib/demo';
+import { IS_DESKTOP, IS_LOCAL_API } from '@/lib/demo';
 
 const LoginPage = lazy(() => import('@/features/auth/pages/login'));
 const RegisterPage = lazy(() => import('@/features/auth/pages/register'));
@@ -24,6 +24,8 @@ const GoalsPage = lazy(() => import('@/features/goals/pages/goals'));
 const ContactsPage = lazy(() => import('@/features/contacts/pages/contacts'));
 const ReportsPage = lazy(() => import('@/features/reports/pages/reports'));
 const SettingsPage = lazy(() => import('@/features/settings/pages/settings'));
+// Inlined env check: only the desktop build carries the restore screen (and the database it needs).
+const RestorePage = import.meta.env.VITE_DESKTOP === 'true' ? lazy(() => import('@/desktop/restore-page')) : () => null;
 
 function NotFound() {
   return (
@@ -38,8 +40,8 @@ function NotFound() {
   );
 }
 
-// The demo build is served from a single static page, so it routes on the URL hash.
-export const router = (IS_DEMO ? createHashRouter : createBrowserRouter)([
+// The demo and desktop builds are served from a single static page, so they route on the URL hash.
+export const router = (IS_LOCAL_API ? createHashRouter : createBrowserRouter)([
   { path: '/login', element: <LoginPage /> },
   { path: '/cadastro', element: <RegisterPage /> },
   { path: '/esqueci-senha', element: <ForgotPasswordPage /> },
@@ -49,6 +51,8 @@ export const router = (IS_DEMO ? createHashRouter : createBrowserRouter)([
   { path: '/convite', element: <InvitePage /> },
   { path: '/termos', element: <TermsPage /> },
   { path: '/privacidade', element: <PrivacyPage /> },
+  // Desktop app: restore a backup before any account exists on this computer.
+  ...(IS_DESKTOP ? [{ path: '/restaurar', element: <RestorePage /> }] : []),
   {
     path: '/',
     element: <AppShell />,
