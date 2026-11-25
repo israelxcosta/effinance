@@ -65,6 +65,8 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Modo escuro neutro (preto, grafite e off-white), sem o azul da marca.
 - Despesas em tons de vermelho.
 - Topbar sem busca nem selo PRO; o sino fica na barra flutuante de ações.
+- **Pedido do usuário:** barra flutuante **só com ícones** (web e desktop), com dica e nome acessível
+  em cada um; despesa = menos (vermelho), receita = mais (verde), para não depender só da cor.
 - Select customizado (Radix) com a API do select nativo, para funcionar com o react-hook-form.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
@@ -104,6 +106,8 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Banco PGlite em `idb://effinance`, **sem relaxedDurability**, sem seed; chave mestra aleatória do
   Electron (DPAPI/safeStorage); "licença local" (trigger em `subscriptions` → sempre ativa,
   `business_monthly`); Open Finance desligado; aba Assinatura vira **Backup**; sem "Esqueci a senha".
+- **Pedido do usuário:** no desktop **não há espaços (Família/Empresa) nem membros**: some a seção
+  "Espaços"/"Novo espaço" do menu da conta e do menu "Mais", e a aba Membros. A web (SaaS) mantém.
 - **Pedido do usuário:** backup **automático ao fechar**, em **texto (.txt)**, guardando os **últimos
   30 dias** (um arquivo por dia: `effinance-backup-AAAA-MM-DD.txt`), no computador
   (`Documentos\Effinance\Backups`) e no Google Drive (pasta "Effinance Backups").
@@ -167,3 +171,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   Google Drive); instalador gerado pelo GitHub Actions.
 - 2026-11-25: backup no Google Drive passa a usar a pasta do Google Drive para computador (sem Google
   Cloud); a API do Drive virou opção avançada.
+- 2026-11-25: barra flutuante só com ícones; desktop sem espaços compartilhados nem aba Membros.

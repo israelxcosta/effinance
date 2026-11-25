@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/auth-context';
 import { WriteGate } from '@/features/auth/permissions';
 import { WorkspaceList, WorkspaceSheet } from '@/features/workspaces/workspace-switcher';
+import { IS_DESKTOP } from '@/lib/demo';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
 import { Sheet } from '@/components/ui/sheet';
 import {
@@ -82,15 +83,20 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
       </nav>
       <Sheet open={menuOpen} onOpenChange={setMenuOpen} title="Menu" description="Todas as seções do Effinance">
         <div className="flex flex-col gap-1">
-          <p className="eyebrow px-3 pb-1 text-subtle">Espaço</p>
-          <WorkspaceList
-            onSwitched={() => setMenuOpen(false)}
-            onCreate={() => {
-              setMenuOpen(false);
-              setCreating(true);
-            }}
-          />
-          <span className="my-1 h-px bg-border" aria-hidden />
+          {/* The desktop app is one person's: no workspaces to switch or create. */}
+          {IS_DESKTOP ? null : (
+            <>
+              <p className="eyebrow px-3 pb-1 text-subtle">Espaço</p>
+              <WorkspaceList
+                onSwitched={() => setMenuOpen(false)}
+                onCreate={() => {
+                  setMenuOpen(false);
+                  setCreating(true);
+                }}
+              />
+              <span className="my-1 h-px bg-border" aria-hidden />
+            </>
+          )}
           {/* Search and alerts: on desktop they live in the floating quick-action bar. */}
           <button
             type="button"

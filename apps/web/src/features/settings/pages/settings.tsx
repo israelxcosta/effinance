@@ -20,7 +20,8 @@ const BackupSettings =
 const ALL_TABS = ['perfil', 'seguranca', 'membros', 'assinatura', 'backup', 'integracoes', 'privacidade'] as const;
 type Tab = (typeof ALL_TABS)[number];
 // The desktop app has no subscription; it has local backups instead.
-const TABS: readonly Tab[] = ALL_TABS.filter((t) => (IS_DESKTOP ? t !== 'assinatura' : t !== 'backup'));
+// Nor members: it is one person's app, with no shared workspaces.
+const TABS: readonly Tab[] = ALL_TABS.filter((t) => (IS_DESKTOP ? t !== 'assinatura' && t !== 'membros' : t !== 'backup'));
 
 export default function SettingsPage() {
   const { workspace } = useAuth();
@@ -50,7 +51,9 @@ export default function SettingsPage() {
         overline="Conta"
         title="Configurações"
         description={
-          workspace ? (
+          IS_DESKTOP ? (
+            'Perfil, segurança, backup e privacidade.'
+          ) : workspace ? (
             <>
               Conta, segurança e o espaço <span className="font-semibold text-fg">{workspace.name}</span> ({WORKSPACE_KIND_LABELS[workspace.kind]}).
             </>
@@ -68,7 +71,7 @@ export default function SettingsPage() {
           options={[
             { value: 'perfil', label: 'Perfil', icon: <UserRound /> },
             { value: 'seguranca', label: 'Segurança', icon: <ShieldCheck /> },
-            { value: 'membros', label: 'Membros', icon: <Users /> },
+            ...(IS_DESKTOP ? [] : [{ value: 'membros' as const, label: 'Membros', icon: <Users /> }]),
             ...(IS_DESKTOP
               ? [{ value: 'backup' as const, label: 'Backup', icon: <DatabaseBackup /> }]
               : [{ value: 'assinatura' as const, label: 'Assinatura', icon: <CreditCard /> }]),
@@ -79,7 +82,7 @@ export default function SettingsPage() {
       </div>
       {tab === 'perfil' ? <ProfileTab /> : null}
       {tab === 'seguranca' ? <SecurityTab /> : null}
-      {tab === 'membros' ? <MembersTab /> : null}
+      {tab === 'membros' && !IS_DESKTOP ? <MembersTab /> : null}
       {tab === 'assinatura' ? <SubscriptionTab /> : null}
       {tab === 'backup' ? (
         <Suspense fallback={null}>

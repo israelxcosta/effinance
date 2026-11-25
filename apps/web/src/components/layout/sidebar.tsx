@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { WorkspaceMenuItems, WorkspaceSheet } from '@/features/workspaces/workspace-switcher';
+import { IS_DESKTOP } from '@/lib/demo';
 import { WORKSPACE_KIND_ICONS } from '@/features/workspaces/kind-icon';
 import { NAV_ITEMS, SETTINGS_ITEM } from './nav';
 
@@ -42,7 +43,7 @@ export function Sidebar() {
             <button
               type="button"
               className="relative flex size-10 items-center justify-center rounded-full bg-primary-soft text-label font-bold text-primary-soft-fg ring-2 ring-surface transition-transform hover:scale-105"
-              aria-label={`Menu do usuário — espaço ${workspace?.name ?? ''}`}
+              aria-label={IS_DESKTOP ? 'Menu do usuário' : `Menu do usuário — espaço ${workspace?.name ?? ''}`}
             >
               {initials(user?.name)}
               {/* Shared workspaces get a small badge so the active one is visible at a glance. */}
@@ -58,15 +59,20 @@ export function Sidebar() {
             <div className="px-2.5 pb-2">
               <p className="truncate text-sm font-semibold">{user?.name}</p>
               <p className="truncate text-xs text-muted">{user?.email}</p>
-              {workspace ? (
+              {/* The desktop app is one person's: no workspaces to switch or create. */}
+              {workspace && !IS_DESKTOP ? (
                 <p className="mt-1.5 truncate text-xs text-muted">
                   Espaço atual: <span className="font-semibold text-fg">{workspace.name}</span> · {WORKSPACE_KIND_LABELS[workspace.kind]}
                 </p>
               ) : null}
             </div>
             <DropdownMenuSeparator />
-            <WorkspaceMenuItems onCreate={() => setCreating(true)} />
-            <DropdownMenuSeparator />
+            {IS_DESKTOP ? null : (
+              <>
+                <WorkspaceMenuItems onCreate={() => setCreating(true)} />
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem icon={<UserRound />} onSelect={() => navigate('/configuracoes')}>
               Perfil
             </DropdownMenuItem>
