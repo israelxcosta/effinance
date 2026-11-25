@@ -138,8 +138,8 @@ describe('backup service', () => {
     service.setPassword('senha-forte-1');
     await service.run();
     expect(await service.list()).toEqual([
-      { date: '2026-11-25', size: expect.any(Number), local: true, synced: false, driveId: 'new-1' },
-      { date: '2026-11-20', size: 9, local: false, synced: false, driveId: 'd1' },
+      { date: '2026-11-25', size: expect.any(Number), local: true, driveId: 'new-1' },
+      { date: '2026-11-20', size: 9, local: false, driveId: 'd1' },
     ]);
     const payload = await service.read({ kind: 'drive', id: 'new-1' }, 'senha-forte-1');
     // A backup from another computer: its key replaces this one's, its password becomes this one's.
@@ -159,63 +159,5 @@ describe('app:// protocol', () => {
     // Climbing out is clamped to the folder (that file does not exist there: 404).
     expect(resolveAsset(root, 'app://effinance/%2e%2e/%2e%2e/etc/passwd')).toBe(join(root, 'etc', 'passwd'));
     expect(resolveAsset(root, 'app://outro/index.html')).toBeNull();
-  });
-});
-
-describe('Google Drive for desktop folder', () => {
-  it('finds "Meu Drive" on the virtual drive, then in the profile, else nothing', async () => {
-    const { detectGoogleDriveFolder } = await import('./drive-folder');
-    const only = (paths: string[]) => (p: string) => paths.includes(p);
-    expect(detectGoogleDriveFolder({ platform: 'win32', home: 'C:\\Users\\israel', exists: only(['G:\\Meu Drive']) })).toBe('G:\\Meu Drive');
-    expect(detectGoogleDriveFolder({ platform: 'win32', home: 'C:\\Users\\israel', exists: only(['H:\\My Drive']) })).toBe('H:\\My Drive');
-    const mirror = join('/home/israel', 'Google Drive', 'Meu Drive');
-    expect(detectGoogleDriveFolder({ platform: 'linux', home: '/home/israel', exists: only([mirror]) })).toBe(mirror);
-    expect(detectGoogleDriveFolder({ platform: 'win32', home: 'C:\\Users\\israel', exists: () => false })).toBeNull();
-  });
-
-  it('copies each backup into the synced folder, keeps 30 days there and restores from it', async () => {
-    const dir = tmp();
-    const store = new Store(dir, fakeEncryptor);
-    store.updateSecrets({ masterKey: KEY });
-    const local = new LocalBackups(join(dir, 'Backups'));
-    const synced = new LocalBackups(join(dir, 'G', 'Meu Drive', 'Effinance Backups'));
-    synced.write('2026-10-01', 'velho');
-    const service = new BackupService({
-      store,
-      local,
-      synced: () => synced,
-      drive: fakeDrive([], { connected: false }),
-      now: () => new Date(2026, 10, 25, 18, 0),
-      getSnapshot: async () => '{"format":"effinance-snapshot"}',
-    });
-    service.setPassword('senha-forte-1');
-    expect((await service.run()).lastError).toBeNull();
-    expect(synced.list().map((b) => b.day)).toEqual(['2026-11-25']);
-    expect(synced.read('2026-11-25')).toBe(local.read('2026-11-25'));
-
-    // New computer: nothing local, the Drive folder already has the backups.
-    const fresh = new LocalBackups(join(tmp(), 'Backups'));
-    const other = new BackupService({ store, local: fresh, synced: () => synced, drive: fakeDrive([], { connected: false }), getSnapshot: async () => '' });
-    expect(await other.list()).toEqual([{ date: '2026-11-25', size: expect.any(Number), local: false, synced: true, driveId: null }]);
-    expect((await other.read({ kind: 'synced', date: '2026-11-25' }, 'senha-forte-1')).masterKey).toBe(KEY);
-  });
-
-  it('keeps the local backup when the Drive folder is offline', async () => {
-    const dir = tmp();
-    const store = new Store(dir, fakeEncryptor);
-    store.updateSecrets({ masterKey: KEY, backupPassword: 'senha-forte-1' });
-    const local = new LocalBackups(join(dir, 'Backups'));
-    // A file where the folder should be: like G:\ missing because Google Drive is not running.
-    writeFileSync(join(dir, 'G'), '');
-    const service = new BackupService({
-      store,
-      local,
-      synced: () => new LocalBackups(join(dir, 'G', 'Meu Drive', 'Effinance Backups')),
-      drive: fakeDrive([], { connected: false }),
-      getSnapshot: async () => '{}',
-    });
-    const status = await service.run();
-    expect(local.list()).toHaveLength(1);
-    expect(status.lastError).toContain('pasta do Google Drive falhou');
   });
 });

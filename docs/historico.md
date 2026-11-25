@@ -115,12 +115,13 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   snapshot})); senha do backup → PBKDF2-SHA256 600k; cabeçalho autenticado (AAD). O snapshot é JSON
   de todas as tabelas (`json_agg`), restaurado com `json_populate_recordset` numa transação com
   `session_replication_role = replica` (`apps/web/src/desktop/snapshot.ts`).
-- **Correção do usuário: sincronizar com o Google Drive, sem Google Cloud.** Caminho principal: a pasta
-  do **Google Drive para computador** (app gratuito do Google), detectada sozinha (`G:\Meu Drive`,
-  `My Drive`, ou `~/Google Drive/...`; `drive-folder.ts`); cada backup é copiado para
-  `Meu Drive\Effinance Backups` com os mesmos 30 dias, e a restauração lista essa pasta (selo "Google
-  Drive"). Setting `syncFolder`: ausente = detectar, '' = desligado, caminho = escolhido.
-- Avançado (recolhido na tela): OAuth de app instalado (navegador do sistema, loopback 127.0.0.1,
+- **Decisão do usuário: backup na nuvem automático, sem instalar nada e sem sincronizar pasta**
+  (Google Drive para computador e OneDrive foram descartados). Caminho: **Entrar com Google** dentro
+  do app → upload direto pela API do Drive a cada fechamento (pasta "Effinance Backups", 30 dias).
+  O registro OAuth ("App para computador") é feito **uma vez por quem publica** e embutido no
+  instalador pelos secrets do GitHub; sem ele, o botão fica desativado e as credenciais podem ser
+  coladas em "Avançado".
+- OAuth de app instalado (navegador do sistema, loopback 127.0.0.1,
   PKCE), escopo **só `drive.file`**. Credenciais do Google Cloud digitadas no app ou embutidas no build pelos secrets
   `GOOGLE_OAUTH_CLIENT_ID/SECRET`. Publicar o app OAuth "Em produção" (no modo Teste o token expira em
   7 dias).
@@ -169,6 +170,6 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   (tipos, cores AA, alturas, raios, totais à direita, linha de lançamento no celular).
 - 2026-11-25: app para Windows (Electron) com banco local e backup cifrado ao fechar (30 dias, local +
   Google Drive); instalador gerado pelo GitHub Actions.
-- 2026-11-25: backup no Google Drive passa a usar a pasta do Google Drive para computador (sem Google
-  Cloud); a API do Drive virou opção avançada.
 - 2026-11-25: barra flutuante só com ícones; desktop sem espaços compartilhados nem aba Membros.
+- 2026-11-25: pasta sincronizada removida; o backup na nuvem é só "Entrar com Google" (API do Drive),
+  com o registro OAuth embutido no instalador.

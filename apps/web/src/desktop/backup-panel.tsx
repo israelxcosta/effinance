@@ -2,7 +2,7 @@
 // (a new computer restores from Google Drive before any account exists locally).
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { CloudUpload, Download, FileUp, FolderOpen, FolderSync, HardDrive, LogOut, RotateCcw } from 'lucide-react';
+import { CloudUpload, FileUp, FolderOpen, HardDrive, LogOut, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateBR } from '@effinance/shared';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Modal } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, Input } from '@/components/ui/input';
 import { PasswordInput } from '@/features/auth/pages/login';
-import { desktopBridge, type BackupEntry, type BackupStatus, type DriveStatus, type RestoreSource, type SyncStatus } from './bridge';
+import { desktopBridge, type BackupEntry, type BackupStatus, type DriveStatus, type RestoreSource } from './bridge';
 import { restoreBackup } from './runtime';
 
 const MIN_PASSWORD = 8;
@@ -59,7 +59,7 @@ export function BackupSettings() {
       <Card className="p-5">
         <CardHeader
           title="Backup automático"
-          subtitle={`Ao fechar o aplicativo, um backup cifrado é salvo neste computador e na pasta do Google Drive. Ficam os últimos ${status?.retentionDays ?? 30} dias.`}
+          subtitle={`Ao fechar o aplicativo, um backup cifrado é salvo neste computador e no Google Drive. Ficam os últimos ${status?.retentionDays ?? 30} dias.`}
           icon={<CloudUpload />}
         />
         <div className="mt-4 flex flex-col gap-1 text-sm">
@@ -155,83 +155,8 @@ function PasswordForm({ hasPassword, onSaved }: { hasPassword: boolean; onSaved:
   );
 }
 
-/**
- * Google Drive: the copy goes to the "Meu Drive" folder of Google Drive for desktop (Google's free
- * app syncs it). No Google Cloud, no sign-in here. The Drive API upload stays as an advanced option.
- */
+/** Google Drive: one "Entrar com Google", then every backup uploads by itself (Drive API, scope drive.file). */
 export function DriveCard({ onChange, className }: { onChange?: () => Promise<void> | void; className?: string }) {
-  const [sync, setSync] = useState<SyncStatus | null>(null);
-
-  useEffect(() => {
-    void desktopBridge().sync.status().then(setSync);
-  }, []);
-
-  async function act(fn: () => Promise<SyncStatus>) {
-    try {
-      setSync(await fn());
-      await onChange?.();
-    } catch (e) {
-      toast.error(errorText(e));
-    }
-  }
-
-  return (
-    <Card className={className ?? 'p-5'}>
-      <CardHeader title="Google Drive" subtitle="Uma cópia de cada backup vai para o seu Google Drive." icon={<FolderSync />} />
-      {!sync ? null : sync.folder ? (
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="rounded-lg bg-success-soft px-4 py-3 text-label">
-            <p className="font-semibold">Sincronizando com o Google Drive</p>
-            <p className="mt-0.5 break-all text-muted">{sync.folder}</p>
-            <p className="mt-1 text-muted">O app Google Drive para computador envia essa pasta ao seu Drive sozinho.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void act(() => desktopBridge().sync.choose())}>
-              <FolderOpen /> Trocar pasta
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => void act(() => desktopBridge().sync.setEnabled(false))}>
-              Desligar
-            </Button>
-          </div>
-        </div>
-      ) : sync.mode === 'off' ? (
-        <div className="mt-4 flex flex-col items-start gap-3">
-          <p className="text-label text-muted">A cópia no Google Drive está desligada: os backups ficam só neste computador.</p>
-          <Button size="sm" onClick={() => void act(() => desktopBridge().sync.setEnabled(true))}>
-            Ligar
-          </Button>
-        </div>
-      ) : (
-        <div className="mt-4 flex flex-col gap-3 text-label">
-          <p className="font-semibold">Não encontrei o Google Drive neste computador.</p>
-          <ol className="list-decimal space-y-1 pl-5 text-muted">
-            <li>Instale o <span className="font-semibold text-fg">Google Drive para computador</span> (gratuito, do Google) e entre com a sua conta.</li>
-            <li>Volte aqui: a pasta “Meu Drive” é encontrada sozinha e cada backup passa a ir para o seu Drive.</li>
-          </ol>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => void desktopBridge().sync.openDownload()}>
-              <Download /> Baixar o Google Drive para computador
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void act(() => desktopBridge().sync.status())}>
-              Procurar de novo
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => void act(() => desktopBridge().sync.choose())}>
-              Escolher a pasta manualmente
-            </Button>
-          </div>
-        </div>
-      )}
-      <details className="mt-5 border-t border-border pt-3 text-label">
-        <summary className="cursor-pointer font-semibold text-muted">Avançado: enviar pela internet, sem o app do Google Drive</summary>
-        <p className="mt-2 text-muted">Exige um projeto no Google Cloud (para desenvolvedores). Veja o guia do Effinance para Windows.</p>
-        <DriveApiSection onChange={onChange} className="mt-2" />
-      </details>
-    </Card>
-  );
-}
-
-/** Advanced: upload through the Drive API (OAuth client from a Google Cloud project, then sign-in). */
-function DriveApiSection({ onChange, className }: { onChange?: () => Promise<void> | void; className?: string }) {
   const [status, setStatus] = useState<DriveStatus | null>(null);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -255,37 +180,9 @@ function DriveApiSection({ onChange, className }: { onChange?: () => Promise<voi
   }
 
   return (
-    <div className={className}>
-      {!status ? null : !status.configured ? (
-        <form
-          className="mt-4 flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act(() => desktopBridge().drive.configure(clientId.trim(), clientSecret.trim()));
-          }}
-        >
-          <p className="text-label text-muted">
-            Cole as credenciais do “app para computador” criado no Google Cloud (passo a passo no guia do Effinance para
-            Windows). É feito uma vez neste computador.
-          </p>
-          <Field label="ID do cliente">
-            <Input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="…apps.googleusercontent.com" />
-          </Field>
-          <Field label="Chave secreta do cliente">
-            <Input value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} type="password" />
-          </Field>
-          <Button type="submit" loading={busy} disabled={!clientId.trim() || !clientSecret.trim()} className="self-start">
-            Salvar credenciais
-          </Button>
-        </form>
-      ) : !status.connected ? (
-        <div className="mt-4 flex flex-col items-start gap-3">
-          <p className="text-label text-muted">O navegador abre para você entrar e autorizar. O Effinance só enxerga os arquivos que ele mesmo criar.</p>
-          <Button onClick={() => void act(() => desktopBridge().drive.connect(), 'Google Drive conectado.')} loading={busy}>
-            Entrar com Google
-          </Button>
-        </div>
-      ) : (
+    <Card className={className ?? 'p-5'}>
+      <CardHeader title="Google Drive" subtitle="Cada backup vai direto para o seu Google Drive, pela internet, ao fechar o aplicativo." icon={<CloudUpload />} />
+      {!status ? null : status.connected ? (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-lg bg-success-soft px-4 py-3 text-label">
           <span>
             Conectado{status.email ? (
@@ -293,14 +190,52 @@ function DriveApiSection({ onChange, className }: { onChange?: () => Promise<voi
                 {' '}como <span className="font-semibold">{status.email}</span>
               </>
             ) : null}
-            .
+            . Os backups ficam na pasta “Effinance Backups”.
           </span>
           <Button variant="ghost" size="sm" onClick={() => void act(() => desktopBridge().drive.disconnect(), 'Google Drive desconectado.')}>
             <LogOut /> Desconectar
           </Button>
         </div>
+      ) : (
+        <div className="mt-4 flex flex-col items-start gap-3">
+          <p className="text-label text-muted">
+            Entre uma vez com a sua conta Google: o navegador abre para você autorizar e, daí em diante, o backup é automático. O
+            Effinance só enxerga os arquivos que ele mesmo criar no seu Drive.
+          </p>
+          <Button onClick={() => void act(() => desktopBridge().drive.connect(), 'Google Drive conectado.')} loading={busy} disabled={!status.configured}>
+            Entrar com Google
+          </Button>
+          {!status.configured ? (
+            <p className="text-label text-warning">
+              Este instalador ainda não tem o registro do Effinance no Google. Use um instalador novo ou cole as credenciais em
+              Avançado.
+            </p>
+          ) : null}
+        </div>
       )}
-    </div>
+      {status && !status.connected && !status.configured ? (
+        <details className="mt-5 border-t border-border pt-3 text-label">
+          <summary className="cursor-pointer font-semibold text-muted">Avançado: credenciais do Google</summary>
+          <form
+            className="mt-3 flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act(() => desktopBridge().drive.configure(clientId.trim(), clientSecret.trim()));
+            }}
+          >
+            <Field label="ID do cliente">
+              <Input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="…apps.googleusercontent.com" />
+            </Field>
+            <Field label="Chave secreta do cliente">
+              <Input value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} type="password" />
+            </Field>
+            <Button type="submit" variant="outline" loading={busy} disabled={!clientId.trim() || !clientSecret.trim()} className="self-start">
+              Salvar credenciais
+            </Button>
+          </form>
+        </details>
+      ) : null}
+    </Card>
   );
 }
 
@@ -319,15 +254,13 @@ export function BackupList({ entries, className }: { entries: BackupEntry[] | nu
               <span className="text-xs text-muted">{formatSize(e.size)}</span>
               <span className="flex gap-1">
                 {e.local ? <Badge>Neste computador</Badge> : null}
-                {e.synced || e.driveId ? <Badge tone="brand">Google Drive</Badge> : null}
+                {e.driveId ? <Badge tone="brand">Google Drive</Badge> : null}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 className="ml-auto"
-                onClick={() =>
-                  setRestoring(e.local ? { kind: 'local', date: e.date } : e.synced ? { kind: 'synced', date: e.date } : { kind: 'drive', id: e.driveId! })
-                }
+                onClick={() => setRestoring(e.local ? { kind: 'local', date: e.date } : { kind: 'drive', id: e.driveId! })}
               >
                 <RotateCcw /> Restaurar
               </Button>

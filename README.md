@@ -72,7 +72,7 @@ cookie httpOnly e dados no servidor.
 
 `apps/desktop` empacota o mesmo app num instalador `.exe` (Electron): funciona sem internet, guarda os
 dados no computador e, **ao fechar**, salva um backup cifrado em texto em `Documentos\Effinance\Backups`
-e na pasta do Google Drive para computador (sincroniza sozinha com o seu Drive), mantendo os últimos 30 dias. O workflow `Desktop (Windows)` gera o instalador a cada
+e no Google Drive, mantendo os últimos 30 dias. O workflow `Desktop (Windows)` gera o instalador a cada
 push e o anexa ao rascunho de release "Effinance para Windows (teste)". Guia completo, inclusive as
 credenciais do Google Cloud: [`docs/desktop.md`](docs/desktop.md).
 
