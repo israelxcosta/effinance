@@ -23,6 +23,8 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Ambiente de nuvem próprio **"effinance"** (env_01EvZFr3XSCbLfmo2Z858ur7): libera `uizze.sh` e tem
   script de preparo (Postgres com senha `postgres`, bancos `effinance` e `effinance_test`,
   `pnpm install`, `.env`). Ao começar: `service postgresql start`.
+- **Instalador Windows:** rascunho de release "Effinance para Windows (teste)" (tag `desktop-latest`,
+  só para quem tem acesso ao repo), recriado a cada push que toca o app; 1º build verde em 699b9f1.
 - Relatório da auditoria visual: https://claude.ai/artifact/BP1CRYFMPbyznXLa4ySeto
 - **Demo publicada** (artifact privado no claude.ai, mesmo link sempre):
   https://claude.ai/artifact/GpG6q9Df2QALZExqP9Xtqv (republicada com o polimento em 2026-11-25,
