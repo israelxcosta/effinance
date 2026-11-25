@@ -21,7 +21,7 @@ export function DemoBanner() {
   const action = 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold transition-colors disabled:opacity-60';
 
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-warning/30 bg-warning-soft px-4 py-2.5 text-[13px] text-fg">
+    <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-warning/30 bg-warning-soft px-4 py-2.5 text-label text-fg">
       <FlaskConical className="size-4 shrink-0 text-warning" aria-hidden />
       <span className="font-semibold">Ambiente de testes</span>
       <span className="text-muted">Os dados ficam salvos apenas neste navegador.</span>

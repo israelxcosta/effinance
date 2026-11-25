@@ -44,7 +44,7 @@ export function ProfileTab() {
             <div className="flex items-center gap-4">
               <span className="flex size-14 items-center justify-center rounded-full bg-primary-soft text-lg font-bold text-primary-soft-fg">{initials(user?.name)}</span>
               <div className="min-w-0">
-                <p className="truncate font-semibold">{user?.name}</p>
+                <p className="truncate text-title font-semibold">{user?.name}</p>
                 <p className="truncate text-sm text-muted">{user?.email}</p>
               </div>
             </div>

@@ -128,9 +128,9 @@ function LegalPage({ title, sections }: { title: string; sections: Section[] }) 
       </header>
       <main className="mx-auto max-w-3xl px-6 py-10">
         <p className="eyebrow text-brand-text">Documentos legais</p>
-        <h1 className="mt-2 text-[28px] font-semibold tracking-tight">{title}</h1>
+        <h1 className="mt-2 text-display font-semibold tracking-tight">{title}</h1>
         <p className="mt-1 text-sm text-muted">Última atualização: {UPDATED_AT}</p>
-        <div role="note" className="mt-6 flex gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] text-fg">
+        <div role="note" className="mt-6 flex gap-3 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-label text-fg">
           <Scale className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <p>
             <strong className="font-semibold">Modelo a ser revisado por advogado.</strong> Este texto é um ponto de partida e
@@ -140,7 +140,7 @@ function LegalPage({ title, sections }: { title: string; sections: Section[] }) 
         <div className="mt-8 flex flex-col gap-7">
           {sections.map((s) => (
             <section key={s.title}>
-              <h2 className="text-base font-semibold tracking-tight">{s.title}</h2>
+              <h2 className="text-title font-semibold tracking-tight">{s.title}</h2>
               {s.paragraphs.map((p) => (
                 <p key={p} className="mt-2 text-sm leading-relaxed text-muted">
                   {p}

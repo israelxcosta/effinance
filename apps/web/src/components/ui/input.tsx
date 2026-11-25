@@ -18,7 +18,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
 );
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn('text-[13px] font-medium text-fg', className)} {...props} />;
+  return <label className={cn('text-label font-medium text-fg', className)} {...props} />;
 }
 
 interface FieldProps {

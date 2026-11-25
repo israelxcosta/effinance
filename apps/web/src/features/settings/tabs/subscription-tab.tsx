@@ -140,13 +140,13 @@ function CurrentPlanCard({ sub }: { sub: Subscription }) {
       />
       <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-2xl font-semibold tracking-tight">{plan ? plan.name : 'Teste grátis'}</p>
+          <p className="text-heading font-semibold tracking-tight">{plan ? plan.name : 'Teste grátis'}</p>
           {plan ? (
             <p className="tabular text-sm text-muted">
               {formatBRL(plan.priceCents)} / {plan.interval === 'year' ? 'ano' : 'mês'}
             </p>
           ) : null}
-          <p className="mt-2 max-w-xl text-[13px] text-muted">{detail}</p>
+          <p className="mt-2 max-w-xl text-label text-muted">{detail}</p>
         </div>
         {canCancel ? (
           <Button variant="ghost" onClick={() => setConfirming(true)}>
@@ -256,16 +256,16 @@ function PlansCard({ sub, plans }: { sub: Subscription; plans: Plan[] | undefine
                     <Sparkles /> Mais econômico
                   </Badge>
                 ) : null}
-                <p className="font-semibold">{plan.name}</p>
+                <p className="text-title font-semibold">{plan.name}</p>
                 <p className="mt-0.5 text-xs text-muted">{plan.description}</p>
                 <p className="mt-4">
-                  <span className="tabular text-[26px] font-semibold tracking-tight">{formatBRL(plan.priceCents)}</span>
+                  <span className="tabular text-display font-semibold tracking-tight">{formatBRL(plan.priceCents)}</span>
                   <span className="text-sm text-muted"> / {plan.interval === 'year' ? 'ano' : 'mês'}</span>
                 </p>
                 {plan.interval === 'year' ? (
                   <p className="tabular text-xs text-muted">equivale a {formatBRL(Math.round(plan.priceCents / 12))} por mês</p>
                 ) : null}
-                <ul className="mt-4 flex flex-1 flex-col gap-2 text-[13px]">
+                <ul className="mt-4 flex flex-1 flex-col gap-2 text-label">
                   {plan.highlights.map((h) => (
                     <li key={h} className="flex items-start gap-2">
                       <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />

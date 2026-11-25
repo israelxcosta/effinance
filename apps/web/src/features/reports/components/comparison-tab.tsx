@@ -140,7 +140,7 @@ export function ComparisonTab() {
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-surface-muted text-left text-[11px] font-semibold tracking-wide text-muted uppercase">
+                    <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                       <th className="px-4 py-2.5">Categoria</th>
                       <th className="px-4 py-2.5 text-right">Período A</th>
                       <th className="px-4 py-2.5 text-right">Período B</th>
@@ -216,11 +216,11 @@ function CompareCard({
   const good = invert ? !up : up;
   return (
     <Card className="p-5">
-      <p className="text-[13px] font-medium text-muted">{title}</p>
+      <p className="text-label font-medium text-muted">{title}</p>
       <div className="mt-2 flex items-end justify-between gap-2">
         <div>
-          <p className="text-[11px] text-subtle">Período B</p>
-          <p className="tabular text-[22px] font-bold tracking-tight">{formatBRL(vb)}</p>
+          <p className="text-2xs text-subtle">Período B</p>
+          <p className="tabular text-heading font-semibold tracking-tight">{formatBRL(vb)}</p>
         </div>
         <span className={cn('rounded-full px-2 py-1 text-xs font-semibold', va === vb ? 'bg-bg-subtle text-muted' : good ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger')}>
           {change === null ? 'novo' : `${change > 0 ? '+' : ''}${formatPercent(change)}`}

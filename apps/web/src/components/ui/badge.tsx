@@ -20,7 +20,7 @@ export function Badge({ tone = 'neutral', size = 'sm', className, ...props }: Ba
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full font-semibold whitespace-nowrap [&_svg]:size-3',
-        size === 'sm' ? 'h-5 px-2 text-[11px]' : 'h-6 px-2.5 text-xs',
+        size === 'sm' ? 'h-5 px-2 text-2xs' : 'h-6 px-2.5 text-xs',
         TONES[tone],
         className,
       )}

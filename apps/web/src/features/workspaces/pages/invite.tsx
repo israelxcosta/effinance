@@ -97,7 +97,7 @@ export default function InvitePage() {
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3.5 rounded-xl border border-border bg-surface p-4 shadow-xs">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-[12px] bg-primary-soft text-primary-soft-fg">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-fg">
             <Icon className="size-5" />
           </span>
           <div className="min-w-0">

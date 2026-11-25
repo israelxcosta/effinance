@@ -48,7 +48,7 @@ export default function CategoriesPage() {
         description="Classifique receitas e despesas com ícones, cores e subcategorias."
         actions={
           <>
-            <label className="mr-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
+            <label className="mr-2 flex cursor-pointer items-center gap-2 text-label font-medium text-muted">
               <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Mostrar arquivadas" /> Arquivadas
             </label>
             <WriteGate>
@@ -94,7 +94,7 @@ export default function CategoriesPage() {
               <div className="flex items-start gap-3">
                 <CategoryIcon icon={c.icon} color={c.color} size="lg" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold">{c.name}</p>
+                  <p className="truncate text-title font-semibold">{c.name}</p>
                   <p className="text-xs text-muted">
                     {c.subcategories.length ? `${c.subcategories.length} subcategoria(s)` : 'Sem subcategorias'}
                     {c.archived ? ' · arquivada' : ''}
@@ -102,7 +102,7 @@ export default function CategoriesPage() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
+                    <button type="button" className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
                       <Ellipsis className="size-4" />
                     </button>
                   </DropdownMenuTrigger>
@@ -121,7 +121,8 @@ export default function CategoriesPage() {
                     type="button"
                     onClick={() => open({ category: s, parent: c })}
                     className={cn('inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:brightness-95', s.archived && 'line-through opacity-60')}
-                    style={{ backgroundColor: alpha(tone(s.color), 0.1), borderColor: alpha(tone(s.color), 0.25), color: tone(s.color) }}
+                    // Text keeps the category hue but is pulled toward the text tone, so light colors (yellow, orange) stay legible.
+                    style={{ backgroundColor: alpha(tone(s.color), 0.1), borderColor: alpha(tone(s.color), 0.25), color: `color-mix(in oklab, ${tone(s.color)} 50%, var(--app-fg))` }}
                     title="Editar subcategoria"
                   >
                     <CategoryIcon icon={s.icon} color={s.color} className="!size-4 !bg-transparent [&_svg]:!size-3.5" />

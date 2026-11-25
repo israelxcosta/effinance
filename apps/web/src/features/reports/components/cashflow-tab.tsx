@@ -100,7 +100,7 @@ export function CashflowTab({ from, to }: { from: string; to: string }) {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
-                <tr className="border-b border-border bg-surface-muted text-left text-[11px] font-semibold tracking-wide text-muted uppercase">
+                <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                   <th className="px-4 py-2.5">Período</th>
                   <th className="px-4 py-2.5 text-right">Entradas realizadas</th>
                   <th className="px-4 py-2.5 text-right">Saídas realizadas</th>

@@ -48,7 +48,7 @@ export function OpenFinanceTransparency({ compact = false }: { compact?: boolean
   return (
     <ul className={compact ? 'flex flex-col gap-2' : 'flex flex-col gap-3'}>
       {items.map((item) => (
-        <li key={item.text} className="flex items-start gap-2.5 text-[13px] leading-relaxed text-muted">
+        <li key={item.text} className="flex items-start gap-2.5 text-label leading-relaxed text-muted">
           <span className="mt-0.5 shrink-0 text-success [&_svg]:size-4">{item.icon}</span>
           {item.text}
         </li>
@@ -518,7 +518,7 @@ function SummaryTile({ label, value, tone, hint }: { label: string; value: numbe
     <div className="rounded-lg border border-border px-3 py-2.5">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className={`tabular mt-0.5 text-lg font-semibold ${tone === 'success' ? 'text-success' : 'text-fg'}`}>{value}</dd>
-      {hint ? <dd className="text-[11px] text-subtle">{hint}</dd> : null}
+      {hint ? <dd className="text-2xs text-subtle">{hint}</dd> : null}
     </div>
   );
 }

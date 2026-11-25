@@ -24,7 +24,7 @@ export function IconPicker({ value, onChange, color = '#152B61' }: IconPickerPro
             title={name}
             onClick={() => onChange(name)}
             className={cn(
-              'flex aspect-square items-center justify-center rounded-[10px] border transition-all [&_svg]:size-[18px]',
+              'flex aspect-square items-center justify-center rounded-sm border transition-all [&_svg]:size-[18px]',
               active ? 'border-transparent ring-2 ring-offset-1 ring-offset-surface' : 'border-border text-muted hover:border-border-strong hover:text-fg',
             )}
             style={active ? { backgroundColor: alpha(color, 0.12), color, ['--tw-ring-color' as string]: color } : undefined}

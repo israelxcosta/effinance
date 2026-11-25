@@ -10,7 +10,7 @@ interface CategoryIconProps {
 }
 
 const SIZES = {
-  sm: 'size-8 rounded-[10px] [&_svg]:size-4',
+  sm: 'size-8 rounded-sm [&_svg]:size-4',
   md: 'size-10 rounded-md [&_svg]:size-[18px]',
   lg: 'size-12 rounded-lg [&_svg]:size-5',
 } as const;

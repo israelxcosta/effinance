@@ -64,7 +64,7 @@ export function PayInvoiceDialog({ open, onOpenChange, card, invoice }: Props) {
       <div className="flex flex-col gap-4">
         <div className="rounded-lg bg-primary-soft p-4 text-center">
           <p className="text-xs font-medium text-primary-soft-fg/80">Valor da fatura</p>
-          <p className="tabular mt-1 text-[26px] font-semibold text-primary-soft-fg">{formatBRL(invoice.unpaidTotal)}</p>
+          <p className="tabular mt-1 text-display font-semibold text-primary-soft-fg">{formatBRL(invoice.unpaidTotal)}</p>
         </div>
         <Field label="Pagar com" hint={selected ? `Saldo atual: ${formatBRL(selected.balance)}` : undefined}>
           <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>

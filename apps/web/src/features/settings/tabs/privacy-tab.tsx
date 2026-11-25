@@ -95,7 +95,7 @@ function ExportCard() {
         icon={<Download />}
       />
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-muted px-4 py-3">
-        <p className="max-w-lg text-[13px] text-muted">
+        <p className="max-w-lg text-label text-muted">
           {isOwner
             ? 'Inclui contas, cartões, lançamentos, categorias, metas e contatos, com os campos protegidos já decifrados. Guarde o arquivo com cuidado.'
             : 'Somente o proprietário pode exportar os dados deste espaço.'}
@@ -159,7 +159,7 @@ function AuditCard() {
           <EmptyState compact title="Nenhum registro ainda" description="As ações sensíveis aparecerão aqui." />
         ) : (
           <div className="-mx-2 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-[13px]">
+            <table className="w-full min-w-[520px] text-left text-label">
               <thead>
                 <tr className="text-xs text-muted">
                   <th className="px-2 py-2 font-medium">Quando</th>

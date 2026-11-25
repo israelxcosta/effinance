@@ -35,7 +35,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
         aria-hidden
         className={cn(
           'pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 font-semibold text-muted',
-          size === 'lg' ? 'text-base' : 'text-sm',
+          size === 'lg' ? 'text-title' : 'text-sm',
         )}
       >
         {negative ? '-R$' : 'R$'}
@@ -47,7 +47,7 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
         className={cn(
           inputClasses,
           'tabular text-right font-semibold',
-          size === 'lg' ? 'h-14 pl-12 text-2xl tracking-tight' : negative ? 'pl-12' : 'pl-10',
+          size === 'lg' ? 'h-14 pl-12 text-display tracking-tight' : negative ? 'pl-12' : 'pl-10',
           negative && 'text-danger',
         )}
         value={display}

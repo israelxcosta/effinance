@@ -122,8 +122,8 @@ export function CategorySheet({
                 value={field.value}
                 onChange={field.onChange}
                 options={[
-                  { value: 'expense', label: 'Despesa', activeClassName: 'bg-danger text-white shadow-sm' },
-                  { value: 'income', label: 'Receita', activeClassName: 'bg-success text-white shadow-sm' },
+                  { value: 'expense', label: 'Despesa', activeClassName: 'bg-danger text-on-semantic shadow-sm' },
+                  { value: 'income', label: 'Receita', activeClassName: 'bg-success text-on-semantic shadow-sm' },
                 ]}
               />
             )}

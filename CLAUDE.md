@@ -15,6 +15,8 @@ Sistema financeiro pessoal (pt-BR). Monorepo pnpm:
 - `backend-senior` — API, banco, regras financeiras, testes de integração.
 - `frontend-specialist` — telas, componentes, formulários, gráficos.
 - `ui-saas-designer` — tokens, componentes e revisão visual (estilo Graniq em azul-marinho).
+- Skill `ui-taste` (Uizze, `.claude/skills/ui-taste`, travada em `skills-lock.json`) — playbooks de
+  polimento e auditoria visual; use a escala e as regras de `docs/design-system.md`.
 
 Segurança (auditoria + correção com teste de regressão, um por linguagem/camada):
 

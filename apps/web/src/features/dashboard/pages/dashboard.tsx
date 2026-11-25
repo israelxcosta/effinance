@@ -200,7 +200,7 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
           />
           {/* Wider column so the donut sits beside its legend instead of leaving empty space. */}
           <div className="rounded-xl border border-border p-5 lg:col-span-2 xl:col-span-1">
-            <p className="text-[13px] font-medium text-muted">Gastos por categoria</p>
+            <p className="text-label font-medium text-muted">Gastos por categoria</p>
             <div className="mt-3">
               {loading ? (
                 <Skeleton className="h-44" />
@@ -323,7 +323,7 @@ function SummaryBox({
       {/* Label and comparison on the left, total on the right (vertically centered). */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-muted">{label}</p>
+          <p className="text-label font-medium text-muted">{label}</p>
           <p className="mt-1 text-xs text-muted">
             {change === undefined || change === null ? (
               'Sem base de comparação'
@@ -338,7 +338,7 @@ function SummaryBox({
             )}
           </p>
         </div>
-        <div className="tabular ml-auto text-right text-[28px] font-bold tracking-tight">
+        <div className="tabular ml-auto text-right text-display font-semibold tracking-tight">
           {value === undefined ? <Skeleton className="h-9 w-40" /> : formatBRL(value)}
         </div>
       </div>
@@ -347,7 +347,7 @@ function SummaryBox({
           <StatPill key={p.label} label={p.label} value={p.value === undefined ? '—' : formatBRL(p.value)} tone={p.tone} />
         ))}
       </div>
-      <div className="mt-auto flex items-center justify-between border-t border-border px-3 pt-3 text-[13px]">
+      <div className="mt-auto flex items-center justify-between border-t border-border px-3 pt-3 text-label">
         <span className="text-muted">{footerLabel}</span>
         <span className={cn('tabular font-semibold', (footerValue ?? 0) < 0 ? 'text-danger' : 'text-brand-text')}>
           {footerValue === undefined ? '—' : formatBRL(footerValue)}
@@ -380,7 +380,7 @@ function BalancesCard({ d, loading }: { d: DashboardResponse | undefined; loadin
               <BankLogo key={a.id} bank={a.bank} color={a.color} size="md" />
             ))}
           </div>
-          <p className="tabular mt-3 text-center text-[26px] font-bold tracking-tight">{formatBRL(d!.balances.accounts)}</p>
+          <p className="tabular mt-3 text-center text-display font-semibold tracking-tight">{formatBRL(d!.balances.accounts)}</p>
           <p className="text-center text-xs text-muted">
             {accounts.length} conta(s) · investido <span className="font-semibold text-brand-text">{formatBRL(d!.balances.investments)}</span>
           </p>
@@ -389,8 +389,8 @@ function BalancesCard({ d, loading }: { d: DashboardResponse | undefined; loadin
               <li key={a.id}>
                 <Link to={`/extrato?conta=${a.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-surface-muted">
                   <BankLogo bank={a.bank} color={a.color} size="xs" />
-                  <span className="flex-1 truncate text-[13px] font-medium">{a.name}</span>
-                  <span className={cn('tabular text-[13px] font-semibold', a.balance < 0 && 'text-danger')}>{formatBRL(a.balance)}</span>
+                  <span className="flex-1 truncate text-label font-medium">{a.name}</span>
+                  <span className={cn('tabular text-label font-semibold', a.balance < 0 && 'text-danger')}>{formatBRL(a.balance)}</span>
                 </Link>
               </li>
             ))}
@@ -421,11 +421,11 @@ function CardsUsage({ d, loading }: { d: DashboardResponse | undefined; loading:
               <Link key={c.id} to={`/cartoes/${c.id}`} className="group block">
                 <div className="flex items-center gap-2.5">
                   <BankLogo bank={c.bank} size="sm" />
-                  <span className="flex-1 truncate text-[13px] font-semibold">{c.name}</span>
-                  <span className="tabular text-[13px] font-semibold">{formatBRL(c.currentInvoice.total)}</span>
+                  <span className="flex-1 truncate text-label font-semibold">{c.name}</span>
+                  <span className="tabular text-label font-semibold">{formatBRL(c.currentInvoice.total)}</span>
                 </div>
                 <ProgressBar value={usage} size="sm" className="mt-2" tone={usage > 0.9 ? 'danger' : usage > 0.7 ? 'warning' : 'brand'} />
-                <p className="mt-1 text-[11px] text-muted">
+                <p className="mt-1 text-2xs text-muted">
                   {formatPercent(usage, 0)} do limite · disponível {formatBRL(c.availableLimit)}
                 </p>
               </Link>
@@ -441,7 +441,7 @@ function MonthlyBalance({ d, loading }: { d: DashboardResponse | undefined; load
   const data = (d?.monthly ?? []).map((m) => ({
     label: formatMonthKey(m.month, 'short').split('/')[0],
     saldo: m.net,
-    fill: m.net >= 0 ? 'var(--app-success)' : 'var(--app-danger)',
+    fill: m.net >= 0 ? 'var(--app-chart-positive)' : 'var(--app-chart-negative)',
   }));
   const empty = data.every((x) => x.saldo === 0);
   return (

@@ -25,7 +25,7 @@ export function InsightCard({ insights, loading, className }: { insights: Insigh
           <Sparkles className="size-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-[15px] font-semibold">Insights</p>
+          <p className="text-title font-semibold">Insights</p>
           <p className="text-xs text-white/65">{list.length ? `${list.length} análise(s) do período` : 'Análises automáticas'}</p>
         </div>
         {list.length > 1 ? (
@@ -45,7 +45,7 @@ export function InsightCard({ insights, loading, className }: { insights: Insigh
         ) : current ? (
           <>
             <div className="flex items-center justify-between">
-              <span className="eyebrow inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10px] text-white/90">
+              <span className="eyebrow inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-2xs text-white/90">
                 <Lightbulb className="size-3" /> {INSIGHT_LABELS[current.kind]}
               </span>
               {current.href ? (

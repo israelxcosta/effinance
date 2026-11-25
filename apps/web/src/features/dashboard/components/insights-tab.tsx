@@ -76,7 +76,7 @@ export function InsightsTab({ month, dashboard, loading }: { month: string; dash
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-hero-from via-hero-via to-hero-to p-6 text-white">
         <div className="pointer-events-none absolute -top-24 -right-10 size-72 rounded-full bg-white/5" aria-hidden />
         <p className="eyebrow text-white/70">Dashboard inteligente</p>
-        <h2 className="mt-2 max-w-2xl text-[22px] leading-snug font-semibold tracking-tight">
+        <h2 className="mt-2 max-w-2xl text-heading leading-snug font-semibold tracking-tight">
           {o ? (
             o.savingsRate !== null && o.savingsRate > 0 ? (
               <>Você economizou <span className="text-hero-accent">{formatPercent(o.savingsRate, 0)}</span> da sua receita neste mês.</>

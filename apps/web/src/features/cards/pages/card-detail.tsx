@@ -153,7 +153,7 @@ export default function CardDetailPage() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon-sm" onClick={() => setMonth(addMonthKey(month, -1))} aria-label="Fatura anterior"><ChevronLeft /></Button>
             <div className="min-w-[170px] text-center">
-              <p className="text-[15px] font-semibold">Fatura de {formatMonthKey(month)}</p>
+              <p className="text-title font-semibold">Fatura de {formatMonthKey(month)}</p>
               {inv ? <p className="text-xs text-muted">Fecha em {formatDateBR(inv.closingDate)} · vence em {formatDateBR(inv.dueDate)}</p> : null}
             </div>
             <Button variant="outline" size="icon-sm" onClick={() => setMonth(addMonthKey(month, 1))} aria-label="Próxima fatura"><ChevronRight /></Button>

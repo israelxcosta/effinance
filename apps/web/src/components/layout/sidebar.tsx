@@ -27,7 +27,7 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[76px] flex-col items-center border-r border-border bg-bg-subtle py-5 lg:flex">
-      <NavLink to="/" className="mb-6 text-[13px] font-extrabold tracking-tight text-fg" aria-label="Effinance — início">
+      <NavLink to="/" className="mb-6 text-label font-extrabold tracking-tight text-fg" aria-label="Effinance — início">
         effinance
       </NavLink>
       <nav aria-label="Navegação principal" className="flex flex-1 flex-col items-center gap-1.5 overflow-y-auto scrollbar-thin">
@@ -41,7 +41,7 @@ export function Sidebar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="relative flex size-10 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-soft-fg ring-2 ring-surface transition-transform hover:scale-105"
+              className="relative flex size-10 items-center justify-center rounded-full bg-primary-soft text-label font-bold text-primary-soft-fg ring-2 ring-surface transition-transform hover:scale-105"
               aria-label={`Menu do usuário — espaço ${workspace?.name ?? ''}`}
             >
               {initials(user?.name)}

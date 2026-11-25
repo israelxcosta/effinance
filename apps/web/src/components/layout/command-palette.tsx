@@ -65,9 +65,9 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                 value={query}
                 onValueChange={setQuery}
                 placeholder="Buscar transações, contas, categorias ou ações…"
-                className="h-14 flex-1 bg-transparent text-[15px] outline-none placeholder:text-subtle"
+                className="h-14 flex-1 bg-transparent text-title outline-none placeholder:text-subtle"
               />
-              <kbd className="rounded-md border border-border bg-bg-subtle px-1.5 py-0.5 text-[11px] font-semibold text-muted">ESC</kbd>
+              <kbd className="rounded-md border border-border bg-bg-subtle px-1.5 py-0.5 text-2xs font-semibold text-muted">ESC</kbd>
             </div>
             <Command.List className="scrollbar-thin max-h-[60vh] overflow-y-auto p-2">
               <Command.Empty className="px-3 py-8 text-center text-sm text-muted">

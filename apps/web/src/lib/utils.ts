@@ -1,5 +1,11 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+// The custom type scale (styles/index.css) must be known as font sizes; otherwise `text-title` would be
+// read as a color and drop `text-danger` from the same element.
+const twMerge = extendTailwindMerge({
+  extend: { theme: { text: ['2xs', 'label', 'title', 'heading', 'display'] } },
+});
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));

@@ -72,11 +72,11 @@ export function DonutChart({ data, total, centerLabel = 'Total', height = 200, m
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-[18%] text-center">
-            <span className="w-full truncate text-[11px] leading-tight font-medium text-muted">{focused ? focused.name : centerLabel}</span>
-            <span className={cn('tabular mt-0.5 font-semibold tracking-tight whitespace-nowrap text-fg', small ? 'text-[13px]' : 'text-[15px]')}>
+            <span className="w-full truncate text-2xs leading-tight font-medium text-muted">{focused ? focused.name : centerLabel}</span>
+            <span className={cn('tabular mt-0.5 font-semibold tracking-tight whitespace-nowrap text-fg', small ? 'text-label' : 'text-title')}>
               {formatBRL(focused ? focused.amount : total)}
             </span>
-            {focused ? <span className="text-[11px] leading-tight text-muted">{formatPercent(focused.share, 0)}</span> : null}
+            {focused ? <span className="text-2xs leading-tight text-muted">{formatPercent(focused.share, 0)}</span> : null}
           </div>
         </div>
         {showLegend ? (
@@ -92,7 +92,7 @@ export function DonutChart({ data, total, centerLabel = 'Total', height = 200, m
                 </>
               );
               const rowClass = cn(
-                'col-span-4 grid grid-cols-subgrid items-center rounded-md px-1.5 py-1.5 text-[13px] transition-colors',
+                'col-span-4 grid grid-cols-subgrid items-center rounded-md px-1.5 py-1.5 text-label transition-colors',
                 active === i && 'bg-bg-subtle',
               );
               return (

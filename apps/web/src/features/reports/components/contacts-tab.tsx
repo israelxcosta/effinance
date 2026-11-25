@@ -89,7 +89,7 @@ export function ContactsTab({ from, to }: { from: string; to: string }) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-surface-muted text-left text-[11px] font-semibold tracking-wide text-muted uppercase">
+                  <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                     <th className="px-4 py-2.5">Contato</th>
                     <th className="px-4 py-2.5 text-right">Lançamentos</th>
                     <th className="px-4 py-2.5 text-right">Receitas</th>
@@ -110,7 +110,7 @@ export function ContactsTab({ from, to }: { from: string; to: string }) {
                       >
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-3">
-                            <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-[11px] font-bold text-primary-soft-fg">{initials(i.name)}</span>
+                            <span className="flex size-8 items-center justify-center rounded-full bg-primary-soft text-2xs font-bold text-primary-soft-fg">{initials(i.name)}</span>
                             <span className="font-semibold">{i.name}</span>
                           </span>
                         </td>

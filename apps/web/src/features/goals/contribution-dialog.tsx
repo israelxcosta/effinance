@@ -60,8 +60,8 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
           value={mode}
           onChange={setMode}
           options={[
-            { value: 'deposit', label: 'Guardar', activeClassName: 'bg-success text-white shadow-sm' },
-            { value: 'withdraw', label: 'Retirar', activeClassName: 'bg-danger text-white shadow-sm' },
+            { value: 'deposit', label: 'Guardar', activeClassName: 'bg-success text-on-semantic shadow-sm' },
+            { value: 'withdraw', label: 'Retirar', activeClassName: 'bg-danger text-on-semantic shadow-sm' },
           ]}
         />
         <Field label="Valor">

@@ -95,7 +95,7 @@ export default function StatementPage() {
             onChange={setPeriod}
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-muted">
+        <label className="flex cursor-pointer items-center gap-2.5 text-label font-medium text-muted">
           <Switch checked={includePending} onCheckedChange={(c) => update({ previstos: c ? null : '0' })} aria-label="Mostrar previstos" />
           Mostrar previstos
         </label>
@@ -112,7 +112,7 @@ export default function StatementPage() {
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-[15px] font-semibold">{account ? account.name : 'Todas as contas'}</h2>
+            <h2 className="text-title font-semibold">{account ? account.name : 'Todas as contas'}</h2>
             <p className="text-xs text-muted">
               {account ? ACCOUNT_TYPE_LABELS[account.type] : 'Contas incluídas no saldo total (sem investimentos)'}
             </p>
@@ -165,10 +165,11 @@ export default function StatementPage() {
                         showDue={false}
                         muted={e.pending}
                         trailing={
-                          <p className="tabular text-[11px] text-subtle">
+                          // A span: on phones the row renders it inside its (button) text block.
+                          <span className="tabular block text-2xs text-subtle">
                             {e.pending ? 'previsto · ' : ''}
                             {formatBRL(e.balanceAfter)}
-                          </p>
+                          </span>
                         }
                       />
                     ))}
@@ -209,11 +210,11 @@ function BalanceTile({
         {label}
       </p>
       {loading || value === undefined ? (
-        <Skeleton className="mt-2 h-6 w-28" />
+        <Skeleton className="mt-2 ml-auto h-6 w-28" />
       ) : (
-        <Money value={value} signed={tone !== undefined || value < 0} className="mt-1 block text-lg tracking-tight" />
+        <Money value={value} signed={tone !== undefined || value < 0} className="mt-1 block text-right text-lg tracking-tight" />
       )}
-      {hint ? <p className="mt-0.5 text-[11px] text-subtle">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-right text-2xs text-subtle">{hint}</p> : null}
     </div>
   );
 }

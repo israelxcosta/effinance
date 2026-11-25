@@ -106,7 +106,7 @@ export default function ContactsPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="border-b border-border bg-surface-muted text-left text-[11px] font-semibold tracking-wide text-muted uppercase">
+                <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                   <th className="px-4 py-2.5">Nome</th>
                   <th className="px-4 py-2.5">CPF / CNPJ</th>
                   <th className="px-4 py-2.5">Contato</th>
@@ -136,7 +136,7 @@ export default function ContactsPage() {
                     <td className="px-4 py-3">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button type="button" className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
+                          <button type="button" className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
                             <Ellipsis className="size-4" />
                           </button>
                         </DropdownMenuTrigger>

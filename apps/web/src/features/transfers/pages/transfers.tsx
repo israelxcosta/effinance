@@ -77,8 +77,8 @@ export default function TransfersPage() {
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <MiniStat label="Total investido" value={accounts.isPending ? '—' : formatBRL(invested)} tone="brand" hint="Somado à parte do saldo em contas" />
-            <MiniStat label="Aplicado no período" value={formatBRL(applied)} tone="success" />
-            <MiniStat label="Resgatado no período" value={formatBRL(redeemed)} tone="warning" />
+            <MiniStat label="Aplicado no período" value={formatBRL(applied)} tone="brand" />
+            <MiniStat label="Resgatado no período" value={formatBRL(redeemed)} />
             <MiniStat label="Transferido" value={formatBRL(moved)} />
           </div>
 
@@ -133,7 +133,7 @@ export default function TransfersPage() {
           <CardHeader title="Investimentos" subtitle="Saldo por conta de investimento" icon={<PiggyBank />} />
           <div className="mt-4 rounded-xl bg-gradient-to-br from-hero-from to-hero-to p-5 text-white">
             <p className="eyebrow text-white/70">Patrimônio investido</p>
-            <p className="tabular mt-2 text-[28px] font-semibold tracking-tight">{formatBRL(invested)}</p>
+            <p className="tabular mt-2 text-display font-semibold tracking-tight">{formatBRL(invested)}</p>
             <p className="mt-1 text-xs text-white/70">{investmentAccounts.length} conta(s) de investimento</p>
           </div>
           <div className="mt-4 flex flex-col gap-1">

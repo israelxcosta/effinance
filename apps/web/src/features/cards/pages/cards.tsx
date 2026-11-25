@@ -102,7 +102,7 @@ export default function CardsPage() {
                       <Badge tone={INVOICE_TONE[inv.status]}>{INVOICE_STATUS_LABELS[inv.status]}</Badge>
                     </p>
                     <p className="tabular mt-0.5 text-lg font-semibold">{formatBRL(inv.total)}</p>
-                    <p className="text-[11px] text-subtle">
+                    <p className="text-2xs text-subtle">
                       Fecha {formatDateBR(inv.closingDate).slice(0, 5)} · vence {formatDateBR(inv.dueDate).slice(0, 5)}
                     </p>
                   </div>
@@ -116,7 +116,7 @@ export default function CardsPage() {
                     ) : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button type="button" className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
+                        <button type="button" className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${c.name}`}>
                           <Ellipsis className="size-4" />
                         </button>
                       </DropdownMenuTrigger>

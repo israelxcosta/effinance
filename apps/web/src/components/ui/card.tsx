@@ -21,7 +21,7 @@ export function CardHeader({ title, subtitle, info, action, icon, className }: C
     <div className={cn('flex items-start justify-between gap-3', className)}>
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <h2 className="truncate text-[15px] font-semibold tracking-tight text-fg">{title}</h2>
+          <h2 className="truncate text-title font-semibold tracking-tight text-fg">{title}</h2>
           {info ? (
             <Tooltip content={info}>
               <button type="button" className="text-subtle hover:text-muted" aria-label="Mais informações">

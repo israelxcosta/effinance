@@ -140,7 +140,7 @@ function Stepper({
   onStep: (delta: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1 shadow-xs">
+    <div className="flex h-10 items-center gap-1 rounded-md border border-border bg-surface px-1 shadow-xs">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -150,7 +150,7 @@ function Stepper({
         <ChevronLeft />
       </Button>
       <span
-        className="min-w-[120px] px-1 text-center text-[13px] font-semibold text-fg tabular"
+        className="min-w-[120px] px-1 text-center text-label font-semibold text-fg tabular"
         aria-live="polite"
       >
         {label}

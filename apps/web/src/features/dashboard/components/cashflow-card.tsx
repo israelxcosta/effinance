@@ -42,7 +42,7 @@ export function CashflowCard({ monthly, loading, anchorMonth }: { monthly: Month
   return (
     <Card className="flex h-full flex-col p-5">
       <CardHeader
-        title="Fluxo de Caixa"
+        title="Fluxo de caixa"
         subtitle={mode === 'M' ? 'Receita vs Despesa mensal' : 'Entradas vs saídas nas contas'}
         info="Mensal (M) usa a competência dos lançamentos. D, S e A mostram o dinheiro que entrou e saiu das contas."
         action={

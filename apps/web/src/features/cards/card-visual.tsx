@@ -29,8 +29,8 @@ export function CardVisual({ card, className, compact }: { card: CreditCard; cla
       <div className="pointer-events-none absolute -bottom-20 -left-10 size-56 rounded-full bg-white/5" aria-hidden />
       <div className="relative flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold tracking-wider text-white/70 uppercase">{bank?.name ?? 'Cartão'}</p>
-          <p className="mt-0.5 text-[15px] font-semibold">{card.name}</p>
+          <p className="text-2xs font-semibold tracking-wider text-white/70 uppercase">{bank?.name ?? 'Cartão'}</p>
+          <p className="mt-0.5 text-title font-semibold">{card.name}</p>
         </div>
         <Wifi className="size-5 rotate-90 text-white/70" aria-hidden />
       </div>
@@ -39,7 +39,7 @@ export function CardVisual({ card, className, compact }: { card: CreditCard; cla
       </div>
       <div className="relative flex items-end justify-between">
         <div>
-          <p className="text-[10px] font-medium tracking-wider text-white/60 uppercase">Disponível</p>
+          <p className="text-2xs font-medium tracking-wider text-white/60 uppercase">Disponível</p>
           <p className="tabular text-lg font-semibold">{formatBRL(card.availableLimit)}</p>
         </div>
         <BrandMark brand={card.brand} />

@@ -35,7 +35,7 @@ function BankOption({ active, label, onClick, children }: { active: boolean; lab
       onClick={onClick}
       title={label}
       className={cn(
-        'flex flex-col items-center gap-1.5 rounded-md border px-1 py-2 text-[10px] font-medium transition-all',
+        'flex flex-col items-center gap-1.5 rounded-md border px-1 py-2 text-2xs font-medium transition-all',
         active ? 'border-brand-500 bg-primary-soft/60 text-fg ring-1 ring-brand-500' : 'border-border text-muted hover:border-border-strong hover:text-fg',
       )}
     >

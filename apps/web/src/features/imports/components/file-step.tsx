@@ -110,7 +110,7 @@ export function FileStep({
             <button
               type="button"
               onClick={() => onFile(null)}
-              className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg"
+              className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg"
               aria-label="Remover arquivo"
             >
               <X className="size-4" />
@@ -172,7 +172,7 @@ export function FileStep({
 
       {card ? (
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1.5 text-[13px] font-medium text-fg">Fatura</legend>
+          <legend className="mb-1.5 text-label font-medium text-fg">Fatura</legend>
           <SegmentedControl
             ariaLabel="Fatura de destino"
             fullWidth

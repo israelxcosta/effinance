@@ -115,7 +115,7 @@ function TwoFactorCard() {
         action={enabled ? <Badge tone="success" size="md"><ShieldCheck /> Ativa</Badge> : <Badge tone="neutral" size="md">Desativada</Badge>}
       />
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-muted px-4 py-3">
-        <p className="max-w-lg text-[13px] text-muted">
+        <p className="max-w-lg text-label text-muted">
           {enabled
             ? 'Sua conta pede o código do aplicativo a cada novo login. Guarde os códigos de recuperação para não perder o acesso.'
             : 'Recomendado: mesmo que alguém descubra sua senha, não conseguirá entrar sem o seu celular.'}
@@ -270,10 +270,10 @@ function MfaSetupSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
               <div className="rounded-xl border border-border bg-white p-3">
                 <QRCodeSVG value={data.otpauthUrl} size={168} level="M" title="QR code para o aplicativo autenticador" />
               </div>
-              <div className="min-w-0 text-[13px] text-muted">
+              <div className="min-w-0 text-label text-muted">
                 <p>Não consegue escanear? Digite esta chave no aplicativo:</p>
                 <div className="mt-2 flex items-center gap-2">
-                  <code className="tabular rounded-md bg-bg-subtle px-2.5 py-1.5 text-[13px] font-semibold tracking-wider text-fg">
+                  <code className="tabular rounded-md bg-bg-subtle px-2.5 py-1.5 text-label font-semibold tracking-wider text-fg">
                     {formatSecret(data.secret)}
                   </code>
                   <CopyButton text={data.secret} label="Copiar chave" />
@@ -337,7 +337,7 @@ function RecoveryCodes({ codes, saved, onSavedChange }: { codes: string[]; saved
         ))}
       </ul>
       <CopyButton text={codes.join('\n')} label="Copiar todos os códigos" full />
-      <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-fg">
+      <label className="flex cursor-pointer items-start gap-2.5 text-label leading-snug text-fg">
         <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--app-primary)]" checked={saved} onChange={(e) => onSavedChange(e.target.checked)} />
         Guardei os códigos em um local seguro (gerenciador de senhas ou papel guardado).
       </label>
@@ -558,7 +558,7 @@ function LogoutCard() {
   return (
     <Card className="flex flex-wrap items-center justify-between gap-4 p-6">
       <div>
-        <h2 className="text-[15px] font-semibold">Sair da conta</h2>
+        <h2 className="text-title font-semibold">Sair da conta</h2>
         <p className="text-xs text-muted">Encerra a sessão neste dispositivo.</p>
       </div>
       <Button

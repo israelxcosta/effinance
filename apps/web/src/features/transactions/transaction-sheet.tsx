@@ -299,7 +299,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
       ? type === 'income'
         ? 'Editar receita'
         : 'Editar despesa'
-      : 'Nova Transação';
+      : 'Nova transação';
 
   return (
     <>
@@ -324,8 +324,8 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                 if (next === 'income' && isCard) setValue('source', '');
               }}
               options={[
-                { value: 'income', label: 'Receita', activeClassName: 'bg-success text-white shadow-sm' },
-                { value: 'expense', label: 'Despesa', activeClassName: 'bg-danger text-white shadow-sm' },
+                { value: 'income', label: 'Receita', activeClassName: 'bg-success text-on-semantic shadow-sm' },
+                { value: 'expense', label: 'Despesa', activeClassName: 'bg-danger text-on-semantic shadow-sm' },
               ]}
             />
           )
@@ -353,7 +353,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
         >
           {isEdit && tx ? <SeriesInfo tx={tx} /> : null}
           {isEdit && tx?.splitGroupId ? (
-            <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-[13px] text-primary-soft-fg">
+            <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-label text-primary-soft-fg">
               <Split className="size-4" />
               <span className="font-medium">Parte de um lançamento dividido entre categorias</span>
             </div>
@@ -375,7 +375,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
 
           {!isCard ? (
             <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1.5 text-[13px] font-medium text-fg">Status</legend>
+              <legend className="mb-1.5 text-label font-medium text-fg">Status</legend>
               <div className="grid grid-cols-2 gap-2">
                 <StatusOption
                   active={values.paid === true}
@@ -572,7 +572,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                         name="installmentAmountMode"
                         render={({ field }) => (
                           <div className="flex flex-col gap-1.5">
-                            <span className="text-[13px] font-medium">O valor informado é</span>
+                            <span className="text-label font-medium">O valor informado é</span>
                             <SegmentedControl
                               fullWidth
                               size="sm"
@@ -587,7 +587,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                         )}
                       />
                       {installmentPreview ? (
-                        <p className="rounded-md bg-primary-soft px-3 py-2 text-[13px] font-semibold text-primary-soft-fg">
+                        <p className="rounded-md bg-primary-soft px-3 py-2 text-label font-semibold text-primary-soft-fg">
                           {installmentPreview}
                         </p>
                       ) : null}
@@ -611,7 +611,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                       </Field>
                     </div>
                     {!(Number(values.occurrences) > 0) ? (
-                      <p className="flex items-start gap-2 text-[13px] leading-relaxed text-muted">
+                      <p className="flex items-start gap-2 text-label leading-relaxed text-muted">
                         <InfinityIcon className="mt-0.5 size-4 shrink-0 text-brand-text" />
                         Sem quantidade, o lançamento é fixo: repete sem data de término e aparece nos relatórios e
                         projeções. Para encerrar, exclua a partir do mês desejado.
@@ -686,7 +686,7 @@ function SeriesInfo({ tx }: { tx: Transaction }) {
         ? `Repete ${tx.frequency && tx.frequency !== 'monthly' ? FREQUENCY_LABELS[tx.frequency].toLowerCase() : 'todo mês'}, sem fim`
         : `${tx.frequency ? FREQUENCY_LABELS[tx.frequency] : ''}${tx.occurrenceNumber ? ` · ocorrência ${tx.occurrenceNumber}` : ''}`;
   return (
-    <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-[13px] text-primary-soft-fg">
+    <div className="flex items-center gap-2 rounded-md bg-primary-soft px-3 py-2.5 text-label text-primary-soft-fg">
       <Repeat className="size-4" />
       <Badge tone="solid">{RECURRENCE_KIND_LABELS[tx.recurrenceKind]}</Badge>
       <span className="font-medium">{detail}</span>

@@ -76,7 +76,7 @@ export default function LoginPage() {
       }
     >
       {IS_DEMO ? (
-        <p className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-[13px] text-fg">
+        <p className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-label text-fg">
           <strong className="font-semibold">Ambiente de testes.</strong> A conta de demonstração já está
           preenchida — é só clicar em Entrar. Você também pode criar sua própria conta.
         </p>
@@ -160,10 +160,10 @@ function MfaStep({ mfaToken, onDone, onBack }: { mfaToken: string; onDone: () =>
         }}
       >
         <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-muted px-4 py-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary-soft text-primary-soft-fg">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-sm bg-primary-soft text-primary-soft-fg">
             <ShieldCheck className="size-4" />
           </span>
-          <p className="text-[13px] text-muted">Sua conta está protegida com um segundo fator.</p>
+          <p className="text-label text-muted">Sua conta está protegida com um segundo fator.</p>
         </div>
         {recovery ? (
           <Field label="Código de recuperação" error={error ?? undefined}>
@@ -191,7 +191,7 @@ function MfaStep({ mfaToken, onDone, onBack }: { mfaToken: string; onDone: () =>
         </Button>
         <button
           type="button"
-          className="text-center text-[13px] font-semibold text-brand-text hover:underline"
+          className="text-center text-label font-semibold text-brand-text hover:underline"
           onClick={() => {
             setRecovery((r) => !r);
             setCode('');

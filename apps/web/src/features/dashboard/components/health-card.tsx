@@ -36,7 +36,7 @@ export function HealthCard({ health, loading }: { health: HealthScore | undefine
                     </span>
                   </div>
                   <ProgressBar value={f.max ? f.score / f.max : 0} size="sm" className="mt-1" tone={f.score / (f.max || 1) < 0.4 ? 'danger' : 'brand'} />
-                  <p className="mt-1 text-[11px] text-muted">{f.hint}</p>
+                  <p className="mt-1 text-2xs text-muted">{f.hint}</p>
                 </li>
               ))}
             </ul>

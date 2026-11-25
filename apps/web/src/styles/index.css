@@ -27,8 +27,9 @@
   --app-border: #e7e7e3;
   --app-border-strong: #d6d6d1;
   --app-fg: #16181d;
-  --app-muted: #6b6f76;
-  --app-subtle: #9a9ea5;
+  /* Text tones keep WCAG AA on white and on the off-white page (muted 5.6:1, subtle 4.6:1). */
+  --app-muted: #5f636a;
+  --app-subtle: #6c7077;
 
   --app-primary: var(--brand-800);
   --app-primary-hover: var(--brand-700);
@@ -38,17 +39,23 @@
   --app-ring: var(--brand-500);
   --app-brand-text: var(--brand-700);
 
-  --app-success: #12a150;
+  /* Semantic colors are used as text (amounts, due labels): each keeps 4.5:1 on white and on its soft fill. */
+  --app-success: #0d7a3d;
   --app-success-soft: #e7f6ed;
-  --app-danger: #e5484d;
+  /* Text on solid success/danger fills (buttons, active tabs, counters). */
+  --app-on-semantic: #ffffff;
+  --app-danger: #c92f35;
   --app-danger-soft: #fdecec;
-  --app-warning: #b7791f;
+  --app-warning: #8f5c12;
   --app-warning-soft: #fef6da;
 
   --app-chart-income: var(--brand-300);
   --app-chart-income-strong: var(--brand-700);
   --app-chart-expense: #f2a3a5;
   --app-chart-expense-strong: #e5484d;
+  /* Positive / negative marks (net balance bars): brighter than the text tones above. */
+  --app-chart-positive: #12a150;
+  --app-chart-negative: #e5484d;
   /* Neutral series (e.g. the earlier period in comparisons). */
   --app-chart-neutral: #d4d4d8;
   --app-chart-grid: #e7e7e3;
@@ -110,6 +117,8 @@
 
   --app-success: #4fcb85;
   --app-success-soft: #27392d;
+  /* The dark theme's semantic fills are light: dark text keeps AA on them. */
+  --app-on-semantic: #1e1e1e;
   --app-danger: #f27a7d;
   --app-danger-soft: #432a2b;
   --app-warning: #e2b257;
@@ -119,6 +128,8 @@
   --app-chart-income-strong: #f4f3ef;
   --app-chart-expense: #c4595d;
   --app-chart-expense-strong: #f27a7d;
+  --app-chart-positive: #4fcb85;
+  --app-chart-negative: #f27a7d;
   --app-chart-neutral: #5d5d5b;
   --app-chart-grid: #3b3b3b;
   --app-chart-1: #f4f3ef;
@@ -173,6 +184,7 @@
 
   --color-success: var(--app-success);
   --color-success-soft: var(--app-success-soft);
+  --color-on-semantic: var(--app-on-semantic);
   --color-danger: var(--app-danger);
   --color-danger-soft: var(--app-danger-soft);
   --color-warning: var(--app-warning);
@@ -186,6 +198,23 @@
   --color-chart-income: var(--app-chart-income);
   --color-chart-expense: var(--app-chart-expense);
 
+  /*
+   * Type scale — every text uses one of these roles (docs/design-system.md):
+   * 2xs 11 overline/badges · xs 12 meta · label 13 labels/compact controls · sm 14 body ·
+   * title 15 card titles/list amounts · lg 18 compact totals · heading 22 page/sheet titles · display 26 hero values.
+   */
+  --text-2xs: 11px;
+  --text-2xs--line-height: 16px;
+  --text-label: 13px;
+  --text-label--line-height: 18px;
+  --text-title: 15px;
+  --text-title--line-height: 22px;
+  --text-heading: 22px;
+  --text-heading--line-height: 28px;
+  --text-display: 26px;
+  --text-display--line-height: 32px;
+
+  /* Radius scale; nested radius = outer − padding (e.g. md track + p-1 → sm items). */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;

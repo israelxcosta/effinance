@@ -61,7 +61,7 @@ export function SplitEditor({ type, total, rows, onChange, onCancel, rowErrors =
   return (
     <section aria-label="Divisão por categoria" className="flex flex-col gap-3 rounded-xl border border-border bg-surface-muted/60 p-3.5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[13px] font-medium text-fg">Dividir em categorias</p>
+        <p className="text-label font-medium text-fg">Dividir em categorias</p>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -118,14 +118,14 @@ export function SplitEditor({ type, total, rows, onChange, onCancel, rowErrors =
         type="button"
         onClick={() => onChange([...rows, newSplitRow({ amount: diff > 0 ? diff : 0 })])}
         disabled={rows.length >= MAX_SPLITS}
-        className="flex items-center gap-1.5 self-start rounded-md px-1 py-1 text-[13px] font-semibold text-brand-text transition-colors hover:underline disabled:opacity-50"
+        className="flex items-center gap-1.5 self-start rounded-md px-1 py-1 text-label font-semibold text-brand-text transition-colors hover:underline disabled:opacity-50"
       >
         <Plus className="size-4" /> Adicionar categoria
       </button>
 
       <div
         className={cn(
-          'flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-[13px]',
+          'flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-label',
           diff === 0 ? 'bg-success-soft text-success' : diff > 0 ? 'bg-warning-soft text-warning' : 'bg-danger-soft text-danger',
         )}
         aria-live="polite"

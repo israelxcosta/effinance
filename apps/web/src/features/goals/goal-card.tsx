@@ -9,12 +9,12 @@ export function GoalProgress({ goal }: { goal: Goal }) {
     <div className="flex items-center gap-3">
       <CategoryIcon icon={goal.icon} color={goal.color} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2 text-[13px]">
+        <div className="flex items-center justify-between gap-2 text-label">
           <span className="truncate font-semibold">{goal.name}</span>
           <span className="shrink-0 text-xs text-muted">{formatPercent(goal.progress, 0)}</span>
         </div>
         <ProgressBar value={goal.progress} color={goal.color} size="sm" className="mt-1.5" />
-        <p className="mt-1 text-[11px] text-muted tabular">
+        <p className="mt-1 text-2xs text-muted tabular">
           {formatBRL(goal.currentAmount)} de {formatBRL(goal.targetAmount)}
         </p>
       </div>

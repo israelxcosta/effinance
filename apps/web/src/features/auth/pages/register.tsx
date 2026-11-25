@@ -70,7 +70,7 @@ export default function RegisterPage() {
           <PasswordChecklist value={form.watch('password') ?? ''} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-muted">
+          <label className="flex cursor-pointer items-start gap-2.5 text-label leading-snug text-muted">
             <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[var(--app-primary)]" {...form.register('acceptTerms')} />
             <span>
               Li e aceito os{' '}

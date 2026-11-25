@@ -181,7 +181,7 @@ export function CategoryPicker({
                 filtered.map((g, gi) => (
                   <div key={g.key} role="group" aria-label={g.label ?? 'Outras categorias'} className={cn(gi > 0 && 'mt-1 border-t border-border pt-1')}>
                     {g.label ? (
-                      <p className="px-3 pt-2 pb-1 text-[12px] font-medium text-subtle">{g.label}</p>
+                      <p className="px-3 pt-2 pb-1 text-xs font-medium text-subtle">{g.label}</p>
                     ) : null}
                     {g.items.map((item) => {
                       index += 1;

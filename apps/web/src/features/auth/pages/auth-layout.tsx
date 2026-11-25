@@ -16,7 +16,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
       <div className="flex flex-col px-6 py-8 sm:px-12">
         <span className="text-lg font-extrabold tracking-tight">effinance</span>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
-          <h1 className="text-[28px] font-semibold tracking-tight">{title}</h1>
+          <h1 className="text-display font-semibold tracking-tight">{title}</h1>
           <p className="mt-1.5 text-sm text-muted">{subtitle}</p>
           <div className="mt-8">{children}</div>
           <div className="mt-6 text-center text-sm text-muted">{footer}</div>
@@ -27,14 +27,14 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
         <div className="dot-grid absolute inset-0 opacity-60" aria-hidden />
         <div className="relative flex h-full flex-col justify-center px-14 py-12">
           <p className="eyebrow text-brand-text">Tudo se conecta</p>
-          <h2 className="mt-3 max-w-md text-[28px] leading-tight font-semibold tracking-tight">
+          <h2 className="mt-3 max-w-md text-display leading-tight font-semibold tracking-tight">
             Conheça seu dinheiro. <span className="text-muted">Organize cada parte e decida com contexto.</span>
           </h2>
           <div className="mt-10 grid max-w-md grid-cols-2 gap-x-10 gap-y-8">
             {NODES.map((n, i) => (
               <div key={n.title} className="relative rounded-lg border border-brand-700/40 bg-surface p-3.5 shadow-xs">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex size-8 items-center justify-center rounded-[10px] bg-primary-soft text-primary-soft-fg">
+                  <span className="flex size-8 items-center justify-center rounded-sm bg-primary-soft text-primary-soft-fg">
                     <n.icon className="size-4" />
                   </span>
                   <span className="text-sm font-semibold">{n.title}</span>
@@ -49,8 +49,8 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
             ))}
           </div>
           <div className="mt-12 max-w-md rounded-xl bg-gradient-to-br from-hero-from to-hero-to p-5 text-white shadow-lg">
-            <span className="eyebrow rounded-full bg-white/10 px-2 py-1 text-[10px] text-white/90">Oportunidade</span>
-            <p className="mt-3 text-[15px] font-semibold">Sua reserva avançou neste mês</p>
+            <span className="eyebrow rounded-full bg-white/10 px-2 py-1 text-2xs text-white/90">Oportunidade</span>
+            <p className="mt-3 text-title font-semibold">Sua reserva avançou neste mês</p>
             <p className="mt-1 text-xs text-white/70">Acompanhe metas, projeções e insights automáticos sobre suas finanças.</p>
           </div>
         </div>

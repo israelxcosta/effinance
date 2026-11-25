@@ -37,10 +37,12 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center gap-1',
-        variant === 'subtle' && 'rounded-md bg-bg-subtle p-1',
-        variant === 'solid' && 'rounded-lg border border-border bg-surface p-1 shadow-xs',
-        variant === 'card' && 'rounded-xl bg-bg-subtle p-1.5',
+        // Fixed track heights line up with buttons and fields: md 40 (toolbars), sm 32, card 56.
+        'inline-flex items-center gap-1 p-1',
+        variant === 'card' ? 'h-14' : size === 'sm' ? 'h-8' : 'h-10',
+        variant === 'subtle' && 'rounded-md bg-bg-subtle',
+        variant === 'solid' && 'rounded-md border border-border bg-surface shadow-xs',
+        variant === 'card' && 'rounded-xl bg-bg-subtle',
         fullWidth && 'flex w-full',
         className,
       )}
@@ -66,8 +68,8 @@ export function SegmentedControl<T extends string>({
             className={cn(
               'inline-flex items-center justify-center gap-1.5 font-semibold whitespace-nowrap transition-all duration-150 [&_svg]:size-4',
               fullWidth && 'flex-1',
-              size === 'sm' ? 'h-7 rounded-[8px] px-2.5 text-xs' : 'h-9 rounded-[10px] px-3.5 text-[13px]',
-              variant === 'card' && 'h-12 rounded-lg text-[15px]',
+              'h-full',
+              variant === 'card' ? 'rounded-lg px-4 text-title' : size === 'sm' ? 'rounded-sm px-2.5 text-xs' : 'rounded-sm px-3.5 text-label',
               active
                 ? (opt.activeClassName ??
                     (variant === 'solid'

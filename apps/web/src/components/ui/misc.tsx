@@ -34,7 +34,7 @@ export function PageHeader({ title, description, actions, overline, className }:
     <div className={cn('flex flex-wrap items-end justify-between gap-4', className)}>
       <div className="min-w-0">
         {overline ? <p className="eyebrow mb-1.5 text-brand-text">{overline}</p> : null}
-        <h1 className="text-[22px] font-semibold tracking-tight text-fg">{title}</h1>
+        <h1 className="text-heading font-semibold tracking-tight text-fg">{title}</h1>
         {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -74,7 +74,7 @@ export function StatPill({ label, value, tone = 'neutral', className }: { label:
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 rounded-md px-3 py-1.5 text-[13px]',
+        'flex items-center justify-between gap-3 rounded-md px-3 py-1.5 text-label',
         tone === 'success' && 'bg-success-soft text-success',
         tone === 'danger' && 'bg-danger-soft text-danger',
         tone === 'neutral' && 'bg-bg-subtle text-muted',
@@ -93,9 +93,10 @@ export function MiniStat({ label, value, tone, hint, className }: { label: strin
   return (
     <div className={cn('rounded-lg border border-border bg-surface px-4 py-3 shadow-xs', className)}>
       <p className="text-xs font-medium text-muted">{label}</p>
+      {/* Totals (and their hint) sit on the right edge, like the KPI cards. */}
       <p
         className={cn(
-          'tabular mt-1 text-lg font-semibold tracking-tight',
+          'tabular mt-1 text-right text-lg font-semibold tracking-tight',
           tone === 'success' && 'text-success',
           tone === 'danger' && 'text-danger',
           tone === 'warning' && 'text-warning',
@@ -104,7 +105,7 @@ export function MiniStat({ label, value, tone, hint, className }: { label: strin
       >
         {value}
       </p>
-      {hint ? <p className="mt-0.5 text-[11px] text-subtle">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-right text-2xs text-subtle">{hint}</p> : null}
     </div>
   );
 }

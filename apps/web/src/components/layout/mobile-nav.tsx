@@ -27,7 +27,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
   const overdue = useOverdueBills().data?.filter((t) => t.type === 'expense').length ?? 0;
   const items = NAV_ITEMS.filter((i) => i.mobile);
   const link = ({ isActive }: { isActive: boolean }) =>
-    cn('flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold', isActive ? 'text-primary dark:text-fg' : 'text-muted');
+    cn('flex flex-1 flex-col items-center gap-1 py-2 text-2xs font-semibold', isActive ? 'text-primary dark:text-fg' : 'text-muted');
 
   return (
     <>
@@ -75,7 +75,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
             {i.label.split(' ')[0]}
           </NavLink>
         ))}
-        <button type="button" className="flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-semibold text-muted" onClick={() => setMenuOpen(true)}>
+        <button type="button" className="flex flex-1 flex-col items-center gap-1 py-2 text-2xs font-semibold text-muted" onClick={() => setMenuOpen(true)}>
           <Menu className="size-5" />
           Mais
         </button>
@@ -112,7 +112,7 @@ export function MobileNav({ onSearch }: { onSearch: () => void }) {
           >
             <Bell className="size-5" /> Contas vencidas
             {overdue ? (
-              <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">{overdue}</span>
+              <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-2xs font-bold text-on-semantic">{overdue}</span>
             ) : null}
           </button>
           <span className="my-1 h-px bg-border" aria-hidden />

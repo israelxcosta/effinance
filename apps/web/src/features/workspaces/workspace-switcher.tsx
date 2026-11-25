@@ -44,7 +44,7 @@ function WorkspaceRow({ ws, active }: { ws: WorkspaceSummary; active: boolean })
     <>
       <span
         className={cn(
-          'flex size-8 shrink-0 items-center justify-center rounded-[10px] [&_svg]:size-4',
+          'flex size-8 shrink-0 items-center justify-center rounded-sm [&_svg]:size-4',
           active ? 'bg-primary text-primary-fg' : 'bg-bg-subtle text-muted',
         )}
       >
@@ -52,7 +52,7 @@ function WorkspaceRow({ ws, active }: { ws: WorkspaceSummary; active: boolean })
       </span>
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate text-sm font-semibold text-fg">{ws.name}</span>
-        <span className="block text-[11px] font-medium text-muted">
+        <span className="block text-2xs font-medium text-muted">
           {MEMBER_ROLE_LABELS[ws.role]}
           {ws.subscription.canWrite ? '' : ' · somente leitura'}
         </span>
@@ -156,7 +156,7 @@ export function WorkspaceSheet({ open, onOpenChange }: { open: boolean; onOpenCh
     >
       <form id="workspace-form" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-fg">Tipo</span>
+          <span className="text-label font-medium text-fg">Tipo</span>
           <SegmentedControl
             variant="card"
             fullWidth
@@ -172,7 +172,7 @@ export function WorkspaceSheet({ open, onOpenChange }: { open: boolean; onOpenCh
         <Field label="Nome do espaço" error={form.formState.errors.name?.message}>
           <Input placeholder={kind === 'family' ? 'Ex.: Família Costa' : 'Ex.: Costa Design Ltda.'} {...form.register('name')} />
         </Field>
-        <div className="rounded-xl border border-border bg-surface-muted px-4 py-3.5 text-[13px]">
+        <div className="rounded-xl border border-border bg-surface-muted px-4 py-3.5 text-label">
           <p className="font-semibold text-fg">{TRIAL_DAYS} dias grátis, sem cartão</p>
           <p className="mt-1 text-muted">
             {kind === 'family'

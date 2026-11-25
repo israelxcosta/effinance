@@ -69,7 +69,7 @@ export default function AccountsPage() {
         description="Contas bancárias, carteiras, vale-benefício e investimentos."
         actions={
           <>
-            <label className="mr-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted">
+            <label className="mr-2 flex cursor-pointer items-center gap-2 text-label font-medium text-muted">
               <Switch checked={showArchived} onCheckedChange={setShowArchived} aria-label="Mostrar arquivadas" /> Arquivadas
             </label>
             {openFinance.enabled ? (
@@ -123,7 +123,7 @@ export default function AccountsPage() {
               <div className="flex items-start gap-3">
                 <BankLogo bank={a.bank} color={a.color} size="lg" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold">{a.name}</p>
+                  <p className="truncate text-title font-semibold">{a.name}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     <Badge tone={a.type === 'investment' ? 'brand' : 'neutral'}>{ACCOUNT_TYPE_LABELS[a.type]}</Badge>
                     {!a.includeInTotal && a.type !== 'investment' ? <Badge tone="warning">Fora do total</Badge> : null}
@@ -132,7 +132,7 @@ export default function AccountsPage() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${a.name}`}>
+                    <button type="button" className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${a.name}`}>
                       <Ellipsis className="size-4" />
                     </button>
                   </DropdownMenuTrigger>
@@ -152,7 +152,7 @@ export default function AccountsPage() {
               </div>
               <div>
                 <p className="text-xs font-medium text-muted">Saldo atual</p>
-                <p className={cn('tabular mt-1 text-[26px] font-semibold tracking-tight', a.balance < 0 && 'text-danger')}>{formatBRL(a.balance)}</p>
+                <p className={cn('tabular mt-1 text-display font-semibold tracking-tight', a.balance < 0 && 'text-danger')}>{formatBRL(a.balance)}</p>
               </div>
               <div
                 className="flex items-center justify-between rounded-md px-3 py-2 text-xs"

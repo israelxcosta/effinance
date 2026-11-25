@@ -163,7 +163,7 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
       </div>
 
       {preview.rows.length > 0 && preview.rows.every((r) => duplicateKind(r) === 'imported') ? (
-        <p role="status" className="flex items-center gap-2 rounded-md bg-primary-soft px-4 py-3 text-[13px] font-medium text-primary-soft-fg">
+        <p role="status" className="flex items-center gap-2 rounded-md bg-primary-soft px-4 py-3 text-label font-medium text-primary-soft-fg">
           <CheckCheck className="size-4 shrink-0" /> Todos os lançamentos deste arquivo já foram importados antes — nada novo para trazer.
         </p>
       ) : null}
@@ -236,13 +236,13 @@ export function ReviewStep({ preview, destination, choices, onChoices, onChangeF
                   onChange={applyCategory}
                   placeholder={`Categoria para ${selectedByType[effectiveBulkType]} ${selectedByType[effectiveBulkType] === 1 ? 'selecionado' : 'selecionados'}`}
                   aria-label="Aplicar categoria aos lançamentos selecionados"
-                  className="h-9 w-full rounded-[10px] text-[13px] sm:w-72"
+                  className="h-9 w-full rounded-sm text-label sm:w-72"
                 />
               </div>
             ) : null}
           </div>
 
-          <div className="hidden grid-cols-[18px_84px_minmax(0,1fr)_230px_124px] gap-x-3 border-b border-border bg-surface-muted px-4 py-2 text-[11px] font-semibold tracking-wide text-muted uppercase md:grid" aria-hidden>
+          <div className="hidden grid-cols-[18px_84px_minmax(0,1fr)_230px_124px] gap-x-3 border-b border-border bg-surface-muted px-4 py-2 text-2xs font-semibold tracking-wide text-muted uppercase md:grid" aria-hidden>
             <span />
             <span>Data</span>
             <span>Descrição</span>
@@ -298,7 +298,7 @@ function Tile({ label, value, tone, hint }: { label: string; value: string; tone
       <p className="text-xs font-medium text-muted">{label}</p>
       <p
         className={cn(
-          'tabular mt-0.5 text-[15px] font-semibold tracking-tight text-fg',
+          'tabular mt-0.5 text-title font-semibold tracking-tight text-fg',
           tone === 'success' && 'text-success',
           tone === 'danger' && 'text-danger',
           tone === 'warning' && 'text-warning',
@@ -306,7 +306,7 @@ function Tile({ label, value, tone, hint }: { label: string; value: string; tone
       >
         {value}
       </p>
-      {hint ? <p className="text-[11px] text-subtle">{hint}</p> : null}
+      {hint ? <p className="text-2xs text-subtle">{hint}</p> : null}
     </div>
   );
 }
@@ -338,7 +338,7 @@ function ReviewRow({ row, choice, targetKind, categoryValue, onSelected, onCateg
         aria-label={`Importar ${row.description} de ${formatDateBR(row.date)}`}
         className="row-span-2 self-start md:row-span-1 md:self-center"
       />
-      <span className={cn('tabular hidden text-[13px] text-muted md:block', !choice.selected && 'opacity-60')}>{formatDateBR(row.date)}</span>
+      <span className={cn('tabular hidden text-label text-muted md:block', !choice.selected && 'opacity-60')}>{formatDateBR(row.date)}</span>
       <div className={cn('min-w-0', !choice.selected && 'opacity-60')}>
         <p className="line-clamp-2 text-sm font-semibold break-words text-fg md:line-clamp-1" title={row.description}>
           {row.description}
@@ -370,7 +370,7 @@ function ReviewRow({ row, choice, targetKind, categoryValue, onSelected, onCateg
           onChange={onCategory}
           placeholder="Sem categoria"
           aria-label={`Categoria de ${row.description}`}
-          className="h-9 rounded-[10px] text-[13px]"
+          className="h-10 text-label"
         />
       </div>
       <div className={cn('col-start-3 row-start-1 text-right md:col-auto md:row-auto', !choice.selected && 'opacity-60')}>

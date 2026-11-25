@@ -161,7 +161,7 @@ function ConnectionItem({
         <BankLogo bank={c.institution.bank} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-[15px] font-semibold text-fg">{c.institution.name}</p>
+            <p className="truncate text-title font-semibold text-fg">{c.institution.name}</p>
             <Badge tone={STATUS_TONE[c.status]}>
               {c.status === 'syncing' ? <RefreshCw className="animate-spin" aria-hidden /> : null}
               {BANK_CONNECTION_STATUS_LABELS[c.status]}
@@ -193,7 +193,7 @@ function ConnectionItem({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg"
+                className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg"
                 aria-label={`Mais ações de ${c.institution.name}`}
               >
                 <Ellipsis className="size-4" />
@@ -216,7 +216,7 @@ function ConnectionItem({
       </div>
 
       {needsConsent ? (
-        <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-md bg-warning-soft px-3 py-2.5 text-[13px] text-warning">
+        <div className="mx-4 mb-3 flex flex-wrap items-center gap-3 rounded-md bg-warning-soft px-3 py-2.5 text-label text-warning">
           <TriangleAlert className="size-4 shrink-0 self-start sm:self-center" />
           <span className="min-w-[12rem] flex-1">
             {c.status === 'outdated' || (days !== null && days < 0)
@@ -240,7 +240,7 @@ function ConnectionItem({
           {c.accounts.map((a) => {
             const target = targetName(a);
             return (
-              <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1.5 text-[13px]">
+              <li key={a.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1.5 text-label">
                 {a.kind === 'credit_card' ? <CreditCard className="size-3.5 text-muted" aria-hidden /> : <Landmark className="size-3.5 text-muted" aria-hidden />}
                 <span className="font-medium text-fg">{a.name}</span>
                 {a.number ? <span className="text-xs text-subtle">final {a.number.replace(/\D/g, '').slice(-4) || a.number}</span> : null}

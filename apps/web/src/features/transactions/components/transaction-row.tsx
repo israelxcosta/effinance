@@ -123,6 +123,7 @@ interface TransactionRowProps {
 export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: TransactionRowProps) {
   const actions = useTransactionActions();
   const signed = amount ?? (tx.type === 'expense' ? -tx.amount : tx.amount);
+  const amountTone = tx.type === 'transfer' && amount === undefined ? 'neutral' : undefined;
   const isCardPurchase = Boolean(tx.creditCardId) && tx.type !== 'transfer';
   // Read-only workspaces (viewer / inactive subscription): the row is informational only.
   const readOnly = Boolean(actions.readOnlyReason);
@@ -131,7 +132,7 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
     <div className="@container">
     <div
       className={cn(
-        'group flex items-center gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-surface-muted @lg:px-4',
+        'group flex items-center gap-2.5 rounded-lg px-2 py-3 transition-colors hover:bg-surface-muted @md:gap-3 @md:px-3 @lg:px-4',
         muted && 'opacity-70',
       )}
     >
@@ -157,7 +158,10 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
         {...(readOnly ? {} : { type: 'button' as const, onClick: () => actions.edit(tx) })}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <TxIcon tx={tx} />
+        {/* Narrow rows (phones) give the icon's width to the text; the category is named below. */}
+        <span className="hidden @md:contents">
+          <TxIcon tx={tx} />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold text-fg">{tx.description}</span>
@@ -165,20 +169,23 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
             {tx.splitGroupId ? <Badge tone="neutral" title="Valor dividido entre categorias">Dividido</Badge> : null}
             {tx.type === 'transfer' && tx.transferKind ? <Badge tone="brand">{TRANSFER_KIND_LABELS[tx.transferKind]}</Badge> : null}
             <OriginBadge tx={tx} />
+            {/* Narrow rows: the amount joins the title line instead of a fixed column. */}
+            <Money value={signed} tone={amountTone} signed className="ml-auto shrink-0 pl-2 text-sm @md:hidden" />
           </span>
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+          <span className="mt-0.5 flex items-center gap-x-2 text-xs text-muted @md:flex-wrap @md:gap-y-0.5">
             {tx.category ? (
-              <span className="truncate">
+              <span className="min-w-0 truncate">
                 {tx.category.name}
                 {tx.subcategory ? ` · ${tx.subcategory.name}` : ''}
               </span>
             ) : null}
-            {tx.contact ? <span className="truncate">· {tx.contact.name}</span> : null}
+            {tx.contact ? <span className="hidden min-w-0 truncate @md:inline">· {tx.contact.name}</span> : null}
             {showDue ? (
-              <span className="@xl:hidden">
+              <span className="shrink-0 whitespace-nowrap @xl:hidden">
                 · <DueLabel tx={tx} />
               </span>
             ) : null}
+            {trailing ? <span className="ml-auto shrink-0 @md:hidden">{trailing}</span> : null}
           </span>
         </span>
       </Main>
@@ -187,12 +194,12 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
       </div>
       {showDue ? (
         <div className="hidden w-36 text-right @xl:block">
-          <p className="text-[13px] font-medium text-fg tabular">{formatDateBR(tx.date)}</p>
+          <p className="text-label font-medium text-fg tabular">{formatDateBR(tx.date)}</p>
           <DueLabel tx={tx} />
         </div>
       ) : null}
-      <div className="w-28 shrink-0 text-right @lg:w-32">
-        <Money value={signed} tone={tx.type === 'transfer' && amount === undefined ? 'neutral' : undefined} signed className="text-[15px]" />
+      <div className="hidden w-28 shrink-0 text-right @md:block @lg:w-32">
+        <Money value={signed} tone={amountTone} signed className="text-title" />
         {trailing}
       </div>
       <RowMenu tx={tx} />
@@ -211,7 +218,7 @@ export function RowMenu({ tx }: { tx: Transaction }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted opacity-70 transition hover:bg-bg-subtle hover:text-fg group-hover:opacity-100"
+          className="flex size-8 shrink-0 items-center justify-center rounded-sm text-muted opacity-70 transition hover:bg-bg-subtle hover:text-fg group-hover:opacity-100"
           aria-label={`Ações de ${tx.description}`}
         >
           <Ellipsis className="size-4" />

@@ -35,7 +35,7 @@ export function Modal({ open, onOpenChange, title, description, children, footer
               )}
             </div>
             <RDialog.Close
-              className="-mt-1 -mr-2 flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg"
+              className="-mt-1 -mr-2 flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg"
               aria-label="Fechar"
             >
               <X className="size-4" />

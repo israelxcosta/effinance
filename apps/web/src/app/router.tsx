@@ -29,7 +29,7 @@ function NotFound() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
       <p className="eyebrow text-brand-text">Erro 404</p>
-      <h1 className="text-2xl font-semibold tracking-tight">Página não encontrada</h1>
+      <h1 className="text-heading font-semibold tracking-tight">Página não encontrada</h1>
       <p className="text-sm text-muted">O endereço acessado não existe ou foi movido.</p>
       <Button asChild className="mt-2">
         <Link to="/">Voltar ao início</Link>

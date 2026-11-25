@@ -17,7 +17,7 @@ interface SheetProps {
   width?: 'md' | 'lg' | 'xl';
 }
 
-/** Side panel used by every create/edit form (design: "Nova Transação"). */
+/** Side panel used by every create/edit form (design: "Nova transação"). */
 export function Sheet({
   open,
   onOpenChange,
@@ -52,7 +52,7 @@ export function Sheet({
         >
           <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4">
             <div className="min-w-0">
-              <Dialog.Title className="text-xl font-semibold tracking-tight text-fg">{title}</Dialog.Title>
+              <Dialog.Title className="text-heading font-semibold tracking-tight text-fg">{title}</Dialog.Title>
               {description ? (
                 <Dialog.Description className="mt-1 text-sm text-muted">{description}</Dialog.Description>
               ) : (

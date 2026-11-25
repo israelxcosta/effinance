@@ -60,8 +60,8 @@ export function KpiCard({
   );
   const body = (
     <>
-      <div className="px-4 pt-4 pb-3.5">
-        <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted">
+      <div className="p-4">
+        <div className="flex items-center gap-1.5 text-label font-medium text-muted">
           {label}
           {info ? (
             <Tooltip content={info}>
@@ -71,7 +71,8 @@ export function KpiCard({
             </Tooltip>
           ) : null}
         </div>
-        <div className={cn('tabular mt-1.5 text-[26px] leading-tight font-semibold tracking-tight text-fg', valueClassName)}>
+        {/* Totals sit on the right edge, like the amounts in every list. */}
+        <div className={cn('tabular mt-2 text-right text-display font-semibold tracking-tight text-fg', valueClassName)}>
           {value}
         </div>
       </div>

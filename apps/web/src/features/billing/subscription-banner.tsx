@@ -124,7 +124,7 @@ export function SubscriptionBanner() {
     <div
       role="status"
       className={cn(
-        'mb-5 flex items-start gap-3 rounded-xl border px-4 py-2.5 text-[13px] text-fg [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0',
+        'mb-5 flex items-start gap-3 rounded-xl border px-4 py-2.5 text-label text-fg [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0',
         tone === 'brand' && 'border-brand-500/25 bg-primary-soft/60 [&>svg]:text-brand-text',
         tone === 'warning' && 'border-warning/30 bg-warning-soft [&>svg]:text-warning',
         tone === 'danger' && 'border-danger/25 bg-danger-soft [&>svg]:text-danger',

@@ -11,8 +11,8 @@ export const CHART_COLORS = {
   grid: 'var(--app-chart-grid)',
   axis: 'var(--app-subtle)',
   brand: 'var(--app-primary)',
-  success: 'var(--app-success)',
-  danger: 'var(--app-danger)',
+  success: 'var(--app-chart-positive)',
+  danger: 'var(--app-chart-negative)',
 } as const;
 
 /** Fallback palette for categories without a color / "Outros". */
@@ -103,7 +103,7 @@ export function MoneyTooltip({ active, label, payload, names, footer, hideZero }
     <div className="min-w-[180px] rounded-lg border border-border bg-surface px-3 py-2.5 text-xs shadow-lg">
       <p className="mb-1.5 flex items-center gap-2 font-semibold text-fg">
         {label}
-        {projected ? <span className="rounded-full bg-primary-soft px-1.5 py-0.5 text-[10px] text-primary-soft-fg">Projeção</span> : null}
+        {projected ? <span className="rounded-full bg-primary-soft px-1.5 py-0.5 text-2xs text-primary-soft-fg">Projeção</span> : null}
       </p>
       <div className="flex flex-col gap-1">
         {rows.map((p, i) => {

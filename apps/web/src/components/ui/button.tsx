@@ -10,19 +10,19 @@ const VARIANTS = {
   outline:
     'border border-border bg-surface text-fg shadow-xs hover:border-border-strong hover:bg-surface-muted',
   ghost: 'text-muted hover:bg-bg-subtle hover:text-fg',
-  danger: 'bg-danger text-white shadow-xs hover:brightness-95',
+  danger: 'bg-danger text-on-semantic shadow-xs hover:brightness-95',
   'danger-soft': 'bg-danger-soft text-danger hover:brightness-95',
-  success: 'bg-success text-white shadow-xs hover:brightness-95',
+  success: 'bg-success text-on-semantic shadow-xs hover:brightness-95',
   link: 'text-brand-text underline-offset-4 hover:underline px-0 h-auto',
 } as const;
 
 const SIZES = {
   xs: 'h-7 gap-1 rounded-sm px-2 text-xs',
-  sm: 'h-8 gap-1.5 rounded-[10px] px-3 text-[13px]',
+  sm: 'h-8 gap-1.5 rounded-sm px-3 text-label',
   md: 'h-10 gap-2 rounded-md px-4 text-sm',
-  lg: 'h-11 gap-2 rounded-md px-5 text-[15px]',
+  lg: 'h-11 gap-2 rounded-md px-5 text-title',
   icon: 'size-10 rounded-md',
-  'icon-sm': 'size-8 rounded-[10px]',
+  'icon-sm': 'size-8 rounded-sm',
 } as const;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

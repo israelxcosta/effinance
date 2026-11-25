@@ -165,7 +165,7 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
     >
       <form className="flex flex-col gap-5" onSubmit={(e) => { e.preventDefault(); void onSubmit(); }} noValidate>
         {noInvestmentAccount ? (
-          <p className="rounded-md bg-warning-soft px-3 py-2.5 text-[13px] text-warning">
+          <p className="rounded-md bg-warning-soft px-3 py-2.5 text-label text-warning">
             Cadastre uma conta do tipo <strong>Investimento</strong> em Contas para aplicar ou resgatar. O saldo investido é somado à parte.
           </p>
         ) : null}
@@ -211,7 +211,7 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
             <Input type="date" {...register('date')} />
           </Field>
           <fieldset className="flex flex-col gap-1.5">
-            <legend className="mb-1.5 text-[13px] font-medium">Status</legend>
+            <legend className="mb-1.5 text-label font-medium">Status</legend>
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { v: true, label: 'Efetivada', icon: <ThumbsUp className="size-3.5" /> },
@@ -255,7 +255,7 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
 function AccountPick({ label, account, error, children }: { label: string; account?: Account; error?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium">{label}</span>
+      <span className="text-label font-medium">{label}</span>
       <div className="flex items-center gap-3">
         <BankLogo bank={account?.bank} color={account?.color} size="md" />
         <div className="flex-1">{children}</div>

@@ -226,7 +226,7 @@ export default function ImportWizard({ open, onOpenChange, initialTarget }: Impo
                 {i > 0 ? <span className="h-px w-5 bg-border-strong" aria-hidden /> : null}
                 <span
                   className={cn(
-                    'flex size-5 items-center justify-center rounded-full text-[11px]',
+                    'flex size-5 items-center justify-center rounded-full text-2xs',
                     state === 'current' ? 'bg-primary text-primary-fg' : state === 'done' ? 'bg-primary-soft text-primary-soft-fg' : 'bg-bg-subtle text-muted',
                   )}
                 >

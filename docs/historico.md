@@ -16,12 +16,17 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 
 ## Estado atual
 
-- Branches: `claude/stoic-keller-ozk4zt` (sessão atual) e `claude/ecstatic-bell-m0uo3h` (padrão
-  do repositório), no mesmo ponto até 2026-10-21.
-- Último marco verificado: `8f74015`, revisão de segurança da importação e do Open Finance
-  (212 testes da API, 92 da web, 10 do shared).
+- Branches: `claude/stoic-keller-ozk4zt` (onde o trabalho segue) e `claude/ecstatic-bell-m0uo3h`
+  (padrão do repositório, parado em `8f74015`).
+- Último marco verificado: polimento visual de 2026-11-25 (212 testes da API, 94 da web, 10 do
+  shared); antes dele, `8f74015` (revisão de segurança da importação e do Open Finance).
+- Ambiente de nuvem próprio **"effinance"** (env_01EvZFr3XSCbLfmo2Z858ur7): libera `uizze.sh` e tem
+  script de preparo (Postgres com senha `postgres`, bancos `effinance` e `effinance_test`,
+  `pnpm install`, `.env`). Ao começar: `service postgresql start`.
+- Relatório da auditoria visual: https://claude.ai/artifact/BP1CRYFMPbyznXLa4ySeto
 - **Demo publicada** (artifact privado no claude.ai, mesmo link sempre):
-  https://claude.ai/artifact/GpG6q9Df2QALZExqP9Xtqv. Login `demo@effinance.app` / `demo12345`
+  https://claude.ai/artifact/GpG6q9Df2QALZExqP9Xtqv (republicada com o polimento em 2026-11-25,
+  `publish_files` em modo `replace`). Login `demo@effinance.app` / `demo12345`
   (espaço "Família Costa" compartilhado com `rafael@effinance.app`).
 - Pendências: PRs do Dependabot #1 (Postgres 16→18 no compose) e #2 (Node 22→26 na imagem) estão
   abertos e **não devem ser aceitos sem testes**: o projeto e o guia AWS fixam Node 22 e PG 16
@@ -59,6 +64,20 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Despesas em tons de vermelho.
 - Topbar sem busca nem selo PRO; o sino fica na barra flutuante de ações.
 - Select customizado (Radix) com a API do select nativo, para funcionar com o react-hook-form.
+- **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
+  tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
+  `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
+  `text-title` apaga `text-danger`, com teste em `lib/utils.test.ts`). Cores de texto escurecidas para
+  AA no tema claro (success `#0D7A3D`, danger `#C92F35`, warning `#8F5C12`, muted `#5F636A`, subtle
+  `#73777E`); gráficos usam `chart-positive/negative`. Alturas: barra de filtros 40, formulário 44,
+  compacto 32. Raios só da escala (aninhado = externo − padding).
+- **Pedido do usuário:** valores dos cards de total (KpiCard, MiniStat, saldos do extrato) **alinhados
+  à direita**.
+- Linha de lançamento no celular (< 448px de container): sem ícone de categoria, valor na linha do
+  nome, categoria e prazo numa linha só.
+- Regra de cor de valor: receita `success`, despesa/vencido `danger`, `warning` só para "a pagar/vence
+  em breve", investimento `brand-text`, resto neutro. Texto sobre preenchimento success/danger usa
+  `text-on-semantic` (branco no claro, `#1E1E1E` no escuro).
 - Estilos de html/body fora de `@layer`, para que o esqueleto do artifact do claude.ai não os
   sobrescreva.
 
@@ -110,3 +129,5 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   nova sessão, o ambiente foi conferido (typecheck e testes verdes) e o build da demo era idêntico
   ao publicado. Criados este histórico, o hook de leitura automática e a regra de conversar só em
   pt-BR.
+- 2026-11-25: instalada a skill `ui-taste` (uizze.sh); auditoria visual publicada e polimento aplicado
+  (tipos, cores AA, alturas, raios, totais à direita, linha de lançamento no celular).

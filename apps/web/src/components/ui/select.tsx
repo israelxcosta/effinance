@@ -169,7 +169,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           className={cn(
             inputClasses,
             'group/select flex cursor-pointer items-center justify-between gap-2 text-left data-[state=open]:border-brand-500 data-[state=open]:ring-[3px] data-[state=open]:ring-brand-500/15',
-            size_ === 'sm' && 'h-9 rounded-[10px] text-[13px]',
+            size_ === 'sm' && 'h-10 text-label',
             className,
           )}
         >
@@ -195,7 +195,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
                 isGroup(e) ? (
                   <RS.Group key={`g-${e.label}-${i}`}>
                     {i > 0 ? <RS.Separator className="mx-2 my-1.5 h-px bg-border" /> : null}
-                    <RS.Label className="px-3 pt-1.5 pb-1 text-[11px] font-semibold tracking-[0.08em] text-subtle uppercase">
+                    <RS.Label className="px-3 pt-1.5 pb-1 text-2xs font-semibold tracking-[0.08em] text-subtle uppercase">
                       {e.label}
                     </RS.Label>
                     {e.options.map(renderItem)}

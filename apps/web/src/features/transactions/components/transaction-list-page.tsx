@@ -162,7 +162,7 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Buscar descrição ou observação"
-              className="h-9 rounded-[10px] pl-9 text-[13px]"
+              className="h-10 pl-9 text-label"
               aria-label="Buscar"
             />
           </div>
@@ -225,9 +225,12 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
       </Card>
 
       <Card className="@container overflow-hidden">
-        <div className="hidden items-center gap-3 border-b border-border bg-surface-muted px-5.5 py-2.5 text-[11px] font-semibold tracking-wide text-muted uppercase @xl:flex">
-          <span className="w-9">Status</span>
-          <span className="flex-1">Descrição</span>
+        <div className="hidden items-center gap-3 border-b border-border bg-surface-muted px-5.5 py-2.5 text-2xs font-semibold tracking-wide text-muted uppercase @xl:flex">
+          {/* Same widths as TransactionRow: the 👍/👎 column needs no visible label; "Descrição" sits over the text, past the icon. */}
+          <span className="w-9 shrink-0">
+            <span className="sr-only">Status</span>
+          </span>
+          <span className="flex-1 pl-[52px]">Descrição</span>
           <span className="hidden w-44 @3xl:block">Conta / Cartão</span>
           <span className="w-36 text-right">Vencimento</span>
           <span className="w-32 text-right">Valor</span>

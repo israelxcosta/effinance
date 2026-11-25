@@ -325,7 +325,7 @@ function AnticipateDialog({ tx, onClose }: { tx: Transaction | null; onClose: ()
       }
     >
       <div className="flex flex-col gap-4">
-        <p className="text-[13px] leading-relaxed text-muted">
+        <p className="text-label leading-relaxed text-muted">
           {isCard
             ? `As parcelas escolhidas saem dos próximos meses e entram na fatura atual do ${tx?.creditCard?.name ?? 'cartão'}.`
             : 'As parcelas escolhidas saem dos próximos meses e passam a vencer hoje.'}{' '}
@@ -335,7 +335,7 @@ function AnticipateDialog({ tx, onClose }: { tx: Transaction | null; onClose: ()
           <Input type="number" min={1} max={remaining} inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} />
         </Field>
         {tx && n > 0 ? (
-          <p className="rounded-md bg-primary-soft px-3 py-2 text-[13px] font-semibold text-primary-soft-fg">
+          <p className="rounded-md bg-primary-soft px-3 py-2 text-label font-semibold text-primary-soft-fg">
             {n}x de {formatBRL(tx.amount)} · total {formatBRL(tx.amount * n)}
           </p>
         ) : null}

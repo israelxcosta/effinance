@@ -76,7 +76,7 @@ function WorkspaceCard() {
     <Card className="p-6">
       <CardHeader title="Espaço" subtitle="Cada espaço tem dados, membros e assinatura próprios." />
       <div className="mt-5 flex items-start gap-4">
-        <span className={cn('flex size-11 shrink-0 items-center justify-center rounded-[14px] bg-primary-soft text-primary-soft-fg', isOwner && 'sm:mt-[26px]')}>
+        <span className={cn('flex size-11 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary-soft-fg', isOwner && 'sm:mt-[26px]')}>
           <Icon className="size-5" />
         </span>
         {isOwner ? (
@@ -180,7 +180,7 @@ function MembersCard() {
           <ul className="flex flex-col divide-y divide-border">
             {members.data.map((m) => (
               <li key={m.userId} className="flex flex-wrap items-center gap-3 py-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-soft-fg">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-label font-bold text-primary-soft-fg">
                   {initials(m.name)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -226,7 +226,7 @@ function MembersCard() {
       </div>
       {!isOwner && workspace?.kind !== 'personal' ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="text-[13px] text-muted">Você perderá o acesso aos dados deste espaço.</p>
+          <p className="text-label text-muted">Você perderá o acesso aos dados deste espaço.</p>
           <Button variant="danger-soft" onClick={() => setLeaving(true)}>
             <DoorOpen /> Sair do espaço
           </Button>
@@ -289,7 +289,7 @@ function InvitesCard() {
     <Card className="p-6">
       <CardHeader title="Convidar pessoas" subtitle="O convite vale por 7 dias e precisa ser aceito com o mesmo e-mail." icon={<MailPlus />} />
       {full ? (
-        <div className="mt-4 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-[13px]">
+        <div className="mt-4 rounded-lg border border-warning/30 bg-warning-soft px-4 py-3 text-label">
           <p className="font-semibold text-fg">Limite de membros do plano atingido ({max})</p>
           <p className="mt-0.5 text-muted">
             {workspace?.kind === 'personal'

@@ -12,8 +12,8 @@ interface BankLogoProps {
 
 const SIZES = {
   xs: 'size-6 text-[9px]',
-  sm: 'size-8 text-[10px]',
-  md: 'size-10 text-[11px]',
+  sm: 'size-8 text-2xs',
+  md: 'size-10 text-2xs',
   lg: 'size-12 text-xs',
 } as const;
 

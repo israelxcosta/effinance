@@ -81,13 +81,13 @@ export default function GoalsPage() {
               <div className="flex items-start gap-3">
                 <CategoryIcon icon={g.icon} color={g.color} size="lg" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold">{g.name}</p>
+                  <p className="truncate text-title font-semibold">{g.name}</p>
                   <GoalDeadline goal={g} />
                 </div>
                 {g.completed ? <Badge tone="success">Concluída</Badge> : null}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex size-8 items-center justify-center rounded-md text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${g.name}`}>
+                    <button type="button" className="flex size-8 items-center justify-center rounded-sm text-muted hover:bg-bg-subtle hover:text-fg" aria-label={`Ações de ${g.name}`}>
                       <Ellipsis className="size-4" />
                     </button>
                   </DropdownMenuTrigger>
@@ -103,12 +103,12 @@ export default function GoalsPage() {
                 <div className="flex items-end justify-between gap-2">
                   <div>
                     <p className="text-xs text-muted">Conquistado</p>
-                    <p className="tabular text-xl font-semibold tracking-tight">{formatBRL(g.currentAmount)}</p>
+                    <p className="tabular text-lg font-semibold tracking-tight">{formatBRL(g.currentAmount)}</p>
                   </div>
-                  <p className="text-2xl font-bold tracking-tight" style={{ color: tone(g.color) }}>{formatPercent(g.progress, 0)}</p>
+                  <p className="tabular text-heading font-semibold tracking-tight" style={{ color: tone(g.color) }}>{formatPercent(g.progress, 0)}</p>
                 </div>
                 <ProgressBar value={g.progress} color={g.color} className="mt-3" label={`Progresso de ${g.name}`} />
-                <div className="mt-2 flex justify-between text-[11px] text-muted">
+                <div className="mt-2 flex justify-between text-2xs text-muted">
                   <span>Faltam {formatBRL(Math.max(0, g.targetAmount - g.currentAmount))}</span>
                   <span>Meta {formatBRL(g.targetAmount)}</span>
                 </div>
