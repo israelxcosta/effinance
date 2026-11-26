@@ -202,3 +202,5 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: criar subcategoria direto do lançamento (campo "Categoria pai" em Nova categoria).
 - 2026-11-26: dashboard com card vermelho de contas atrasadas (no lugar de Eficiência); insights mais curtos e sem vencidas.
 - 2026-11-26: parceladas seguem mês a mês pelas parcelas; chave de regime adiada pelo usuário.
+- 2026-11-26: protótipo do relatório "Evolução por categoria" apresentado (`docs/prototipos/evolucao-por-categoria/`);
+  aguarda aprovação e respostas (despesas neutras? centavos? ajustes) antes de implementar.
