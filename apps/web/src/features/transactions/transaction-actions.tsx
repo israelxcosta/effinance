@@ -1,4 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { MoneyInput } from '@/components/ui/money-input';
+import { cn } from '@/lib/utils';
+import { useCategories } from '@/features/categories/api';
+import { CategoryPicker, type CategoryValue } from '@/features/categories/category-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { formatBRL, formatMonthKey, todayISO, type Transaction, type TransactionListResponse } from '@effinance/shared';
@@ -28,6 +32,8 @@ interface TransactionActions {
   duplicate: (tx: Transaction) => void;
   remove: (tx: Transaction) => void;
   togglePaid: (tx: Transaction, paid: boolean) => void;
+  /** Pays/receives an amount different from the planned one (smaller bill, interest and fines). */
+  payOtherAmount: (tx: Transaction) => void;
   /** Moves future installments of an installment purchase to today / the current invoice. */
   anticipate: (tx: Transaction) => void;
   /** Id of the transaction whose paid status is being saved. */
@@ -47,6 +53,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
   const [transferSheet, setTransferSheet] = useState<TransferSheetState>(CLOSED_TRANSFER);
   const [toDelete, setToDelete] = useState<Transaction | null>(null);
   const [payTarget, setPayTarget] = useState<Transaction | null>(null);
+  const [payAmountTarget, setPayAmountTarget] = useState<Transaction | null>(null);
   const [anticipateTarget, setAnticipateTarget] = useState<Transaction | null>(null);
   const [savingPaidId, setSavingPaidId] = useState<string | null>(null);
   const txSheetUsed = useStickyTrue(txSheet.open);
@@ -151,6 +158,18 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
     [applyPaid, blocked],
   );
 
+  const payOtherAmount = useCallback(
+    (tx: Transaction) => {
+      if (blocked()) return;
+      if (tx.creditCardId || tx.type === 'transfer') {
+        toast.info('Compras no cartão são quitadas ao pagar a fatura.');
+        return;
+      }
+      setPayAmountTarget(tx);
+    },
+    [blocked],
+  );
+
   async function confirmDelete(scope: 'one' | 'future' | 'all') {
     if (!toDelete) return;
     try {
@@ -171,8 +190,8 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
   );
 
   const value = useMemo<TransactionActions>(
-    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId, readOnlyReason }),
-    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, anticipate, savingPaidId, readOnlyReason],
+    () => ({ openTransaction, openTransfer, edit, duplicate, remove, togglePaid, payOtherAmount, anticipate, savingPaidId, readOnlyReason }),
+    [openTransaction, openTransfer, edit, duplicate, remove, togglePaid, payOtherAmount, anticipate, savingPaidId, readOnlyReason],
   );
 
   const isSeries = Boolean(toDelete?.recurrenceId) && toDelete?.type !== 'transfer';
@@ -219,6 +238,7 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
         }}
       />
       <AnticipateDialog tx={anticipateTarget} onClose={() => setAnticipateTarget(null)} />
+      <PayAmountDialog tx={payAmountTarget} onClose={() => setPayAmountTarget(null)} />
     </Ctx.Provider>
   );
 }
@@ -280,6 +300,146 @@ function PayWithAccountDialog({
         <Field label={income ? 'Recebido em' : 'Pago em'}>
           <DateInput value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * "Pagar outro valor": the bill came smaller (the entry becomes the paid amount) or with interest and
+ * fines (the entry keeps its amount and the difference is booked apart, by default in "Juros e
+ * multas").
+ */
+function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () => void }) {
+  const accounts = useAccounts();
+  const categories = useCategories({ type: tx?.type === 'income' ? 'income' : 'expense' });
+  const setPaid = useSetPaid();
+  const [amount, setAmount] = useState(0);
+  const [accountId, setAccountId] = useState('');
+  const [paidAt, setPaidAt] = useState(todayISO());
+  const [diffCategory, setDiffCategory] = useState<CategoryValue>({ categoryId: '', subcategoryId: '' });
+  const income = tx?.type === 'income';
+  const planned = tx?.amount ?? 0;
+  const diff = amount - planned;
+
+  // Default for the extra on an expense: the "Juros e multas" subcategory, when the workspace has it.
+  const lateFee = useMemo(() => {
+    for (const c of categories.data ?? []) {
+      const sub = c.subcategories.find((s) => s.name.toLowerCase() === 'juros e multas' && !s.archived);
+      if (sub) return { categoryId: c.id, subcategoryId: sub.id };
+      if (c.name.toLowerCase() === 'juros e multas') return { categoryId: c.id, subcategoryId: '' };
+    }
+    return null;
+  }, [categories.data]);
+
+  function reset(t: Transaction) {
+    setAmount(t.amount);
+    setAccountId(t.accountId ?? '');
+    setPaidAt(todayISO());
+    setDiffCategory(
+      t.type === 'income' ? { categoryId: t.categoryId ?? '', subcategoryId: t.subcategoryId ?? '' } : (lateFee ?? { categoryId: '', subcategoryId: '' }),
+    );
+  }
+
+  // Opened from a menu (not by the modal itself): start from the planned amount every time.
+  const txId = tx?.id;
+  useEffect(() => {
+    if (tx) reset(tx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [txId, lateFee]);
+
+  async function confirm() {
+    if (!tx || amount <= 0) return;
+    try {
+      await setPaid.mutateAsync({
+        id: tx.id,
+        input: {
+          paid: true,
+          paidAt,
+          accountId: accountId || undefined,
+          amount,
+          differenceCategoryId: diff > 0 ? diffCategory.categoryId || undefined : undefined,
+          differenceSubcategoryId: diff > 0 ? diffCategory.subcategoryId || undefined : undefined,
+        },
+      });
+      toast.success(
+        diff > 0
+          ? `${income ? 'Recebido' : 'Pago'} com ${formatBRL(diff)} de ${income ? 'acréscimo' : 'juros e multa'} 👍`
+          : diff < 0
+            ? `${income ? 'Recebido' : 'Pago'}: ${formatBRL(amount)} (${formatBRL(-diff)} a menos) 👍`
+            : income
+              ? 'Recebimento confirmado 👍'
+              : 'Pagamento confirmado 👍',
+      );
+      onClose();
+    } catch (error) {
+      toastError(error);
+    }
+  }
+
+  return (
+    <Modal
+      open={Boolean(tx)}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+      title={income ? 'Receber outro valor' : 'Pagar outro valor'}
+      description={tx ? `${tx.description} · previsto ${formatBRL(planned)}` : undefined}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={confirm} loading={setPaid.isPending} disabled={amount <= 0}>
+            Confirmar 👍
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field label={income ? 'Valor recebido' : 'Valor pago'}>
+          <MoneyInput value={amount} onChange={setAmount} size="lg" autoFocus />
+        </Field>
+        {diff !== 0 && amount > 0 ? (
+          <div className={cn('rounded-lg px-3.5 py-3 text-label', diff > 0 ? 'bg-danger-soft text-fg' : 'bg-success-soft text-fg')}>
+            {diff > 0 ? (
+              <>
+                <strong className="font-semibold">{formatBRL(diff)}</strong> a mais. O lançamento continua com {formatBRL(planned)} e a
+                diferença entra como um lançamento separado{income ? '' : ' de juros e multa'}, já {income ? 'recebido' : 'pago'}.
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold">{formatBRL(-diff)}</strong> a menos. O lançamento passa a ser de {formatBRL(amount)} só neste
+                mês; os próximos continuam com {formatBRL(planned)}.
+              </>
+            )}
+          </div>
+        ) : null}
+        {diff > 0 ? (
+          <Field
+            label={income ? 'Categoria do acréscimo' : 'Categoria dos juros e multa'}
+            hint={!income && !diffCategory.categoryId ? 'Em branco, vai para "Juros e multas" (criada se ainda não existir).' : undefined}
+          >
+            <CategoryPicker type={income ? 'income' : 'expense'} value={diffCategory} onChange={setDiffCategory} placeholder="Juros e multas" />
+          </Field>
+        ) : null}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={income ? 'Recebido em' : 'Pago em'}>
+            <DateInput value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+          </Field>
+          <Field label="Conta">
+            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              <option value="">Sem conta vinculada</option>
+              {(accounts.data ?? [])
+                .filter((a) => !a.archived || a.id === tx?.accountId)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </Select>
+          </Field>
+        </div>
       </div>
     </Modal>
   );

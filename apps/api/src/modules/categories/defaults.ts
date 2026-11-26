@@ -115,6 +115,7 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
     subcategories: [
       { name: 'IPTU/IPVA', icon: 'receipt' },
       { name: 'Tarifas bancárias', icon: 'landmark' },
+      { name: 'Juros e multas', icon: 'coins' },
       { name: 'Imposto de renda', icon: 'receipt' },
     ],
   },

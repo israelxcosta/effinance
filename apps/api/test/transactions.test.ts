@@ -388,4 +388,56 @@ describe('open-ended repetition (fixed) honors the frequency', () => {
     expect(res.body.every((t: any) => t.recurrenceKind === 'fixed' && t.frequency === 'annual')).toBe(true);
     expect(res.body.map((t: any) => t.date).slice(0, 2)).toEqual(['2026-03-10', '2027-03-10']);
   });
+
+});
+
+describe('pay a different amount', () => {
+  it('pays a different amount: less shrinks the entry, more books interest and fines', async () => {
+    const energy = await firstCategory(c, 'expense', 'Moradia');
+    const mk = (amount: number, date: string) =>
+      c.post('/transactions', { type: 'expense', description: 'Conta de luz', amount, date, accountId: account, categoryId: energy.id });
+    const smaller = (await mk(25000, '2026-10-10')).body[0];
+    const later = (await mk(25000, '2026-10-05')).body[0];
+
+    // Bill came lower this month: the entry itself becomes the paid amount.
+    const paidLess = await c.patch(`/transactions/${smaller.id}/paid`, { paid: true, amount: 21050 });
+    expect(paidLess.status).toBe(200);
+    expect(paidLess.body).toMatchObject({ paid: true, amount: 21050 });
+
+    // Paid late with interest: the entry keeps 250,00 and the extra 18,40 is its own paid entry.
+    const paidMore = await c.patch(`/transactions/${later.id}/paid`, { paid: true, amount: 26840, paidAt: '2026-10-18' });
+    expect(paidMore.body).toMatchObject({ paid: true, amount: 25000, paidAt: '2026-10-18' });
+    const fees = (await c.get('/transactions?type=expense&search=Juros')).body.items;
+    expect(fees).toHaveLength(1);
+    expect(fees[0]).toMatchObject({ description: 'Juros e multa — Conta de luz', amount: 1840, date: '2026-10-18', paid: true, accountId: account });
+    // Booked in the "Juros e multas" subcategory (default tree: under "Impostos e taxas").
+    const taxes = await firstCategory(c, 'expense', 'Impostos e taxas');
+    const lateFee = taxes.subcategories.find((s: any) => s.name === 'Juros e multas')!;
+    expect(fees[0]).toMatchObject({ categoryId: taxes.id, subcategoryId: lateFee.id });
+
+    // A chosen category wins; invalid combinations are rejected.
+    const third = (await mk(10000, '2026-10-06')).body[0];
+    const food = await firstCategory(c, 'expense', 'Alimentação');
+    const custom = await c.patch(`/transactions/${third.id}/paid`, { paid: true, amount: 12000, differenceCategoryId: food.id });
+    expect(custom.status).toBe(200);
+    const extra = (await c.get('/transactions?type=expense&search=Juros')).body.items.find((t: any) => t.amount === 2000);
+    expect(extra.categoryId).toBe(food.id);
+    const salary = await firstCategory(c, 'income', 'Salário');
+    const fourth = (await mk(10000, '2026-10-07')).body[0];
+    expect((await c.patch(`/transactions/${fourth.id}/paid`, { paid: true, amount: 12000, differenceCategoryId: salary.id })).status).toBe(422);
+    expect((await c.patch(`/transactions/${fourth.id}/paid`, { paid: true, amount: 0 })).status).toBe(400);
+  });
+
+  it('creates "Juros e multas" when the workspace has none', async () => {
+    const taxes = await firstCategory(c, 'expense', 'Impostos e taxas');
+    const lateFee = taxes.subcategories.find((s: any) => s.name === 'Juros e multas')!;
+    // Simulates an older workspace whose tree predates the category.
+    await c.del(`/categories/${lateFee.id}`);
+    const bill = (await c.post('/transactions', { type: 'expense', description: 'Água', amount: 8000, date: '2026-10-02', accountId: account })).body[0];
+    await c.patch(`/transactions/${bill.id}/paid`, { paid: true, amount: 8500 });
+    const again = (await firstCategory(c, 'expense', 'Impostos e taxas')).subcategories.find((s: any) => s.name === 'Juros e multas')!;
+    expect(again).toBeTruthy();
+    const fee = (await c.get('/transactions?type=expense&search=Juros')).body.items[0];
+    expect(fee).toMatchObject({ amount: 500, subcategoryId: again.id });
+  });
 });

@@ -383,6 +383,15 @@ export const setPaidSchema = z.object({
   paidAt: isoDateSchema.nullish(),
   /** Account used to pay/receive when the transaction had none. */
   accountId: idSchema.nullish(),
+  /**
+   * Amount actually paid/received, when it differs from the planned one (only with `paid: true`).
+   * Lower: this entry becomes that amount (the bill was smaller this month). Higher: the entry keeps
+   * its amount and the difference becomes its own paid entry (interest and fines).
+   */
+  amount: amountSchema.nullish(),
+  /** Category of the difference when `amount` is higher; default: "Juros e multas" (created if missing). */
+  differenceCategoryId: idSchema.nullish(),
+  differenceSubcategoryId: idSchema.nullish(),
 });
 export type SetPaidInput = z.infer<typeof setPaidSchema>;
 

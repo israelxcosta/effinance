@@ -53,7 +53,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | GET | `/api/transactions/:id` | — | `Transaction` |
 | POST | `/api/transactions` | `transactionInputSchema` | `Transaction[]` (201) — todas as ocorrências criadas (e todas as partes, se dividido) |
 | PUT | `/api/transactions/:id?scope=one\|future\|all` | `transactionUpdateSchema` | `Transaction` |
-| PATCH | `/api/transactions/:id/paid` | `setPaidSchema` | `Transaction` |
+| PATCH | `/api/transactions/:id/paid` | `setPaidSchema` (`amount` opcional: valor efetivamente pago; menor reduz o lançamento, maior cria um lançamento pago com a diferença em "Juros e multas" ou na `differenceCategoryId`) | `Transaction` |
 | DELETE | `/api/transactions/:id?scope=one\|future\|all` | — | 204 |
 | POST | `/api/transactions/:id/anticipate` | `anticipateInstallmentsSchema` | `Transaction[]` — parcelas antecipadas |
 | GET | `/api/transfers` | `transferQuerySchema` | `Paginated<Transaction>` |

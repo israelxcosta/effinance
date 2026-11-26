@@ -34,6 +34,7 @@ import {
 } from './series';
 import { deleteTransfer } from '../transfers/service';
 import { addTombstones } from '../imports/writer';
+import { ensureLateFeeCategory } from '../categories/service';
 
 type TransactionQuery = z.output<typeof transactionQuerySchema>;
 type TransactionUpdate = z.output<typeof transactionUpdateSchema>;
@@ -429,7 +430,55 @@ export async function setPaid(
     if (row.type !== 'transfer') patch.accountId = input.accountId;
   }
 
-  await db.update(transactions).set(patch).where(eq(transactions.id, row.id));
+  // Paid a different amount: less → this entry shrinks; more → the difference is its own entry.
+  const amount = input.paid ? (input.amount ?? null) : null;
+  let difference: NewTransactionRow | null = null;
+  if (amount !== null && amount !== row.amount) {
+    if (row.type === 'transfer' || row.creditCardId) {
+      throw new ValidationError('Só contas a pagar e a receber aceitam outro valor no pagamento');
+    }
+    if (amount < row.amount) {
+      patch.amount = amount;
+    } else {
+      const type = row.type as 'income' | 'expense';
+      let categoryId = input.differenceCategoryId ?? null;
+      let subcategoryId = input.differenceSubcategoryId ?? null;
+      if (!categoryId) {
+        if (type === 'expense') ({ categoryId, subcategoryId } = await ensureLateFeeCategory(db, workspaceId));
+        else ({ categoryId, subcategoryId } = { categoryId: row.categoryId, subcategoryId: row.subcategoryId });
+      }
+      const accountId = patch.accountId ?? row.accountId;
+      await validateTransactionRefs(db, workspaceId, {
+        type,
+        accountId,
+        creditCardId: null,
+        categoryId,
+        subcategoryId,
+        contactId: row.contactId,
+      });
+      const paidAt = patch.paidAt ?? defaultPaidAt(row.date);
+      difference = {
+        workspaceId,
+        type,
+        description: `${type === 'expense' ? 'Juros e multa' : 'Acréscimo'} — ${row.description}`.slice(0, 120),
+        amount: amount - row.amount,
+        date: paidAt,
+        accountId,
+        categoryId,
+        subcategoryId,
+        contactId: row.contactId,
+        paymentMethod: row.paymentMethod,
+        recurrenceKind: 'single',
+        paid: true,
+        paidAt,
+      };
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(transactions).set(patch).where(eq(transactions.id, row.id));
+    if (difference) await tx.insert(transactions).values(difference);
+  });
   return getTransaction(db, workspaceId, id);
 }
 

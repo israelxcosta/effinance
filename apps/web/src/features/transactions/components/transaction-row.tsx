@@ -1,9 +1,11 @@
-import { Copy, CreditCard, Ellipsis, FastForward, FileDown, Landmark, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Copy, CreditCard, Ellipsis, FastForward, FileDown, HandCoins, Landmark, Pencil, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import {
   FREQUENCY_LABELS,
   TRANSACTION_ORIGIN_LABELS,
   TRANSFER_KIND_LABELS,
   diffInDays,
+  formatBRL,
   formatDateBR,
   formatMonthKey,
   todayISO,
@@ -15,6 +17,11 @@ import { CategoryIcon } from '@/components/ui/category-icon';
 import { Money } from '@/components/ui/misc';
 import { PaidToggle } from '@/components/ui/paid-toggle';
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuTrigger,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -142,14 +149,16 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
             <CreditCard className="size-4" />
           </span>
         ) : (
-          <PaidToggle
-            paid={tx.paid}
-            kind={tx.type}
-            loading={actions.savingPaidId === tx.id}
-            disabled={Boolean(actions.readOnlyReason)}
-            disabledReason={actions.readOnlyReason ?? undefined}
-            onToggle={(paid) => actions.togglePaid(tx, paid)}
-          />
+          <PayContextMenu tx={tx}>
+            <PaidToggle
+              paid={tx.paid}
+              kind={tx.type}
+              loading={actions.savingPaidId === tx.id}
+              disabled={Boolean(actions.readOnlyReason)}
+              disabledReason={actions.readOnlyReason ?? undefined}
+              onToggle={(paid) => actions.togglePaid(tx, paid)}
+            />
+          </PayContextMenu>
         )
       ) : (
         <PaidToggle paid={tx.paid} kind="transfer" disabled disabledReason={tx.paid ? 'Efetivada' : 'Agendada'} onToggle={() => undefined} />
@@ -208,6 +217,29 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
   );
 }
 
+/** Right-click (long-press on touch) on 👎: pay the planned amount or another one. */
+function PayContextMenu({ tx, children }: { tx: Transaction; children: ReactNode }) {
+  const actions = useTransactionActions();
+  if (tx.paid || actions.readOnlyReason || tx.type === 'transfer') return <>{children}</>;
+  const income = tx.type === 'income';
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <span className="inline-flex shrink-0">{children}</span>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuLabel>{income ? 'Receber' : 'Pagar'}</ContextMenuLabel>
+        <ContextMenuItem icon={<ThumbsUp />} onSelect={() => actions.togglePaid(tx, true)}>
+          {income ? 'Receber' : 'Pagar'} {formatBRL(tx.amount)}
+        </ContextMenuItem>
+        <ContextMenuItem icon={<HandCoins />} onSelect={() => actions.payOtherAmount(tx)}>
+          {income ? 'Receber outro valor…' : 'Pagar outro valor…'}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 export function RowMenu({ tx }: { tx: Transaction }) {
   const actions = useTransactionActions();
   const isCardPurchase = Boolean(tx.creditCardId) && tx.type !== 'transfer';
@@ -245,6 +277,11 @@ export function RowMenu({ tx }: { tx: Transaction }) {
               : tx.type === 'income'
                 ? 'Marcar como recebido'
                 : 'Marcar como pago'}
+          </DropdownMenuItem>
+        ) : null}
+        {tx.type !== 'transfer' && !isCardPurchase && !tx.paid ? (
+          <DropdownMenuItem icon={<HandCoins />} onSelect={() => actions.payOtherAmount(tx)}>
+            {tx.type === 'income' ? 'Receber outro valor…' : 'Pagar outro valor…'}
           </DropdownMenuItem>
         ) : null}
         {tx.recurrenceKind === 'installment' && (tx.installmentNumber ?? 0) < (tx.installmentTotal ?? 0) ? (

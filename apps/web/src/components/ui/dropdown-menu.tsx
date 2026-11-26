@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { DropdownMenu as DM } from 'radix-ui';
+import { ContextMenu as CM, DropdownMenu as DM } from 'radix-ui';
 import { cn } from '@/lib/utils';
 
 export const DropdownMenu = DM.Root;
@@ -48,4 +48,41 @@ export function DropdownMenuSeparator({ className }: { className?: string }) {
 
 export function DropdownMenuLabel({ className, ...props }: ComponentProps<typeof DM.Label>) {
   return <DM.Label className={cn('eyebrow px-2.5 pt-1.5 pb-1 text-subtle', className)} {...props} />;
+}
+
+// Right-click (or long-press on touch) menus, styled like the dropdowns above.
+export const ContextMenu = CM.Root;
+export const ContextMenuTrigger = CM.Trigger;
+
+export function ContextMenuContent({ className, ...props }: ComponentProps<typeof CM.Content>) {
+  return (
+    <CM.Portal>
+      <CM.Content
+        className={cn(
+          'z-50 min-w-[220px] overflow-hidden rounded-lg border border-border bg-surface p-1.5 shadow-lg data-[state=open]:animate-fade-in',
+          className,
+        )}
+        {...props}
+      />
+    </CM.Portal>
+  );
+}
+
+export function ContextMenuItem({ className, icon, children, ...props }: ComponentProps<typeof CM.Item> & { icon?: ReactNode }) {
+  return (
+    <CM.Item
+      className={cn(
+        'flex cursor-pointer select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-fg outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-bg-subtle [&_svg]:size-4',
+        className,
+      )}
+      {...props}
+    >
+      {icon}
+      {children}
+    </CM.Item>
+  );
+}
+
+export function ContextMenuLabel({ className, ...props }: ComponentProps<typeof CM.Label>) {
+  return <CM.Label className={cn('eyebrow px-2.5 pt-1.5 pb-1 text-subtle', className)} {...props} />;
 }

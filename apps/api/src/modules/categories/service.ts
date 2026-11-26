@@ -127,3 +127,38 @@ export async function hasCategories(db: DbExecutor, workspaceId: string) {
     .limit(1);
   return !!row;
 }
+
+export const LATE_FEE_CATEGORY = 'Juros e multas';
+
+/**
+ * Expense category for interest and fines paid on a late bill: the "Juros e multas" subcategory
+ * (under "Impostos e taxas" in the default tree). Created when the workspace does not have one.
+ */
+export async function ensureLateFeeCategory(
+  db: DbExecutor,
+  workspaceId: string,
+): Promise<{ categoryId: string; subcategoryId: string | null }> {
+  const rows = await db
+    .select()
+    .from(categories)
+    .where(and(eq(categories.workspaceId, workspaceId), eq(categories.type, 'expense')));
+  const named = (r: (typeof rows)[number]) => r.name.trim().toLowerCase() === LATE_FEE_CATEGORY.toLowerCase();
+  const sub = rows.find((r) => r.parentId && named(r) && !r.archived);
+  if (sub) return { categoryId: sub.parentId!, subcategoryId: sub.id };
+  const top = rows.find((r) => !r.parentId && named(r) && !r.archived);
+  if (top) return { categoryId: top.id, subcategoryId: null };
+
+  const taxes = rows.find((r) => !r.parentId && !r.archived && r.name === 'Impostos e taxas');
+  if (taxes) {
+    const [created] = await db
+      .insert(categories)
+      .values({ workspaceId, parentId: taxes.id, name: LATE_FEE_CATEGORY, type: 'expense', icon: 'coins', color: taxes.color })
+      .returning({ id: categories.id });
+    return { categoryId: taxes.id, subcategoryId: created!.id };
+  }
+  const [created] = await db
+    .insert(categories)
+    .values({ workspaceId, name: LATE_FEE_CATEGORY, type: 'expense', icon: 'coins', color: '#64748B' })
+    .returning({ id: categories.id });
+  return { categoryId: created!.id, subcategoryId: null };
+}

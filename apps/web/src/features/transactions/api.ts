@@ -61,6 +61,10 @@ export function useSetPaid() {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: SetPaidInput }) =>
       api<Transaction>(`/transactions/${id}/paid`, { method: 'PATCH', body: input }),
-    onSuccess: () => invalidateFinancialData(qc),
+    onSuccess: async (_tx, { input }) => {
+      // Paying more may have created the "Juros e multas" category.
+      if (input.amount) await qc.invalidateQueries({ queryKey: ['categories'] });
+      await invalidateFinancialData(qc);
+    },
   });
 }

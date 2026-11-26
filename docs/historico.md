@@ -100,6 +100,12 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   em 1440/1280/1024/768/390 px sem rolagem horizontal.
 - **Pedido do usuário (2026-11-26):** no seletor de categoria, digitar com o campo focado abre a lista
   com o texto na busca; ao abrir por clique, o foco vai para a busca.
+- **Pedido do usuário (2026-11-26):** botão direito (ou toque longo) no 👎 e o menu "…" da linha têm
+  **"Pagar/Receber outro valor…"**. Valor menor: o lançamento passa a ser o valor pago (só esta
+  ocorrência; a série segue com o previsto). Valor maior: o lançamento mantém o previsto e a diferença
+  vira um lançamento **já pago**, na data do pagamento, "Juros e multa — <descrição>", na subcategoria
+  **Juros e multas** (em Impostos e taxas; criada automaticamente em espaços antigos) ou na categoria
+  escolhida. Em receitas, a diferença vai para a categoria do próprio lançamento por padrão.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -218,3 +224,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: parceladas seguem mês a mês pelas parcelas; chave de regime adiada pelo usuário.
 - 2026-11-26: relatório **Evolução por categoria** (aba Evolução) implementado como o protótipo aprovado.
 - 2026-11-26: telas sem rolagem horizontal (Evolução se ajusta à largura, abas viram Select); busca do seletor de categoria ao digitar.
+- 2026-11-26: pagar outro valor (menor ajusta; maior lança juros e multa em categoria própria).
