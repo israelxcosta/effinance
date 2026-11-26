@@ -224,7 +224,7 @@ export function CategoryPicker({
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  setSheet({ open: true, type, category: null, parent: null });
+                  setSheet({ open: true, type, category: null, parent: null, name: query.trim() });
                 }}
                 className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm font-semibold text-brand-text transition-colors hover:bg-bg-subtle"
               >

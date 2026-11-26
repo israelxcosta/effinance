@@ -1,16 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { categoryInputSchema, categoryUpdateSchema, type Category, type CategoryType, type IconName } from '@effinance/shared';
 import { Sheet } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { ColorPicker } from '@/components/ui/color-picker';
 import { CategoryIcon } from '@/components/ui/category-icon';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Switch } from '@/components/ui/switch';
-import { useCreateCategory, useUpdateCategory } from './api';
+import { useCategories, useCreateCategory, useUpdateCategory } from './api';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
 
@@ -19,6 +20,8 @@ export interface CategorySheetState {
   category?: Category | null;
   parent?: Category | null;
   type: CategoryType;
+  /** Prefills the name (e.g. what was typed in the picker's search). */
+  name?: string;
 }
 
 interface FormValues {
@@ -27,6 +30,8 @@ interface FormValues {
   icon: IconName;
   color: string;
   archived: boolean;
+  /** Chosen in the form when no parent was given: '' creates a top-level category. */
+  parentId: string;
 }
 
 export function CategorySheet({
@@ -43,22 +48,46 @@ export function CategorySheet({
   const update = useUpdateCategory();
   const { category, parent } = state;
   const form = useForm<FormValues>();
-  const { register, control, handleSubmit, reset, watch, setError, formState } = form;
+  const { register, control, handleSubmit, reset, watch, setError, setValue, formState } = form;
 
   useEffect(() => {
     if (!state.open) return;
     reset({
-      name: category?.name ?? '',
+      name: category?.name ?? state.name ?? '',
       type: category?.type ?? parent?.type ?? state.type,
       icon: category?.icon ?? parent?.icon ?? 'tag',
       color: category?.color ?? parent?.color ?? (state.type === 'income' ? '#12A150' : '#152B61'),
       archived: category?.archived ?? false,
+      parentId: '',
     });
-  }, [state.open, category, parent, state.type, reset]);
+  }, [state.open, category, parent, state.type, state.name, reset]);
 
   const icon = watch('icon');
   const color = watch('color');
   const name = watch('name');
+  const type = watch('type');
+  const parentId = watch('parentId');
+
+  // New category without a fixed parent: it may go inside an existing category of the same type.
+  const canPickParent = !category && !parent;
+  const parents = useCategories({ type: type ?? state.type });
+  const parentOptions = canPickParent ? (parents.data ?? []) : [];
+  const chosenParent = parentOptions.find((p) => p.id === parentId) ?? null;
+  const effectiveParent = parent ?? chosenParent;
+
+  // A subcategory starts with its parent's look (still editable); switching the type drops the parent.
+  const lastParent = useRef<string>('');
+  useEffect(() => {
+    if (!canPickParent || parentId === lastParent.current) return;
+    lastParent.current = parentId ?? '';
+    if (chosenParent) {
+      setValue('icon', chosenParent.icon);
+      setValue('color', chosenParent.color);
+    }
+  }, [canPickParent, parentId, chosenParent, setValue]);
+  useEffect(() => {
+    if (canPickParent) setValue('parentId', '');
+  }, [type, canPickParent, setValue]);
 
   const onSubmit = handleSubmit(async (v) => {
     try {
@@ -71,13 +100,13 @@ export function CategorySheet({
         await update.mutateAsync({ id: category.id, input: parsed.data });
         toast.success('Categoria atualizada');
       } else {
-        const parsed = categoryInputSchema.safeParse({ name: v.name, type: v.type, icon: v.icon, color: v.color, parentId: parent?.id ?? null });
+        const parsed = categoryInputSchema.safeParse({ name: v.name, type: v.type, icon: v.icon, color: v.color, parentId: effectiveParent?.id ?? null });
         if (!parsed.success) {
           for (const i of parsed.error.issues) setError(String(i.path[0]) as keyof FormValues, { message: i.message });
           return;
         }
         const created = await create.mutateAsync(parsed.data);
-        toast.success(parent ? 'Subcategoria criada' : 'Categoria criada');
+        toast.success(effectiveParent ? 'Subcategoria criada' : 'Categoria criada');
         onCreated?.(created);
       }
       onOpenChange(false);
@@ -86,14 +115,14 @@ export function CategorySheet({
     }
   });
 
-  const title = category ? (category.parentId ? 'Editar subcategoria' : 'Editar categoria') : parent ? 'Nova subcategoria' : 'Nova categoria';
+  const title = category ? (category.parentId ? 'Editar subcategoria' : 'Editar categoria') : effectiveParent ? 'Nova subcategoria' : 'Nova categoria';
 
   return (
     <Sheet
       open={state.open}
       onOpenChange={onOpenChange}
       title={title}
-      description={parent ? `Dentro de ${parent.name}` : 'Organize receitas e despesas com ícones e cores'}
+      description={effectiveParent ? `Dentro de ${effectiveParent.name}` : 'Organize receitas e despesas com ícones e cores'}
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -107,8 +136,8 @@ export function CategorySheet({
         <div className="flex items-center gap-3 rounded-lg bg-surface-muted p-4">
           <CategoryIcon icon={icon} color={color} size="lg" />
           <div>
-            <p className="text-sm font-semibold">{name || 'Nome da categoria'}</p>
-            <p className="text-xs text-muted">Pré-visualização</p>
+            <p className="text-sm font-semibold">{name || (effectiveParent ? 'Nome da subcategoria' : 'Nome da categoria')}</p>
+            <p className="text-xs text-muted">{effectiveParent ? `Subcategoria de ${effectiveParent.name}` : 'Pré-visualização'}</p>
           </div>
         </div>
         {!category && !parent ? (
@@ -129,8 +158,23 @@ export function CategorySheet({
             )}
           />
         ) : null}
+        {canPickParent ? (
+          <Field
+            label="Categoria pai"
+            hint={chosenParent ? `Será criada como subcategoria de ${chosenParent.name}.` : 'Escolha uma categoria para criar uma subcategoria dentro dela.'}
+          >
+            <Select {...register('parentId')} disabled={parents.isPending}>
+              <option value="">Nenhuma (categoria principal)</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
         <Field label="Nome" error={formState.errors.name?.message}>
-          <Input placeholder="Ex: Alimentação" maxLength={60} {...register('name')} />
+          <Input placeholder={effectiveParent ? 'Ex: Mercado' : 'Ex: Alimentação'} maxLength={60} {...register('name')} />
         </Field>
         <Field label="Cor">
           <Controller control={control} name="color" render={({ field }) => <ColorPicker value={field.value ?? '#152B61'} onChange={field.onChange} />} />

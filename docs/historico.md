@@ -73,6 +73,9 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   campo dd/mm/aaaa que aceita digitação + popover arredondado (raio 2xl, dias em círculo, escolha de mês
   e ano, Limpar/Hoje, teclado como o nativo, `min`/`max`). Mesma API do input nativo (valor ISO,
   `register` do react-hook-form), como o Select. Lógica pura em `lib/calendar.ts` com testes.
+- **Pedido do usuário (2026-11-26):** "Nova categoria" (no lançamento e na página de categorias) tem o
+  campo **Categoria pai**: "Nenhuma" cria categoria principal; escolher uma cria subcategoria (herda tipo,
+  ícone e cor do pai, editáveis). O texto buscado no seletor vira o nome sugerido. A API já validava.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -186,3 +189,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: SmartScreen ("O Windows protegeu o computador") é esperado sem assinatura de código;
   assinar (Azure Trusted Signing ou certificado OV) fica para quando outras pessoas instalarem.
 - 2026-11-26: calendário próprio `<DateInput>` no lugar do seletor de data nativo em todas as telas.
+- 2026-11-26: criar subcategoria direto do lançamento (campo "Categoria pai" em Nova categoria).
