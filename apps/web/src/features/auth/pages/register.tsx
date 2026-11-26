@@ -62,10 +62,9 @@ export default function RegisterPage() {
       }
     >
       {IS_DEMO ? (
-        // The demo keeps accounts in this browser (IndexedDB of the page that hosts it), not on a server.
+        // The demo keeps accounts in this browser (IndexedDB of the host page): never real credentials.
         <p role="note" className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-label text-fg">
-          <strong className="font-semibold">Ambiente de testes.</strong> A conta fica só neste navegador. Não use seu
-          e-mail nem uma senha que você usa em outros sites.
+          <strong className="font-semibold">Ambiente de testes.</strong> Não use sua senha de verdade.
         </p>
       ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>

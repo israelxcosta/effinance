@@ -47,6 +47,9 @@ export const monthKeySchema = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Mês inválido (use AAAA-MM)' })
   .refine(inYearRange, { message: `Use um mês entre ${MIN_YEAR} e ${MAX_YEAR}` });
 
+/** Largest amount accepted anywhere (R$ 1 bilhão, in cents). */
+export const MAX_AMOUNT_CENTS = 100_000_000_000;
+
 /** Positive amount in cents. */
 export const amountSchema = z
   .int({ message: 'Valor inválido' })
@@ -562,5 +565,10 @@ export const investmentPurchaseInputSchema = z.object({
   unitPrice: amountSchema,
   /** Brokerage fees and taxes of the purchase, in cents (they go into the average price). */
   fees: z.int().min(0).max(100_000_000_000).default(0),
-});
+})
+  // The total becomes the amount of the "Aplicação" transfer: same cap as any amount (amountSchema).
+  .refine((v) => Math.round(v.quantity * v.unitPrice) + v.fees <= MAX_AMOUNT_CENTS, {
+    message: 'Valor total da compra muito alto',
+    path: ['unitPrice'],
+  });
 export type InvestmentPurchaseInput = z.input<typeof investmentPurchaseInputSchema>;

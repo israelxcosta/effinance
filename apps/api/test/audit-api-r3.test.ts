@@ -96,9 +96,9 @@ describe('finding: investment purchase total is bounded like any amount (CWE-190
     const base = { assetType: 'stock', ticker: 'PETR4', date: '2026-10-10' };
     // 1,000,000 × R$ 1 bi = 10^17 cents: beyond Number.MAX_SAFE_INTEGER sums and the 10^11 cap of amounts.
     const huge = await user.post('/investments/purchases', { ...base, quantity: 1_000_000, unitPrice: 100_000_000_000, paidFromAccountId: from });
-    expect(huge.status).toBe(422);
+    expect(huge.status).toBe(400);
     const noTransfer = await user.post('/investments/purchases', { ...base, quantity: 1_000_000, unitPrice: 100_000_000_000 });
-    expect(noTransfer.status).toBe(422);
+    expect(noTransfer.status).toBe(400);
     const [count] = await admin().execute<{ n: number }>(
       sql`select (select count(*) from transactions) + (select count(*) from investment_purchases) as n`,
     );
@@ -109,7 +109,7 @@ describe('finding: investment purchase total is bounded like any amount (CWE-190
     expect(ok.status).toBe(201);
     expect(ok.body.total).toBe(100_000_000_000);
     const edit = await user.put(`/investments/purchases/${ok.body.id}`, { ...base, quantity: 1000, unitPrice: 100_000_000, fees: 1, paidFromAccountId: from });
-    expect(edit.status).toBe(422);
+    expect(edit.status).toBe(400);
     expect((await user.get('/investments')).body.totalInvested).toBe(100_000_000_000);
   });
 });

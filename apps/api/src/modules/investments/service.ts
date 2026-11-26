@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
+  MAX_AMOUNT_CENTS,
   buildPositions,
   formatBRL,
   purchaseTotal,
@@ -100,6 +101,13 @@ async function dropTransfer(db: DbExecutor, workspaceId: string, transferId: str
   await db.delete(transactions).where(and(eq(transactions.workspaceId, workspaceId), eq(transactions.id, transferId), eq(transactions.type, 'transfer')));
 }
 
+/** Defense in depth (the contract already refuses it): the total is a money amount like any other. */
+function checkTotal(input: PurchaseInput) {
+  if (purchaseTotal(input.quantity, input.unitPrice, input.fees) > MAX_AMOUNT_CENTS) {
+    throw new ValidationError('Valor total da compra muito alto');
+  }
+}
+
 async function checkAccount(db: DbExecutor, workspaceId: string, accountId: string | null) {
   if (!accountId) return;
   const account = await getAccountOrThrow(db, workspaceId, accountId);
@@ -140,6 +148,7 @@ export async function getPortfolio(db: DbExecutor, workspaceId: string): Promise
 }
 
 export async function createPurchase(db: DbExecutor, workspaceId: string, input: PurchaseInput): Promise<InvestmentPurchase> {
+  checkTotal(input);
   await checkAccount(db, workspaceId, input.accountId);
   const row = await db.transaction(async (tx) => {
     const brokerId = input.accountId ?? (await defaultBroker(tx, workspaceId));
@@ -160,6 +169,7 @@ export async function updatePurchase(
   id: string,
   input: PurchaseInput,
 ): Promise<InvestmentPurchase> {
+  checkTotal(input);
   const current = await getPurchaseOrThrow(db, workspaceId, id);
   await checkAccount(db, workspaceId, input.accountId);
   const row = await db.transaction(async (tx) => {

@@ -143,6 +143,38 @@ describe('demo api (PGlite)', () => {
     expect(plain.email).toContain('@');
   });
 
+  it('applies the same RLS and tenant keys as the server (PGlite parity, migrations up to 0009)', async () => {
+    const { client } = await getDemoServer();
+    // Every table holding workspace data has ENABLE + FORCE RLS and its isolation policy.
+    const tables = (
+      await client.query<{ name: string; rls: boolean; force: boolean; policies: number }>(`
+        select c.relname as name, c.relrowsecurity as rls, c.relforcerowsecurity as force,
+               (select count(*)::int from pg_policy p where p.polrelid = c.oid) as policies
+          from pg_class c join pg_attribute a on a.attrelid = c.oid and a.attname = 'workspace_id' and not a.attisdropped
+         where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'`)
+    ).rows;
+    const tenant = tables.filter((t) => t.rls || t.policies > 0);
+    expect(tenant.map((t) => t.name)).toEqual(expect.arrayContaining(['transactions', 'investment_purchases', 'import_tombstones']));
+    for (const t of tenant) expect(t, t.name).toMatchObject({ rls: true, force: true, policies: 1 });
+    // The tenant role without a workspace sees nothing (fails closed), as in production.
+    const hidden = await client.transaction(async (tx) => {
+      await tx.query(`select set_config('role', 'effinance_app', true)`);
+      return (await tx.query<{ n: number }>('select count(*)::int as n from transactions')).rows[0]!.n;
+    });
+    expect(hidden).toBe(0);
+    // Migration 0009 ran in the browser too: the Aplicação link is a composite FK, money is bounded.
+    const constraints = (
+      await client.query<{ name: string }>(`select conname as name from pg_constraint where conname in
+        ('investment_purchases_transfer_fk', 'transactions_workspace_id_id_uq', 'transactions_amount_max_chk', 'investment_purchases_total_chk')`)
+    ).rows.map((r) => r.name);
+    expect(constraints.sort()).toEqual([
+      'investment_purchases_total_chk',
+      'investment_purchases_transfer_fk',
+      'transactions_amount_max_chk',
+      'transactions_workspace_id_id_uq',
+    ]);
+  });
+
   it('runs the fake checkout and activates a plan', async () => {
     const checkout = await call('POST', '/billing/checkout', { planCode: 'individual_monthly' });
     expect(checkout.body.checkoutUrl).toContain('#/configuracoes?aba=assinatura&simular=individual_monthly');
