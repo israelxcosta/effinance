@@ -2,7 +2,9 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ChartNoAxesColumn, ChevronDown, ChevronRight, Download, Percent } from 'lucide-react';
 import {
+  MONTH_NAMES,
   MONTH_SHORT,
+  addMonthKey,
   formatBRL,
   type EvolutionGroup,
   type EvolutionInterval,
@@ -23,6 +25,8 @@ import { useActiveMonth } from '@/lib/active-month';
 import { useEvolutionReport } from '../api';
 import { downloadText, evolutionToCsv } from '../lib/evolution-csv';
 import { evolutionLayout } from '../lib/evolution-layout';
+import { EVOLUTION_PRESETS, evolutionRange, type EvolutionPreset } from '../lib/evolution-range';
+import { MonthPickerPanel, PickerPopover } from '@/components/ui/month-picker';
 
 type Kind = 'income' | 'expense';
 
@@ -50,9 +54,11 @@ const cellBase = 'overflow-hidden px-2 text-right tabular whitespace-nowrap';
 export function EvolutionTab() {
   const [activeMonth] = useActiveMonth();
   const [interval, setInterval] = useState<EvolutionInterval>('month');
-  const [months, setMonths] = useState(12);
+  const [preset, setPreset] = useState<EvolutionPreset>('past12');
+  const [custom, setCustom] = useState(() => ({ from: activeMonth, to: addMonthKey(activeMonth, 5) }));
+  const { to, months } = evolutionRange(preset, activeMonth, custom);
   const [showPct, setShowPct] = useState(true);
-  const report = useEvolutionReport({ to: activeMonth, months, interval });
+  const report = useEvolutionReport({ to, months, interval });
   const d = report.data;
 
   if (report.isError) return <ErrorState error={report.error} onRetry={() => report.refetch()} />;
@@ -69,24 +75,32 @@ export function EvolutionTab() {
           <div>
             <h2 className="text-title font-semibold tracking-tight text-fg">Evolução por categoria</h2>
             <p className="mt-0.5 text-xs text-muted">
-              {range ? `${range} · ` : ''}valores pelo vencimento · parceladas mês a mês
+              {range}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <SegmentedControl ariaLabel="Intervalo" value={interval} onChange={setInterval} options={INTERVALS} />
-            <Select aria-label="Período" value={String(months)} onChange={(e) => setMonths(Number(e.target.value))} className="h-10 w-[170px]" size_="sm">
-              <option value="6">Últimos 6 meses</option>
-              <option value="12">Últimos 12 meses</option>
-              <option value="24">Últimos 24 meses</option>
-              <option value="36">Últimos 36 meses</option>
+            <Select aria-label="Período" value={preset} onChange={(e) => setPreset(e.target.value as EvolutionPreset)} className="h-10 w-[200px]" size_="sm">
+              {EVOLUTION_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
             </Select>
+            {preset === 'custom' ? (
+              <div className="flex items-center gap-1.5 text-xs text-muted">
+                <MonthButton label="De" value={custom.from} onChange={(from) => setCustom((c) => ({ ...c, from }))} />
+                até
+                <MonthButton label="Até" value={custom.to} onChange={(t) => setCustom((c) => ({ ...c, to: t }))} />
+              </div>
+            ) : null}
             <Button variant={showPct ? 'soft' : 'outline'} onClick={() => setShowPct((s) => !s)} aria-pressed={showPct}>
               <Percent /> da receita
             </Button>
             <Button
               variant="outline"
               disabled={!d || empty}
-              onClick={() => d && downloadText(evolutionToCsv(d), `effinance-evolucao-${d.periods[0]!.start.slice(0, 7)}-a-${activeMonth}.csv`)}
+              onClick={() => d && downloadText(evolutionToCsv(d), `effinance-evolucao-${d.periods[0]!.start.slice(0, 7)}-a-${to}.csv`)}
             >
               <Download /> Exportar
             </Button>
@@ -161,6 +175,35 @@ function Totals({ d, interval }: { d: EvolutionReportResponse | undefined; inter
         </Card>
       ))}
     </div>
+  );
+}
+
+/** Small "Nov/26" button that opens the month/year grid (custom range). */
+function MonthButton({ label, value, onChange }: { label: string; value: string; onChange: (month: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const m = Number(value.slice(5, 7));
+  return (
+    <PickerPopover
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <button
+          type="button"
+          aria-label={`${label}: ${MONTH_NAMES[m - 1]} de ${value.slice(0, 4)}`}
+          className="h-10 rounded-md border border-border bg-surface px-3 text-label font-semibold text-fg tabular shadow-xs transition-colors hover:border-border-strong data-[state=open]:border-brand-500"
+        >
+          {monthLabel(`${value}-01`)}
+        </button>
+      }
+    >
+      <MonthPickerPanel
+        value={value}
+        onSelect={(next) => {
+          onChange(next);
+          setOpen(false);
+        }}
+      />
+    </PickerPopover>
   );
 }
 
