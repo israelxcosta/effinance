@@ -112,7 +112,7 @@ export default function InvestmentsPage() {
             <h2 className="text-title font-semibold tracking-tight text-fg">Carteira</h2>
             <p className="mt-0.5 text-xs text-muted">Posição por ativo · preço médio com taxas · clique para ver as compras</p>
           </div>
-          <table className="w-full text-sm max-md:[&_tr>*:nth-child(5)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden">
+          <table className="w-full text-sm max-md:[&_tr>*:nth-child(5)]:hidden max-sm:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden max-sm:[&_tr>*:nth-child(6)]:hidden">
             <thead>
               <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                 <th className="px-4 py-2.5">Ativo</th>
@@ -147,12 +147,16 @@ export default function InvestmentsPage() {
                               {p.name ?? ASSET_TYPE_LABELS[p.assetType]}
                               {p.name ? ` · ${ASSET_TYPE_LABELS[p.assetType]}` : ''}
                             </p>
+                            {/* Phones hide the quantity and average price columns: they go under the name. */}
+                            <p className="mt-0.5 text-xs text-fg tabular sm:hidden">
+                              {formatQuantity(p.quantity)} × {formatBRL(p.averagePrice)}
+                            </p>
                           </div>
                         </div>
                       </td>
-                      <td className="tabular px-3 py-3 text-right text-fg">{formatQuantity(p.quantity)}</td>
-                      <td className="tabular px-3 py-3 text-right text-fg">{formatBRL(p.averagePrice)}</td>
-                      <td className="tabular px-3 py-3 text-right font-semibold text-fg">{formatBRL(p.totalInvested)}</td>
+                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatQuantity(p.quantity)}</td>
+                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatBRL(p.averagePrice)}</td>
+                      <td className="tabular whitespace-nowrap px-3 py-3 text-right font-semibold text-fg">{formatBRL(p.totalInvested)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <ProgressBar value={p.share} size="sm" />
@@ -169,7 +173,7 @@ export default function InvestmentsPage() {
                     </tr>
                     {isOpen ? (
                       <tr className="border-b border-border bg-surface-muted/60">
-                        <td colSpan={6} className="px-4 py-2 sm:pl-14">
+                        <td colSpan={6} className="px-3 py-2 sm:px-4 sm:pl-14">
                           <ul className="divide-y divide-border">
                             {rows.map((x) => (
                               <PurchaseLine key={x.id} purchase={x} canWrite={canWrite} onEdit={() => setSheet({ open: true, purchase: x })} onDelete={() => setToDelete(x)} />
@@ -213,7 +217,7 @@ function PurchaseLine({ purchase: x, canWrite, onEdit, onDelete }: { purchase: I
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 text-label">
       <span className="w-24 shrink-0 tabular text-muted">{formatDateBR(x.date)}</span>
-      <span className="min-w-0 flex-1 tabular text-fg">
+      <span className="order-last w-full min-w-0 tabular text-fg sm:order-none sm:w-auto sm:flex-1">
         {formatQuantity(x.quantity)} × {formatBRL(x.unitPrice)}
         {x.fees ? <span className="text-muted"> + {formatBRL(x.fees)} de taxas</span> : null}
       </span>
@@ -223,7 +227,7 @@ function PurchaseLine({ purchase: x, canWrite, onEdit, onDelete }: { purchase: I
           <span className="truncate">{x.account.name}</span>
         </span>
       ) : null}
-      <span className="w-28 shrink-0 text-right tabular font-semibold text-fg">{formatBRL(x.total)}</span>
+      <span className="ml-auto w-28 shrink-0 text-right tabular font-semibold text-fg">{formatBRL(x.total)}</span>
       {canWrite ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
