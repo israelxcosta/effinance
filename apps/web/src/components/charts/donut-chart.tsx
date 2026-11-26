@@ -38,7 +38,8 @@ export function DonutChart({ data, total, centerLabel = 'Total', height = 200, m
 
   return (
     <div className="@container">
-      <div className="flex flex-col items-center gap-4 @md:flex-row @md:items-center" onMouseLeave={() => setActive(null)}>
+      {/* In wide cards the legend keeps a readable width and the pair sits centered (no gap between name and value). */}
+      <div className="flex flex-col items-center gap-4 @md:flex-row @md:items-center @4xl:justify-center @4xl:gap-12" onMouseLeave={() => setActive(null)}>
         <div className="donut relative shrink-0" style={{ width: height, height }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart accessibilityLayer={false}>
@@ -80,7 +81,7 @@ export function DonutChart({ data, total, centerLabel = 'Total', height = 200, m
           </div>
         </div>
         {showLegend ? (
-          <ul className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5">
+          <ul className="grid w-full max-w-xl min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5">
             {chartData.map((d, i) => {
               const clickable = selectable(d);
               const row = (

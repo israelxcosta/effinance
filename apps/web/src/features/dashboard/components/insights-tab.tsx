@@ -35,7 +35,11 @@ export function InsightList({ insights }: { insights: Insight[] }) {
       {insights.map((ins, i) => {
         const style = KIND_STYLE[ins.kind];
         return (
-          <div key={i} className="flex gap-3 rounded-lg border border-border bg-surface p-4">
+          <div
+            key={i}
+            // An odd last insight takes the whole row instead of leaving a hole next to it.
+            className={cn('flex gap-3 rounded-lg border border-border bg-surface p-4', insights.length % 2 === 1 && i === insights.length - 1 && 'md:col-span-2')}
+          >
             <span className={cn('flex size-9 shrink-0 items-center justify-center rounded-md [&_svg]:size-4', style.className)}>{style.icon}</span>
             <div className="min-w-0 flex-1">
               <p className="eyebrow text-subtle">{INSIGHT_LABELS[ins.kind]}</p>
@@ -112,15 +116,16 @@ export function InsightsTab({ month, dashboard, loading }: { month: string; dash
             )}
           </div>
         </Card>
-        <div className="lg:col-span-4">
-          <HealthCard health={dashboard?.health} loading={loading} />
+        <div className="flex lg:col-span-4">
+          <HealthCard health={dashboard?.health} loading={loading} className="flex-1" />
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="p-5">
+        <Card className="flex flex-col p-5">
           <CardHeader title="Fixas x variáveis" subtitle="Composição das despesas" />
-          <div className="mt-4 h-48">
+          {/* Grows with the row (the neighbours are taller), so no blank area under the bars. */}
+          <div className="mt-4 min-h-48 flex-1">
             {overview.isPending ? (
               <Skeleton className="h-full" />
             ) : o && o.expense > 0 ? (

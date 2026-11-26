@@ -106,6 +106,17 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   vira um lançamento **já pago**, na data do pagamento, "Juros e multa — <descrição>", na subcategoria
   **Juros e multas** (em Impostos e taxas; criada automaticamente em espaços antigos) ou na categoria
   escolhida. Em receitas, a diferença vai para a categoria do próprio lançamento por padrão.
+- **Pedido do usuário (2026-11-26):** página **Investimentos** (`/investimentos`, menu lateral), só com o
+  **cadastro das compras** por enquanto: ativo/ticker (maiúsculas), tipo (ação, FII, ETF, BDR, renda fixa,
+  cripto, outro), nome, corretora (conta do tipo Investimento, opcional), data, quantidade (até 8 casas;
+  "1.500" = mil e quinhentos), preço por unidade e taxas. Posição por ticker com quantidade, total
+  investido e **preço médio com taxas** (`packages/shared/utils/portfolio.ts`); o formulário mostra o
+  preço médio antes/depois de "Comprar mais". Tabela `investment_purchases` (migração 0007, RLS como as
+  demais, exportação LGPD). As compras **não** mexem em saldos nem lançamentos. Sem cotação por enquanto
+  (proposta brapi.dev adiada pelo usuário); vendas e dividendos ficam para depois.
+- **Pedido do usuário (2026-11-26):** espaçamentos do Dashboard inteligente: Saúde financeira ocupa a
+  altura do card de Insights (medidor centralizado); insight ímpar ocupa a linha toda; "Fixas x variáveis"
+  cresce com a linha; legenda dos donuts com largura máxima e centralizada em cards largos.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -226,3 +237,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: telas sem rolagem horizontal (Evolução se ajusta à largura, abas viram Select); busca do seletor de categoria ao digitar.
 - 2026-11-26: pagar outro valor (menor ajusta; maior lança juros e multa em categoria própria).
 - 2026-11-26: linha de lançamento: coluna Conta/Cartão só em linhas largas (@4xl, 160→224 px); no card Próximos vencimentos a descrição aparece inteira.
+- 2026-11-26: módulo **Investimentos** (compras e preço médio) e espaçamentos do Dashboard inteligente.

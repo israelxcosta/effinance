@@ -4,12 +4,13 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Gauge } from '@/components/charts/gauge';
 import { ProgressBar } from '@/components/ui/progress-bar';
+import { cn } from '@/lib/utils';
 
 const TONE = { Crítica: 'danger', Atenção: 'warning', Saudável: 'success', Excelente: 'success' } as const;
 
-export function HealthCard({ health, loading }: { health: HealthScore | undefined; loading: boolean }) {
+export function HealthCard({ health, loading, className }: { health: HealthScore | undefined; loading: boolean; className?: string }) {
   return (
-    <Card className="flex flex-col p-5">
+    <Card className={cn('flex flex-col p-5', className)}>
       <CardHeader
         title="Saúde financeira"
         info="Pontuação de 0 a 1000 calculada a partir da taxa de economia, contas em atraso, uso do cartão, reserva e metas."
@@ -18,7 +19,8 @@ export function HealthCard({ health, loading }: { health: HealthScore | undefine
       {loading || !health ? (
         <Skeleton className="mx-auto mt-4 h-28 w-48" />
       ) : (
-        <>
+        // Fills a taller card (next to a long list) with the gauge centered, not a gap below it.
+        <div className="flex flex-1 flex-col justify-center">
           <div className="mt-3 flex justify-center">
             <Gauge score={health.score} size={190} />
           </div>
@@ -41,7 +43,7 @@ export function HealthCard({ health, loading }: { health: HealthScore | undefine
               ))}
             </ul>
           </details>
-        </>
+        </div>
       )}
     </Card>
   );
