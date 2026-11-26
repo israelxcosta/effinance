@@ -587,7 +587,7 @@ async function seedPersonal(db: DbExecutor, workspaceId: string): Promise<number
   // --- goals -----------------------------------------------------------------
   const goal = async (input: Parameters<typeof createGoal>[2], contributions: [ISODate, number][]) => {
     const g = await createGoal(db, workspaceId, input);
-    for (const [date, amount] of contributions) await addContribution(db, workspaceId, g.id, { amount, date, note: null });
+    for (const [date, amount] of contributions) await addContribution(db, workspaceId, g.id, { amount, date, note: null, accountId: null });
   };
   const monthly = (amount: number, day = 7) =>
     months.filter((m) => dayIn(m, day) <= today).map((m) => [dayIn(m, day), amount] as [ISODate, number]);
@@ -624,7 +624,7 @@ async function seedPersonal(db: DbExecutor, workspaceId: string): Promise<number
       deadline: dayIn(addMonthKey(currentMonth, 3), 15),
       icon: 'laptop',
       color: '#A855F7',
-      accountId: nubank.id,
+      accountId: null,
       notes: null,
       archived: false,
     },

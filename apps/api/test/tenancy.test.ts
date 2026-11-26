@@ -50,7 +50,7 @@ async function pgError(promise: Promise<unknown>): Promise<string> {
 }
 
 function tokenFromUrl(url: string): string {
-  return url.split('/convite/')[1]!;
+  return url.split('/convite#token=')[1]!;
 }
 
 describe('row level security', () => {
@@ -123,7 +123,7 @@ describe('roles, subscription and members', () => {
     const inv = await invite(owner, 'convidado@teste.com', 'viewer');
     expect(inv.status).toBe(201);
     expect(inv.body).toMatchObject({ email: 'convidado@teste.com', role: 'viewer' });
-    expect(inv.body.inviteUrl).toMatch(/\/convite\//);
+    expect(inv.body.inviteUrl).toMatch(/\/convite#token=/);
     const mail = (app.platform.mailer as MemoryMailer).outbox.at(-1)!;
     expect(mail.to).toBe('convidado@teste.com');
     expect(mail.text).toContain(inv.body.inviteUrl);

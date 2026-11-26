@@ -336,8 +336,13 @@ export async function createInvite(
   return { invite: toInvite(row!), token };
 }
 
+/**
+ * The token goes in the fragment: browsers never send it to a server (access logs, Referer). With hash
+ * routing (demo/desktop: appUrl ends in `#`) the whole route is already a fragment, so the path form stays.
+ */
 export function inviteUrl(appUrl: string, token: string): string {
-  return `${appUrl}/convite/${token}`;
+  if (appUrl.includes('#')) return `${appUrl}/convite/${token}`;
+  return `${appUrl}/convite#token=${encodeURIComponent(token)}`;
 }
 
 export async function revokeInvite(db: DbExecutor, access: Access, id: string): Promise<void> {

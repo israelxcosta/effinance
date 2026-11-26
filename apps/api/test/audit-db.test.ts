@@ -536,6 +536,12 @@ describe('foreign keys never cross workspaces', () => {
           tx.insert(investmentPurchases).values({ workspaceId: b.ws, assetType: 'stock', ticker: 'X', date: '2026-10-01', quantity: 1, unitPrice: 1, transferId: id }),
         a.tx,
       ],
+      // Migration 0010: the transfer booked with a goal contribution.
+      [
+        'goal_contributions.transfer_id',
+        (tx, id) => tx.insert(goalContributions).values({ workspaceId: b.ws, goalId: b.goal, amount: 5, date: '2026-10-01', transferId: id }),
+        a.tx,
+      ],
       // Re-pointing an existing row is blocked as well.
       ['transactions.account_id (update)', (tx, id) => tx.update(transactions).set({ accountId: id }).where(eq(transactions.id, b.tx)), a.account],
     ];

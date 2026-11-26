@@ -12,15 +12,29 @@ import { useAddContribution, useDeleteContribution, useGoalContributions } from 
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
 import { DateInput } from '@/components/ui/date-input';
+import { Select } from '@/components/ui/select';
+import { useAccounts } from '@/features/accounts/api';
 
 export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState(0);
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState('');
+  /** Current account on the other side of the transfer ('' = no transfer). */
+  const [accountId, setAccountId] = useState('');
+  const accounts = useAccounts();
   const add = useAddContribution();
   const del = useDeleteContribution();
   const history = useGoalContributions(goal?.id);
+  const linked = Boolean(goal?.accountId);
+  const currentAccounts = (accounts.data ?? []).filter((a) => a.type !== 'investment' && !a.archived && a.id !== goal?.accountId);
+  // Default: the account used last time, else the first current account.
+  const lastUsed = history.data?.find((c) => c.account)?.account?.id;
+  const defaultAccount =
+    (lastUsed && currentAccounts.some((a) => a.id === lastUsed) ? lastUsed : undefined) ??
+    currentAccounts.find((a) => a.type === 'checking')?.id ??
+    currentAccounts[0]?.id ??
+    '';
 
   useEffect(() => {
     if (goal) {
@@ -31,6 +45,11 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
     }
   }, [goal]);
 
+  useEffect(() => {
+    if (goal && linked) setAccountId(defaultAccount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal?.id, linked, defaultAccount]);
+
   async function submit() {
     if (!goal) return;
     if (amount <= 0) {
@@ -38,7 +57,13 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
       return;
     }
     try {
-      await add.mutateAsync({ goalId: goal.id, input: { amount: mode === 'deposit' ? amount : -amount, date, note: note || null } });
+      await add.mutateAsync({ goalId: goal.id, input: {
+          amount: mode === 'deposit' ? amount : -amount,
+          date,
+          note: note || null,
+          accountId: linked && accountId ? accountId : null,
+        },
+      });
       toast.success(mode === 'deposit' ? 'Aporte registrado 🎯' : 'Retirada registrada');
       setAmount(0);
       setNote('');
@@ -68,10 +93,29 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
         <Field label="Valor">
           <MoneyInput value={amount} onChange={setAmount} size="lg" />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Data">
-            <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
+        {linked ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={mode === 'deposit' ? 'Sair de' : 'Voltar para'}>
+              <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                {currentAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+                <option value="">{mode === 'deposit' ? 'Já estava na aplicação' : 'Sem transferência'}</option>
+              </Select>
+            </Field>
+            <Field label="Data">
+              <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+          </div>
+        ) : null}
+        <div className={linked ? '' : 'grid grid-cols-2 gap-3'}>
+          {linked ? null : (
+            <Field label="Data">
+              <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+          )}
           <Field label="Nota">
             <Input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
           </Field>
@@ -92,6 +136,7 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
                 <li key={c.id} className="group flex items-center gap-3 rounded-md px-2 py-2 hover:bg-surface-muted">
                   <span className="flex-1 text-sm">
                     {formatDateBR(c.date)}
+                    {c.account ? <span className="ml-2 text-xs text-muted">{c.account.name}</span> : null}
                     {c.note ? <span className="ml-2 text-xs text-muted">{c.note}</span> : null}
                   </span>
                   <span className={c.amount >= 0 ? 'tabular text-sm font-semibold text-success' : 'tabular text-sm font-semibold text-danger'}>

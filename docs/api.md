@@ -48,6 +48,12 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | GET | `/api/goals/:id/contributions` | — | `GoalContribution[]` |
 | POST | `/api/goals/:id/contributions` | `goalContributionInputSchema` | `GoalContribution` (201) |
 | DELETE | `/api/goals/:id/contributions/:contributionId` | — | 204 |
+
+Metas guardadas numa aplicação (`accountId` = conta de investimento ou poupança): o aporte com
+`accountId` (conta corrente) lança uma transferência — Aplicação ao guardar, Resgate ao retirar —
+vinculada pelo `transferId` (migração 0010). Sem `accountId` = "já estava na aplicação" (sem
+transferência). Excluir o aporte apaga a transferência; apagar a transferência no Extrato só
+desvincula o aporte.
 | GET | `/api/contacts` | `contactQuerySchema` | `Paginated<Contact>` |
 | GET | `/api/contacts/:id` | — | `Contact` |
 | POST | `/api/contacts` | `contactInputSchema` | `Contact` (201) |

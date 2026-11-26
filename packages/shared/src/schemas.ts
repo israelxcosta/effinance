@@ -208,6 +208,11 @@ export const goalContributionInputSchema = z.object({
   amount: signedAmountSchema.refine((v) => v !== 0, { message: 'Informe um valor' }),
   date: isoDateSchema,
   note: optionalText(200),
+  /**
+   * Goals kept in an account (Aplicação): the current account the money leaves (saving) or returns to
+   * (withdrawal). The server books the transfer; required when the goal has an account.
+   */
+  accountId: idSchema.nullish().transform((v) => v ?? null),
 });
 export type GoalContributionInput = z.input<typeof goalContributionInputSchema>;
 

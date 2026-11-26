@@ -774,7 +774,7 @@ describe('guards: access control', () => {
     const workspaceId = await familyOf(owner);
     const inv = await owner.post('/workspaces/current/invites', { email: 'leitor-matriz@teste.com', role: 'viewer' });
     const viewer = await registerUser(app, 'Leitor', 'leitor-matriz@teste.com');
-    expect((await viewer.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+    expect((await viewer.post(`/invites/${inv.body.inviteUrl.split('/convite#token=')[1]}/accept`)).status).toBe(200);
     for (const [method, url] of DOMAIN_MUTATIONS) expect(await call(viewer, method, url), `${method} ${url}`).toBe(403);
 
     await admin().execute(sql`update subscriptions set trial_ends_at = now() - interval '1 day' where workspace_id = ${workspaceId}`);
@@ -786,7 +786,7 @@ describe('guards: access control', () => {
     await familyOf(owner, 'Gestão');
     const inv = await owner.post('/workspaces/current/invites', { email: 'editor-matriz@teste.com', role: 'editor' });
     const editor = await registerUser(app, 'Editor', 'editor-matriz@teste.com');
-    expect((await editor.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+    expect((await editor.post(`/invites/${inv.body.inviteUrl.split('/convite#token=')[1]}/accept`)).status).toBe(200);
     const pending = await owner.post('/workspaces/current/invites', { email: 'outro@teste.com', role: 'viewer' });
 
     const ownerOnly: [string, string, unknown?][] = [
@@ -1091,7 +1091,7 @@ describe('finding: imports and connections shown to every member', () => {
       const join = async (name: string, email: string) => {
         const inv = await owner.post('/workspaces/current/invites', { email, role: 'editor' });
         const member = await registerUser(app, name, email);
-        expect((await member.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+        expect((await member.post(`/invites/${inv.body.inviteUrl.split('/convite#token=')[1]}/accept`)).status).toBe(200);
         return member;
       };
       const ana = await join('Ana Titular', 'ana-titular@teste.com');

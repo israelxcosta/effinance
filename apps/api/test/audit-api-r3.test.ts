@@ -124,7 +124,7 @@ describe('guards: newer modules', () => {
     await owner.post('/auth/switch-workspace', { workspaceId: ws.body.id });
     const inv = await owner.post('/workspaces/current/invites', { email, role });
     const member = await registerUser(app, 'Membro', email);
-    expect((await member.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+    expect((await member.post(`/invites/${inv.body.inviteUrl.split('/convite#token=')[1]}/accept`)).status).toBe(200);
     return { workspaceId: ws.body.id as string, member };
   }
 

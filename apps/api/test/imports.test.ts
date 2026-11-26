@@ -45,7 +45,7 @@ async function familyWithViewer(owner: Client): Promise<{ workspaceId: string; v
   const email = `leitor-${Date.now()}@teste.com`;
   const inv = await owner.post('/workspaces/current/invites', { email, role: 'viewer' });
   const viewer = await registerUser(app, 'Leitor', email);
-  expect((await viewer.post(`/invites/${inv.body.inviteUrl.split('/convite/')[1]}/accept`)).status).toBe(200);
+  expect((await viewer.post(`/invites/${inv.body.inviteUrl.split('/convite#token=')[1]}/accept`)).status).toBe(200);
   return { workspaceId: ws.body.id, viewer };
 }
 

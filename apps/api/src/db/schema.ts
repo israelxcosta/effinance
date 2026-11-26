@@ -456,6 +456,11 @@ export const goalContributions = pgTable(
     amount: money().notNull(),
     date: calendarDate().notNull(),
     note: text(),
+    /**
+     * Transfer booked with the contribution (Aplicação into the goal's account, or Resgate out of it);
+     * set by the server only. Cleared when the transfer is deleted in the statement (migration 0010).
+     */
+    transferId: uuid(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -467,6 +472,14 @@ export const goalContributions = pgTable(
       columns: [t.workspaceId, t.goalId],
       foreignColumns: [goals.workspaceId, goals.id],
     }).onDelete('cascade'),
+    foreignKey({
+      name: 'goal_contributions_transfer_fk',
+      columns: [t.workspaceId, t.transferId],
+      foreignColumns: [transactions.workspaceId, transactions.id],
+    }).onDelete('set null'),
+    uniqueIndex('goal_contributions_transfer_uq')
+      .on(t.workspaceId, t.transferId)
+      .where(sql`${t.transferId} is not null`),
   ],
 );
 

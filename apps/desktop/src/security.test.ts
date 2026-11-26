@@ -96,7 +96,7 @@ describe('DESK-04: only https links leave the app', () => {
 
 describe('DESK-05: Electron fuses in the installer', () => {
   it('turns off running as Node, NODE_OPTIONS and --inspect; loads only the validated asar', () => {
-    const yml = readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8');
+    const yml = readFileSync(new URL('../electron-builder.yml', import.meta.url), 'utf8').replace(/\r\n/g, '\n'); // Windows checkouts use CRLF
     const block = /^electronFuses:\n((?: {2}.+\n)+)/m.exec(yml)?.[1] ?? '';
     const fuses = Object.fromEntries([...block.matchAll(/^ {2}(\w+): (true|false)/gm)].map((m) => [m[1], m[2] === 'true']));
     expect(fuses).toMatchObject({

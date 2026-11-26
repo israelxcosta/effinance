@@ -64,6 +64,13 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Mês ativo global (guardado por aba): vale para contas a pagar e receber, extrato,
   transferências, faturas e relatórios. Visões de vários meses ficam locais à tela.
 
+- **Metas guardadas numa aplicação** (pedido: a reserva de emergência sai da conta corrente por
+  transferência): o campo da meta é "Aplicação" (só contas de investimento ou poupança; metas antigas
+  mantêm a conta até trocar). No aporte, "Sair de" (ao guardar) / "Voltar para" (ao retirar) lança
+  a transferência — Aplicação ou Resgate — vinculada por `goal_contributions.transfer_id`
+  (migração 0010, FK composta, SET NULL). Padrão: a última conta usada ou a primeira corrente;
+  opção "Já estava na aplicação" (sem transferência). Excluir o aporte apaga a transferência.
+
 ### Visual (UI)
 
 - Estilo Graniq em azul-marinho, fonte Plus Jakarta Sans e logo em minúsculas ("effinance").
@@ -205,6 +212,17 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   na infra.
 - Supply chain: pnpm fixado por hash, `minimumReleaseAge` de 24 h, `strictDepBuilds`, imagens
   por digest e CI com gitleaks.
+- Auditoria de 2026-11 com skills (`.agents/skills`, travadas em `skills-lock.json`):
+  security-review, security-best-practices, security-threat-model; os checklists de Firebase e
+  Better Auth valem só como referência adaptada. Agentes por camada em `.claude/agents/security-*`
+  (novo: `security-electron-desktop`). Relatórios em `docs/seguranca/` (modelo de ameaças +
+  `auditoria-2026-11.md`). Decisões: limite de senhas erradas **por conta** (login e
+  reautenticação); token do convite no fragmento (`/convite#token=`); toda coluna de referência é FK
+  composta dentro do espaço (0009/0010); CSV sem injeção de fórmula; CI roda em `claude/**`;
+  instalador publicado por job sem código do repo, com atestado de proveniência.
+- Pendentes de decisão do usuário (modelo de ameaças): verificação de e-mail / senha para exportar
+  / 2FA obrigatório no SaaS; senha do backup mais forte + KDF Argon2id; `REDIS_URL`/`TRUST_PROXY`
+  obrigatórios em produção; assinatura de código do instalador.
 
 ### Importação e Open Finance
 
@@ -256,3 +274,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: instalador atualizado (build 17, commit 53ede53) e demo republicada com tudo do dia. Pendentes: arrastar/redimensionar cards do dashboard; ~~retirar o menu "Transferências e investimentos"~~ (feito: item removido do menu lateral; transferir pela barra flutuante, histórico no Extrato; a rota /transferencias continua para links antigos).
 - 2026-11-26: Evolução com períodos futuros (pedido): últimos 6/12/24/36, 6 antes e 6 depois, próximos 6/12 e personalizado (mês inicial/final, até 36). Sem rótulo "previsto" nem legendas extras (o usuário prefere menos textos de ajuda e descrições).
 - 2026-11-26: dashboard: Metas no Resumo do período; Gastos por categoria em barras horizontais (legenda à direita, valor no hover) ao lado de Próximos vencimentos; Distribuição das receitas em barras espelhadas (nascendo da direita). Pagar outro valor: só a chave "Lançar como juros e multa" com legenda curta (sem caixas de explicação); **receitas sem juros e multa** (valor maior corrige o lançamento; API recusa 'fees' em receitas).
+- 2026-11-26: auditoria de segurança com as 5 skills pedidas (6 frentes; relatórios em `docs/seguranca/`); metas com aplicação e aporte por transferência (reserva de emergência).

@@ -37,8 +37,14 @@ export function useDeleteGoal() {
   });
 }
 
+/** Contributions may book a transfer: balances, statement and reports change too. */
+function useInvalidateAll() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries();
+}
+
 export function useAddContribution() {
-  const invalidate = useInvalidateGoals();
+  const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: ({ goalId, input }: { goalId: string; input: GoalContributionInput }) =>
       api<GoalContribution>(`/goals/${goalId}/contributions`, { method: 'POST', body: input }),
@@ -47,7 +53,7 @@ export function useAddContribution() {
 }
 
 export function useDeleteContribution() {
-  const invalidate = useInvalidateGoals();
+  const invalidate = useInvalidateAll();
   return useMutation({
     mutationFn: ({ goalId, contributionId }: { goalId: string; contributionId: string }) =>
       api<void>(`/goals/${goalId}/contributions/${contributionId}`, { method: 'DELETE' }),

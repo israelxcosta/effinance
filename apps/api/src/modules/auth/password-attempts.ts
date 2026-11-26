@@ -22,7 +22,9 @@ type PasswordOwner = Pick<UserRow, 'id' | 'passwordHash' | 'passwordChangedAt'>;
 /** 429 once the account used up its wrong passwords in the last 15 minutes (since the last password change). */
 export async function assertPasswordAttemptsLeft(db: DbExecutor, user: Pick<UserRow, 'id' | 'passwordChangedAt'>): Promise<void> {
   // greatest() ignores NULL: accounts that never changed their password just use the window.
-  const since = sql`greatest(now() - interval '15 minutes', ${user.passwordChangedAt ?? null}::timestamptz)`;
+  // ISO text: raw Date parameters are not portable across drivers (postgres-js, PGlite in the demo).
+  const changedAt = user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null;
+  const since = sql`greatest(now() - interval '15 minutes', ${changedAt}::timestamptz)`;
   const [row] = await db
     .select({ n: count() })
     .from(auditLogs)

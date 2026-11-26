@@ -71,6 +71,13 @@
       "when": 1795709815652,
       "tag": "0009_purchase_transfer_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795710455367,
+      "tag": "0010_goal_contribution_transfer",
+      "breakpoints": true
     }
   ]
 }

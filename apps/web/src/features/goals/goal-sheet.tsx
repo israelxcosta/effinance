@@ -84,14 +84,23 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
               render={({ field }) => <DateInput value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />}
             />
           </Field>
-          <Field label="Conta vinculada" hint="Opcional">
+          <Field label="Aplicação" error={formState.errors.accountId?.message}>
             <Controller
               control={control}
               name="accountId"
               render={({ field }) => (
                 <Select value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)}>
                   <option value="">Nenhuma</option>
-                  {(accounts.data ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {(accounts.data ?? [])
+                    .filter(
+                      (a) =>
+                        ((a.type === 'investment' || a.type === 'savings') && !a.archived) || a.id === goal?.accountId,
+                    )
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
                 </Select>
               )}
             />

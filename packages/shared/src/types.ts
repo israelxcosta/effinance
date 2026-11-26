@@ -148,6 +148,9 @@ export interface GoalContribution {
   amount: number;
   date: ISODate;
   note: string | null;
+  /** Transfer booked with it (Aplicação or Resgate) and the current account on the other side. */
+  transferId: string | null;
+  account: { id: string; name: string } | null;
   createdAt: string;
 }
 
