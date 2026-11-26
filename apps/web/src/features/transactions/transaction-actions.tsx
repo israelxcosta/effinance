@@ -326,7 +326,7 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
   // extra is a price correction or higher consumption (switch off).
   const late = Boolean(tx) && paidAt > tx!.date;
   const [asFees, setAsFees] = useState(true);
-  const separate = diff > 0 && late && asFees;
+  const separate = !income && diff > 0 && late && asFees;
 
   // Default for the extra on an expense: the "Juros e multas" subcategory, when the workspace has it.
   const lateFee = useMemo(() => {
@@ -425,39 +425,23 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
             </Select>
           </Field>
         </div>
-        {diff > 0 && amount > 0 ? (
-          <div className="flex flex-col gap-3 rounded-lg border border-border p-3.5">
+        {/* Interest and fines: expenses only, when paid later than the due date. Otherwise a higher amount
+            corrects the entry itself (price correction, higher consumption). */}
+        {!income && diff > 0 && amount > 0 ? (
+          <div className="flex flex-col gap-3">
             <label className={cn('flex items-center justify-between gap-3', !late && 'opacity-60')}>
               <span className="min-w-0">
-                <span className="block text-label font-semibold text-fg">{income ? 'Lançar a diferença à parte' : 'Lançar como juros e multa'}</span>
-                <span className="block text-xs text-muted">
-                  {late
-                    ? `${income ? 'Recebido' : 'Pago'} depois do vencimento (${formatDateBR(tx!.date)}).`
-                    : `Só para ${income ? 'recebimentos' : 'pagamentos'} depois do vencimento (${tx ? formatDateBR(tx.date) : ''}).`}
-                </span>
+                <span className="block text-label font-semibold text-fg">Lançar como juros e multa</span>
+                <span className="block text-xs text-muted">{late ? `${formatBRL(diff)} em lançamento separado` : 'Só após o vencimento'}</span>
               </span>
-              <Switch checked={separate} onCheckedChange={setAsFees} disabled={!late} aria-label={income ? 'Lançar a diferença à parte' : 'Lançar como juros e multa'} />
+              <Switch checked={separate} onCheckedChange={setAsFees} disabled={!late} aria-label="Lançar como juros e multa" />
             </label>
-            <p className={cn('rounded-md px-3 py-2.5 text-label text-fg', separate ? 'bg-danger-soft' : 'bg-primary-soft')}>
-              <strong className="font-semibold">{formatBRL(diff)}</strong> a mais.{' '}
-              {separate
-                ? `O lançamento continua com ${formatBRL(planned)} e a diferença entra como um lançamento separado${income ? '' : ' de juros e multa'}, já ${income ? 'recebido' : 'pago'}.`
-                : `O lançamento passa a ser de ${formatBRL(amount)} só neste mês (correção de valor ou consumo maior); os próximos continuam com ${formatBRL(planned)}.`}
-            </p>
             {separate ? (
-              <Field
-                label={income ? 'Categoria do acréscimo' : 'Categoria dos juros e multa'}
-                hint={!income && !diffCategory.categoryId ? 'Em branco, vai para "Juros e multas" (criada se ainda não existir).' : undefined}
-              >
-                <CategoryPicker type={income ? 'income' : 'expense'} value={diffCategory} onChange={setDiffCategory} placeholder="Juros e multas" />
+              <Field label="Categoria">
+                <CategoryPicker type="expense" value={diffCategory} onChange={setDiffCategory} placeholder="Juros e multas" />
               </Field>
             ) : null}
           </div>
-        ) : diff < 0 && amount > 0 ? (
-          <p className="rounded-lg bg-success-soft px-3.5 py-3 text-label text-fg">
-            <strong className="font-semibold">{formatBRL(-diff)}</strong> a menos. O lançamento passa a ser de {formatBRL(amount)} só neste mês; os
-            próximos continuam com {formatBRL(planned)}.
-          </p>
         ) : null}
       </div>
     </Modal>

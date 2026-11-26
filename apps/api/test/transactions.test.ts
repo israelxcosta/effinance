@@ -447,6 +447,15 @@ describe('pay a different amount', () => {
     expect(r3.status).toBe(422);
   });
 
+  it('income: a higher amount always corrects the entry (no interest and fines)', async () => {
+    const pay = (await c.post('/transactions', { type: 'income', description: 'Pró-labore', amount: 800000, date: '2026-10-01', accountId: account })).body[0];
+    const r = await c.patch(`/transactions/${pay.id}/paid`, { paid: true, amount: 820000, paidAt: '2026-10-09' });
+    expect(r.body).toMatchObject({ amount: 820000, paid: true });
+    expect((await c.get('/transactions?type=income&search=Acréscimo')).body.items).toHaveLength(0);
+    const other = (await c.post('/transactions', { type: 'income', description: 'Aluguel recebido', amount: 100000, date: '2026-10-01', accountId: account })).body[0];
+    expect((await c.patch(`/transactions/${other.id}/paid`, { paid: true, amount: 110000, paidAt: '2026-10-09', differenceAs: 'fees' })).status).toBe(422);
+  });
+
   it('creates "Juros e multas" when the workspace has none', async () => {
     const taxes = await firstCategory(c, 'expense', 'Impostos e taxas');
     const lateFee = taxes.subcategories.find((s: any) => s.name === 'Juros e multas')!;

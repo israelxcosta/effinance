@@ -439,10 +439,11 @@ export async function setPaid(
     }
     const paidAt = patch.paidAt ?? defaultPaidAt(row.date);
     const late = paidAt > row.date;
-    if (input.differenceAs === 'fees' && amount > row.amount && !late) {
-      throw new ValidationError('Juros e multa só quando o pagamento é depois do vencimento');
+    if (input.differenceAs === 'fees' && amount > row.amount && (!late || row.type !== 'expense')) {
+      throw new ValidationError('Juros e multa só em despesas pagas depois do vencimento');
     }
-    const asFees = amount > row.amount && late && input.differenceAs !== 'amount';
+    // Interest and fines are an expense thing; a higher income just corrects the entry.
+    const asFees = row.type === 'expense' && amount > row.amount && late && input.differenceAs !== 'amount';
     if (!asFees) {
       // Smaller bill, price correction or higher consumption: this occurrence takes the paid amount.
       patch.amount = amount;

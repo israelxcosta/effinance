@@ -34,7 +34,6 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { MonthNavigator } from '@/components/ui/month-picker';
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton';
-import { DonutChart } from '@/components/charts/donut-chart';
 import { axisProps, moneyAxisFormatter, MoneyTooltip } from '@/components/charts/chart-utils';
 import { cn } from '@/lib/utils';
 import { useTransactionActions } from '@/features/transactions/transaction-actions';
@@ -42,6 +41,7 @@ import { TransactionRow } from '@/features/transactions/components/transaction-r
 import { GoalProgress } from '@/features/goals/goal-card';
 import { useDashboard } from '../api';
 import { CashflowCard } from '../components/cashflow-card';
+import { CategoryBars } from '../components/category-bars';
 import { HealthCard } from '../components/health-card';
 import { InsightCard } from '../components/insight-card';
 import { InsightsTab } from '../components/insights-tab';
@@ -192,28 +192,18 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
             footerLabel="Média mensal (6 meses)"
             footerValue={avgExpense}
           />
-          {/* Wider column so the donut sits beside its legend instead of leaving empty space. */}
-          <div className="rounded-xl border border-border p-5 lg:col-span-2 xl:col-span-1">
-            <p className="text-label font-medium text-muted">Gastos por categoria</p>
-            <div className="mt-3">
+          <div className="flex flex-col rounded-xl border border-border p-5 lg:col-span-2 xl:col-span-1">
+            <div className="flex items-center justify-between">
+              <p className="text-label font-medium text-muted">Metas</p>
+              <Link to="/metas" className="text-xs font-semibold text-brand-text hover:underline">Ver todas</Link>
+            </div>
+            <div className="mt-3 flex flex-1 flex-col justify-center gap-3.5">
               {loading ? (
-                <Skeleton className="h-44" />
-              ) : d && d.expensesByCategory.length ? (
-                <DonutChart
-                  data={d.expensesByCategory}
-                  total={s?.expense ?? 0}
-                  height={150}
-                  maxItems={4}
-                  onSelect={(c) => c.categoryId && navigate(categoryListHref('expense', c.categoryId, month))}
-                />
+                <SkeletonRows rows={3} />
+              ) : d && d.goals.length ? (
+                d.goals.slice(0, 3).map((g) => <GoalProgress key={g.id} goal={g} />)
               ) : (
-                <EmptyState
-                  compact
-                  icon={<ChartPie />}
-                  title="Nenhuma despesa neste período"
-                  description="Registre uma despesa ou selecione outro período para visualizar a distribuição por categoria."
-                  action={<WriteGate><Button variant="outline" size="sm" onClick={() => actions.openTransaction({ type: 'expense' })}>Adicionar despesa</Button></WriteGate>}
-                />
+                <EmptyState compact icon={<Target />} title="Nenhuma meta ativa" action={<Button size="sm" asChild><Link to="/metas">Criar meta</Link></Button>} />
               )}
             </div>
           </div>
@@ -240,21 +230,15 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
             )}
           </div>
         </Card>
-        <Card className="p-5 lg:col-span-5">
-          <CardHeader title="Metas" action={<Link to="/metas" className="text-xs font-semibold text-brand-text hover:underline">Ver todas</Link>} />
-          <div className="mt-4 flex flex-col gap-4">
+        <Card className="flex flex-col p-5 lg:col-span-5">
+          <CardHeader title="Gastos por categoria" subtitle={formatMonthKey(month)} icon={<ChartPie />} />
+          <div className="mt-4 flex-1">
             {loading ? (
-              <SkeletonRows rows={3} />
-            ) : d && d.goals.length ? (
-              d.goals.slice(0, 4).map((g) => <GoalProgress key={g.id} goal={g} />)
+              <SkeletonRows rows={6} />
+            ) : d && d.expensesByCategory.length ? (
+              <CategoryBars fill data={d.expensesByCategory} onSelect={(c) => c.categoryId && navigate(categoryListHref('expense', c.categoryId, month))} />
             ) : (
-              <EmptyState
-                compact
-                icon={<Target />}
-                title="Você ainda não tem metas ativas"
-                description="Metas ajudam a priorizar seu plano financeiro e acompanhar o progresso."
-                action={<Button size="sm" asChild><Link to="/metas">Criar meta</Link></Button>}
-              />
+              <EmptyState compact icon={<ChartPie />} title="Nenhuma despesa neste período" />
             )}
           </div>
         </Card>
@@ -265,20 +249,19 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
         <CardsUsage d={d} loading={loading} />
         <MonthlyBalance d={d} loading={loading} />
         <Card className="p-5">
-          <CardHeader title="Distribuição das receitas" subtitle="Mês selecionado" icon={<PieIcon />} />
+          <CardHeader title="Distribuição das receitas" subtitle={formatMonthKey(month)} icon={<PieIcon />} />
           <div className="mt-4">
             {loading ? (
-              <Skeleton className="h-44" />
+              <SkeletonRows rows={3} />
             ) : d && d.incomeByCategory.length ? (
-              <DonutChart
+              <CategoryBars
+                direction="income"
+                maxItems={5}
                 data={d.incomeByCategory}
-                total={s?.income ?? 0}
-                height={150}
-                maxItems={4}
                 onSelect={(c) => c.categoryId && navigate(categoryListHref('income', c.categoryId, month))}
               />
             ) : (
-              <EmptyState compact icon={<PieIcon />} title="Nenhuma receita registrada no período selecionado." />
+              <EmptyState compact icon={<PieIcon />} title="Nenhuma receita neste período" />
             )}
           </div>
         </Card>
