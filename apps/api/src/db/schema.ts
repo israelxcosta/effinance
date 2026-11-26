@@ -406,6 +406,8 @@ export const investmentPurchases = pgTable(
     quantity: numeric({ precision: 24, scale: 8, mode: 'number' }).notNull(),
     unitPrice: money().notNull(),
     fees: money().notNull().default(0),
+    /** Linked "Aplicação" (transfer) created with the purchase; set by the server only. */
+    transferId: uuid(),
     createdAt: createdAt(),
   },
   (t) => [

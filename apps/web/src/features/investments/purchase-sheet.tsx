@@ -49,6 +49,7 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
   const [ticker, setTicker] = useState('');
   const [name, setName] = useState('');
   const [accountId, setAccountId] = useState('');
+  const [paidFrom, setPaidFrom] = useState('');
   const [date, setDate] = useState(todayISO());
   const [quantityText, setQuantityText] = useState('');
   const [unitPrice, setUnitPrice] = useState(0);
@@ -62,7 +63,9 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
     setAssetType(editing?.assetType ?? known?.assetType ?? 'stock');
     setTicker(editing?.ticker ?? state.ticker ?? '');
     setName(editing?.name ?? known?.name ?? '');
-    setAccountId(editing?.accountId ?? last?.accountId ?? '');
+    const lastAny = purchases[0];
+    setAccountId(editing?.accountId ?? last?.accountId ?? lastAny?.accountId ?? '');
+    setPaidFrom(editing ? (editing.paidFrom?.id ?? '') : (last?.paidFrom?.id ?? lastAny?.paidFrom?.id ?? ''));
     setDate(editing?.date ?? todayISO());
     setQuantityText(editing ? formatQuantity(editing.quantity) : '');
     setUnitPrice(editing?.unitPrice ?? 0);
@@ -72,6 +75,13 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
   }, [state.open, editing, state.ticker]);
 
   const brokers = (accounts.data ?? []).filter((a) => a.type === 'investment' && (!a.archived || a.id === editing?.accountId));
+  const payers = (accounts.data ?? []).filter((a) => a.type !== 'investment' && (!a.archived || a.id === editing?.paidFrom?.id));
+  const defaultBroker = brokers.find((b) => b.name === 'Carteira');
+  const hasDefault = Boolean(defaultBroker);
+  // Nothing chosen = the default "Carteira" (selected explicitly once it exists).
+  const brokerValue = accountId || defaultBroker?.id || '';
+  const brokerName = brokers.find((b) => b.id === brokerValue)?.name ?? 'Carteira';
+  const payerName = payers.find((a) => a.id === paidFrom)?.name;
   const normalizedTicker = ticker.trim().toUpperCase().replace(/\s+/g, ' ');
   const quantity = parseQuantity(quantityText);
   const validQuantity = Number.isFinite(quantity) && quantity > 0;
@@ -103,7 +113,8 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
       assetType,
       ticker,
       name: name || null,
-      accountId: accountId || null,
+      accountId: brokerValue || null,
+      paidFromAccountId: paidFrom || null,
       date,
       quantity: validQuantity ? quantity : 0,
       unitPrice,
@@ -132,7 +143,6 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
       open={state.open}
       onOpenChange={onOpenChange}
       title={editing ? 'Editar compra' : 'Nova compra'}
-      description="O preço médio de cada ativo é calculado com todas as compras (taxas incluídas)."
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
@@ -155,7 +165,7 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
         }}
       >
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Ativo" error={errors.ticker} hint={errors.ticker ? undefined : 'Ticker ou código, ex.: PETR4, HGLG11, BTC'}>
+          <Field label="Ativo" error={errors.ticker}>
             <Input
               value={ticker}
               onChange={(e) => setTicker(e.target.value)}
@@ -193,25 +203,9 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
           </div>
         ) : null}
 
-        <Field label="Nome" hint="Opcional, ex.: Petrobras PN">
+        <Field label="Nome">
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Petrobras PN" />
         </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Data da compra" error={errors.date}>
-            <DateInput value={date} onChange={(e) => setDate(e.target.value)} max={todayISO()} />
-          </Field>
-          <Field label="Corretora" error={errors.accountId} hint={brokers.length ? 'Opcional' : 'Cadastre uma conta do tipo Investimento'}>
-            <Select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-              <option value="">Não informada</option>
-              {brokers.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Quantidade" error={errors.quantity}>
@@ -228,15 +222,49 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
           </Field>
         </div>
 
-        <Field label="Taxas e emolumentos" hint="Corretagem, B3 e impostos da nota (entram no preço médio)">
-          <MoneyInput value={fees} onChange={setFees} />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data da compra" error={errors.date}>
+            <DateInput value={date} onChange={(e) => setDate(e.target.value)} max={todayISO()} />
+          </Field>
+          <Field label="Taxas">
+            <MoneyInput value={fees} onChange={setFees} />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Corretora" error={errors.accountId}>
+            <Select value={brokerValue} onChange={(e) => setAccountId(e.target.value)}>
+              {/* The default "Carteira" is created by the server on first use. */}
+              {!hasDefault ? <option value="">Carteira</option> : null}
+              {brokers.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Pago com">
+            <Select value={paidFrom} onChange={(e) => setPaidFrom(e.target.value)}>
+              <option value="">Já estava na corretora</option>
+              {payers.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         <div className="flex flex-col gap-3 rounded-xl bg-surface-muted p-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-label font-medium text-muted">Total da compra</span>
             <span className="tabular text-lg font-semibold text-fg">{formatBRL(total)}</span>
           </div>
+          {payerName && total > 0 ? (
+            <p className="flex items-center gap-1.5 border-t border-border pt-3 text-label text-fg">
+              Aplicação: {payerName} <span className="text-subtle">→</span> {brokerName}
+            </p>
+          ) : null}
           {after ? (
             <div className={cn('grid gap-2 border-t border-border pt-3 text-label', before ? 'grid-cols-2' : 'grid-cols-1')}>
               {before ? (

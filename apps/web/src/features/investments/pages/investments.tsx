@@ -6,6 +6,7 @@ import {
   formatBRL,
   formatDateBR,
   formatPercent,
+  todayISO,
   type InvestmentPosition,
   type InvestmentPurchase,
 } from '@effinance/shared';
@@ -29,6 +30,7 @@ import { toastError } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { formatQuantity, useDeletePurchase, usePortfolio } from '../api';
 import { PurchaseSheet, type PurchaseSheetState } from '../purchase-sheet';
+import { BrokersDialog } from '../brokers-dialog';
 
 /** Investimentos: purchases by asset, with quantity, average price and share of the portfolio. */
 export default function InvestmentsPage() {
@@ -42,6 +44,15 @@ export default function InvestmentsPage() {
   const positions = d?.positions ?? [];
   const purchases = d?.purchases ?? [];
   const biggest = positions[0];
+  const month = todayISO().slice(0, 7);
+  const investedThisMonth = purchases.filter((p) => p.date.startsWith(month)).reduce((s, p) => s + p.total, 0);
+  const usedBrokers = (d?.brokers ?? []).filter((b) => b.invested > 0);
+  const [brokersOpen, setBrokersOpen] = useState(false);
+  // Broker of a position: the single one used, or "N corretoras".
+  const brokerOf = (ticker: string) => {
+    const names = [...new Set(purchases.filter((x) => x.ticker === ticker).map((x) => x.account?.name ?? '—'))];
+    return names.length === 1 ? names[0]! : `${names.length} corretoras`;
+  };
 
   function toggle(ticker: string) {
     setOpen((s) => {
@@ -68,21 +79,25 @@ export default function InvestmentsPage() {
       <PageHeader
         overline="Patrimônio"
         title="Investimentos"
-        description="Registre suas compras: o Effinance soma a quantidade e calcula o preço médio de cada ativo."
         actions={
-          <WriteGate>
-            <Button onClick={() => setSheet({ open: true })}>
-              <Plus /> Nova compra
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setBrokersOpen(true)}>
+              Corretoras
             </Button>
-          </WriteGate>
+            <WriteGate>
+              <Button onClick={() => setSheet({ open: true })}>
+                <Plus /> Nova compra
+              </Button>
+            </WriteGate>
+          </div>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MiniStat label="Total investido" value={d ? formatBRL(d.totalInvested) : '—'} tone="brand" hint="Valor pago, com taxas" />
-        <MiniStat label="Ativos" value={d ? String(positions.length) : '—'} hint={d ? `${purchases.length} ${purchases.length === 1 ? 'compra' : 'compras'}` : undefined} />
-        <MiniStat label="Maior posição" value={biggest ? biggest.ticker : '—'} hint={biggest ? `${formatPercent(biggest.share, 0)} da carteira` : undefined} />
-        <MiniStat label="Última compra" value={purchases[0] ? formatDateBR(purchases[0].date) : '—'} hint={purchases[0]?.ticker} />
+        <MiniStat label="Total investido" value={d ? formatBRL(d.totalInvested) : '—'} tone="brand" />
+        <MiniStat label="Investido no mês" value={d ? formatBRL(investedThisMonth) : '—'} />
+        <MiniStat label="Ativos" value={d ? String(positions.length) : '—'} hint={biggest ? `maior: ${biggest.ticker}` : undefined} />
+        <MiniStat label="Corretoras" value={d ? String(usedBrokers.length) : '—'} hint={usedBrokers[0] ? `maior: ${usedBrokers[0].name}` : undefined} />
       </div>
 
       {portfolio.isPending ? (
@@ -107,15 +122,33 @@ export default function InvestmentsPage() {
           />
         </Card>
       ) : (
+        <>
+        {usedBrokers.length > 1 ? (
+          <Card className="p-5">
+            <h2 className="text-title font-semibold tracking-tight text-fg">Por corretora</h2>
+            <ul className="mt-4 flex flex-col gap-3">
+              {usedBrokers.map((b) => (
+                <li key={b.id} className="grid grid-cols-[minmax(0,10rem)_1fr_7rem] items-center gap-4 text-label">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: b.color }} />
+                    <span className="truncate text-fg">{b.name}</span>
+                  </span>
+                  <ProgressBar value={d ? b.invested / Math.max(1, d.totalInvested) : 0} color={b.color} size="sm" />
+                  <span className="text-right font-semibold text-fg tabular">{formatBRL(b.invested)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
         <Card className="overflow-hidden">
           <div className="border-b border-border p-4">
             <h2 className="text-title font-semibold tracking-tight text-fg">Carteira</h2>
-            <p className="mt-0.5 text-xs text-muted">Posição por ativo · preço médio com taxas · clique para ver as compras</p>
           </div>
-          <table className="w-full text-sm max-md:[&_tr>*:nth-child(5)]:hidden max-sm:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden max-sm:[&_tr>*:nth-child(6)]:hidden">
+          <table className="w-full text-sm max-lg:[&_tr>*:nth-child(6)]:hidden max-md:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden max-sm:[&_tr>*:nth-child(4)]:hidden max-sm:[&_tr>*:nth-child(7)]:hidden">
             <thead>
               <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                 <th className="px-4 py-2.5">Ativo</th>
+                <th className="px-3 py-2.5">Corretora</th>
                 <th className="px-3 py-2.5 text-right">Quantidade</th>
                 <th className="px-3 py-2.5 text-right">Preço médio</th>
                 <th className="px-3 py-2.5 text-right">Total investido</th>
@@ -154,6 +187,7 @@ export default function InvestmentsPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="truncate px-3 py-3 text-muted">{brokerOf(p.ticker)}</td>
                       <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatQuantity(p.quantity)}</td>
                       <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatBRL(p.averagePrice)}</td>
                       <td className="tabular whitespace-nowrap px-3 py-3 text-right font-semibold text-fg">{formatBRL(p.totalInvested)}</td>
@@ -173,7 +207,7 @@ export default function InvestmentsPage() {
                     </tr>
                     {isOpen ? (
                       <tr className="border-b border-border bg-surface-muted/60">
-                        <td colSpan={6} className="px-3 py-2 sm:px-4 sm:pl-14">
+                        <td colSpan={7} className="px-3 py-2 sm:px-4 sm:pl-14">
                           <ul className="divide-y divide-border">
                             {rows.map((x) => (
                               <PurchaseLine key={x.id} purchase={x} canWrite={canWrite} onEdit={() => setSheet({ open: true, purchase: x })} onDelete={() => setToDelete(x)} />
@@ -188,8 +222,10 @@ export default function InvestmentsPage() {
             </tbody>
           </table>
         </Card>
+        </>
       )}
 
+      <BrokersDialog open={brokersOpen} onOpenChange={setBrokersOpen} brokers={d?.brokers ?? []} />
       <PurchaseSheet state={sheet} onOpenChange={(o) => setSheet((s) => ({ ...s, open: o }))} positions={positions} purchases={purchases} />
       <ConfirmDialog
         open={Boolean(toDelete)}

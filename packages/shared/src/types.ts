@@ -543,6 +543,10 @@ export interface InvestmentPurchase {
   name: string | null;
   accountId: string | null;
   account: { id: string; name: string; bank: BankCode | null; color: string } | null;
+  /** Account the money came from (the linked Aplicação), when there is one. */
+  paidFrom: { id: string; name: string; bank: BankCode | null; color: string } | null;
+  /** The linked Aplicação (transfer); null when the money was already at the broker. */
+  transferId: string | null;
   date: ISODate;
   quantity: number;
   /** Cents per unit. */
@@ -571,8 +575,21 @@ export interface InvestmentPosition {
   share: number;
 }
 
+export interface InvestmentBroker {
+  id: string;
+  name: string;
+  bank: BankCode | null;
+  color: string;
+  /** Total paid for the purchases at this broker (cents). */
+  invested: number;
+  /** Distinct assets bought at this broker. */
+  assets: number;
+}
+
 export interface InvestmentPortfolioResponse {
   positions: InvestmentPosition[];
+  /** Investment accounts (brokers), the default "Carteira" included once it exists. */
+  brokers: InvestmentBroker[];
   /** Newest first. */
   purchases: InvestmentPurchase[];
   totalInvested: number;

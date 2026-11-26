@@ -552,8 +552,10 @@ export const investmentPurchaseInputSchema = z.object({
     .max(30, { message: 'Máximo de 30 caracteres' })
     .transform((v) => v.toUpperCase().replace(/\s+/g, ' ')),
   name: optionalText(80),
-  /** Investment account (broker) the asset sits in; optional. */
+  /** Broker (an investment account). Empty: the default "Carteira" (created when missing). */
   accountId: idSchema.nullish().transform((v) => v ?? null),
+  /** Account the money left: the purchase books an "Aplicação" (transfer) from it to the broker. */
+  paidFromAccountId: idSchema.nullish().transform((v) => v ?? null),
   date: isoDateSchema,
   quantity: assetQuantitySchema,
   /** Price per unit, in cents. */

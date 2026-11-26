@@ -83,4 +83,60 @@ describe('investments (portfolio purchases)', () => {
     })).status).toBe(404);
     expect((await c.get('/investments')).body.positions[0].quantity).toBe(100);
   });
+
+  it('uses the default "Carteira" broker when none is chosen (created once)', async () => {
+    const a = (await buy({})).body;
+    const b = (await buy({ ticker: 'VALE3' })).body;
+    expect(a.account).toMatchObject({ name: 'Carteira' });
+    expect(b.accountId).toBe(a.accountId);
+    const r = (await c.get('/investments')).body;
+    expect(r.brokers.map((x: any) => [x.name, x.invested, x.assets])).toEqual([
+      ['Carteira', 300000, 2],
+      ['XP Investimentos', 0, 0],
+    ]);
+  });
+
+  it('"Pago com" books an Aplicação (transfer) to the broker, outside expenses', async () => {
+    const checking = await createAccount(c, { name: 'Nubank', initialBalance: 1000000 });
+    const p = (await buy({ accountId: broker, paidFromAccountId: checking, fees: 490, date: '2026-10-15' })).body;
+    expect(p.paidFrom).toMatchObject({ id: checking, name: 'Nubank' });
+    expect(p.transferId).toBeTruthy();
+    const transfers = (await c.get('/transfers?kind=investment')).body.items;
+    expect(transfers).toHaveLength(1);
+    expect(transfers[0]).toMatchObject({ amount: 150490, transferKind: 'investment', accountId: checking, toAccountId: broker, paid: true });
+    expect(transfers[0].description).toContain('Compra PETR4');
+    expect((await c.get(`/accounts/${checking}`)).body.balance).toBe(1000000 - 150490);
+    expect((await c.get(`/accounts/${broker}`)).body.balance).toBe(150490);
+    // Not an expense: the month's expense total stays at zero.
+    expect((await c.get('/dashboard?month=2026-10')).body.summary.expense).toBe(0);
+
+    // Editing rebooks the Aplicação with the new total; deleting removes it.
+    const edited = (await c.put(`/investments/purchases/${p.id}`, {
+      assetType: 'stock', ticker: 'PETR4', date: '2026-10-15', quantity: 200, unitPrice: 1500, fees: 0, accountId: broker, paidFromAccountId: checking,
+    })).body;
+    const after = (await c.get('/transfers?kind=investment')).body.items;
+    expect(after).toHaveLength(1);
+    expect(after[0].amount).toBe(300000);
+    expect(after[0].id).toBe(edited.transferId);
+    await c.del(`/investments/purchases/${p.id}`);
+    expect((await c.get('/transfers?kind=investment')).body.items).toHaveLength(0);
+    expect((await c.get(`/accounts/${checking}`)).body.balance).toBe(1000000);
+  });
+
+  it('without "Pago com" no transfer is booked; invalid paying accounts are refused', async () => {
+    const p = (await buy({ accountId: broker })).body;
+    expect(p).toMatchObject({ transferId: null, paidFrom: null });
+    expect((await c.get('/transfers?kind=investment')).body.items).toHaveLength(0);
+    expect((await buy({ accountId: broker, paidFromAccountId: broker })).status).toBe(422);
+    const other = await createAccount(c, { name: 'Rico', type: 'investment' });
+    expect((await buy({ accountId: broker, paidFromAccountId: other })).status).toBe(422);
+  });
+
+  it('deleting the Aplicação in the statement keeps the purchase, just unlinked', async () => {
+    const checking = await createAccount(c, { name: 'Nubank', initialBalance: 1000000 });
+    const p = (await buy({ accountId: broker, paidFromAccountId: checking })).body;
+    expect((await c.del(`/transfers/${p.transferId}`)).status).toBe(204);
+    const r = (await c.get('/investments')).body;
+    expect(r.purchases[0]).toMatchObject({ id: p.id, transferId: null, paidFrom: null });
+  });
 });
