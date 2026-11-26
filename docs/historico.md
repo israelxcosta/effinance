@@ -76,6 +76,11 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - **Pedido do usuário (2026-11-26):** "Nova categoria" (no lançamento e na página de categorias) tem o
   campo **Categoria pai**: "Nenhuma" cria categoria principal; escolher uma cria subcategoria (herda tipo,
   ícone e cor do pai, editáveis). O texto buscado no seletor vira o nome sugerido. A API já validava.
+- **Pedido do usuário (2026-11-26):** no dashboard, o card **Eficiência** deu lugar a **Contas atrasadas**,
+  card vermelho sólido (`KpiCard tone="danger"`) com o total e a quantidade de despesas pendentes já
+  vencidas (qualquer mês), levando a `/contas-a-pagar?status=overdue`. Contas vencidas **saíram dos
+  insights** (`reports/insights.ts`). Textos dos insights encurtados (título ≤ 40, descrição ≤ 90
+  caracteres, testado) e o InsightCard mantém altura fixa ao trocar com as setas.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -190,3 +195,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   assinar (Azure Trusted Signing ou certificado OV) fica para quando outras pessoas instalarem.
 - 2026-11-26: calendário próprio `<DateInput>` no lugar do seletor de data nativo em todas as telas.
 - 2026-11-26: criar subcategoria direto do lançamento (campo "Categoria pai" em Nova categoria).
+- 2026-11-26: dashboard com card vermelho de contas atrasadas (no lugar de Eficiência); insights mais curtos e sem vencidas.

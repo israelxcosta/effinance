@@ -124,7 +124,7 @@ describe('reports', () => {
       ['Cartão de débito', 20000],
     ]);
     expect(res.topExpenses[0]).toMatchObject({ description: 'Aluguel', amount: 150000 });
-    expect(res.insights.map((i: any) => i.title)).toContain('Gastos com Alimentação subiram 60%');
+    expect(res.insights.map((i: any) => i.title)).toContain('Alimentação subiu 60%');
   });
 
   it('dashboard summary, health score and insights', async () => {
@@ -145,7 +145,13 @@ describe('reports', () => {
     expect(d.health.score).toBeLessThanOrEqual(1000);
     expect(d.health.factors).toHaveLength(5);
     expect(d.insights.length).toBeGreaterThan(0);
-    expect(d.insights[0]).toMatchObject({ kind: 'warning', title: '1 conta vencida' });
+    // Overdue bills have their own dashboard card, not an insight.
+    expect(d.insights.some((i: any) => /vencid|atrasad/i.test(i.title))).toBe(false);
+    // Short texts: the dashboard card shows one title line and up to two description lines.
+    for (const i of d.insights) {
+      expect(i.title.length).toBeLessThanOrEqual(40);
+      expect(i.description.length).toBeLessThanOrEqual(90);
+    }
   });
 
   it('search finds transactions, categories and contacts', async () => {

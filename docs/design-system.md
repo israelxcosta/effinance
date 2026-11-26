@@ -129,7 +129,7 @@ Pesos: 400 texto, 500 rótulos, 600 títulos e valores (700/800 só nas siglas d
 | Button             | variantes `primary` (brand-800), `soft` (brand-100/brand-800), `outline` (surface + border), `ghost`, `danger`; tamanhos sm 32 (raio sm) / md 40 / lg 44 (raio md) |
 | SegmentedControl   | trilho `bg-subtle` raio md com altura fixa (md 40 · sm 32 · card 56) e itens raio sm, item ativo `surface` + sombra xs; variante `solid` com ativo `brand-800` texto branco (abas principais) |
 | Card               | `surface`, borda, raio xl, padding 20–24; header com título H2 + subtítulo small muted + ação à direita |
-| KpiCard            | rótulo `text-label` + ícone info; valor `text-display` **alinhado à direita**; rodapé `surface-muted` com seta (TrendingUp/Down) colorida, "% vs mês anterior" e chevron |
+| KpiCard            | rótulo `text-label` + ícone info; valor `text-display` **alinhado à direita**; rodapé `surface-muted` com seta (TrendingUp/Down) colorida, "% vs mês anterior" e chevron. `tone="danger"`: card sólido `bg-danger` com texto `on-semantic` (Contas atrasadas no dashboard) |
 | MiniStat           | mini-total das listas: rótulo `text-xs`, valor `text-lg` e dica **alinhados à direita** (mesma regra do KpiCard) |
 | Input / Select     | altura 44, raio md, borda `border`, foco: borda `brand-500` + anel 3px `brand-500/15` |
 | CategoryPicker     | campo único de categoria: lista com busca no topo, categorias como títulos de grupo e só subcategorias selecionáveis (rádio circular); categoria sem subcategorias é selecionável; rodapé "+ Nova categoria" (abre o formulário com o texto buscado como nome e o campo "Categoria pai", para criar subcategoria ali mesmo) |
@@ -142,7 +142,7 @@ Pesos: 400 texto, 500 rótulos, 600 títulos e valores (700/800 só nas siglas d
 | Badge              | pílula 11–12px: `brand`, `success`, `danger`, `warning`, `neutral` (soft) |
 | EmptyState         | caixa com borda tracejada raio lg, ícone em quadrado `bg-subtle`, título 14/600, descrição muted, botão outline |
 | ProgressBar        | trilho `brand-100`, preenchimento `brand-800` (metas) ou `success`/`danger` (limite) |
-| InsightCard        | gradiente `brand-700 → brand-900`, texto branco, cartão interno vidro (`white/8`, borda `white/12`), chip overline |
+| InsightCard        | gradiente `brand-700 → brand-900`, texto branco, cartão interno vidro (`white/8`, borda `white/12`), chip overline; título em 1 linha e descrição em até 2 (`line-clamp-2`); todos os insights empilhados na mesma célula de grid, então as setas não mudam a altura |
 | BankLogo           | círculo com cor oficial aproximada do banco e sigla (Nu, Itaú, BB, Cx...) — sem marcas registradas |
 | CategoryIcon       | quadrado raio md com fundo `cor/12%` e ícone lucide na cor da categoria |
 

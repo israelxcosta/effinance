@@ -43,20 +43,33 @@ export function InsightCard({ insights, loading, className }: { insights: Insigh
         {loading ? (
           <Skeleton className="h-16 bg-white/10" />
         ) : current ? (
-          <>
-            <div className="flex items-center justify-between">
-              <span className="eyebrow inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-2xs text-white/90">
-                <Lightbulb className="size-3" /> {INSIGHT_LABELS[current.kind]}
-              </span>
-              {current.href ? (
-                <Link to={current.href} className="text-white/70 hover:text-white" aria-label="Abrir análise">
-                  <ArrowUpRight className="size-4" />
-                </Link>
-              ) : null}
-            </div>
-            <p className="mt-2.5 text-sm font-semibold">{current.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-white/70">{current.description}</p>
-          </>
+          // Every insight sits in the same grid cell: the box keeps the height of the tallest one, so
+          // the arrows never resize the card. Title: 1 line; description: at most 2.
+          <div className="grid">
+            {list.map((insight, i) => {
+              const shown = insight === current;
+              return (
+                <div key={i} aria-hidden={!shown} className={cn('col-start-1 row-start-1 min-w-0', !shown && 'invisible')}>
+                  <div className="flex items-center justify-between">
+                    <span className="eyebrow inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-2xs text-white/90">
+                      <Lightbulb className="size-3" /> {INSIGHT_LABELS[insight.kind]}
+                    </span>
+                    {insight.href && shown ? (
+                      <Link to={insight.href} className="text-white/70 hover:text-white" aria-label="Abrir análise">
+                        <ArrowUpRight className="size-4" />
+                      </Link>
+                    ) : null}
+                  </div>
+                  <p className="mt-2.5 truncate text-sm font-semibold" title={insight.title}>
+                    {insight.title}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/70" title={insight.description}>
+                    {insight.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <p className="text-sm leading-relaxed text-white/80">
             Ainda não tenho dados suficientes para gerar insights. Assim que houver movimentações, trago análises e recomendações concretas.

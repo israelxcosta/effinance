@@ -156,11 +156,18 @@ function Overview({ d, loading, month }: { d: DashboardResponse | undefined; loa
         <KpiCard label="Receitas" info="Receitas do mês (recebidas + a receber)" value={money(s?.income)} change={s && p ? percentChange(s.income, p.income) : undefined} href="/contas-a-receber" />
         <KpiCard label="Despesas" info="Despesas do mês, incluindo compras no cartão" value={money(s?.expense)} change={s && p ? percentChange(s.expense, p.expense) : undefined} invert href="/contas-a-pagar" />
         <KpiCard
-          label="Eficiência"
-          info="Taxa de economia: quanto da receita sobrou no mês"
-          value={s ? formatPercent(s.savingsRate ?? 0, 0) : <Skeleton className="h-8 w-20" />}
-          change={s && p && s.savingsRate !== null && p.savingsRate !== null ? s.savingsRate - p.savingsRate : undefined}
-          href="/relatorios"
+          tone="danger"
+          label="Contas atrasadas"
+          info="Despesas pendentes com vencimento já passado, de qualquer mês"
+          value={money(d?.overdue.amount)}
+          footerContent={
+            d ? (
+              <span className="font-medium">
+                {d.overdue.count === 0 ? 'Nenhuma conta em atraso' : d.overdue.count === 1 ? '1 conta vencida' : `${d.overdue.count} contas vencidas`}
+              </span>
+            ) : undefined
+          }
+          href="/contas-a-pagar?status=overdue"
         />
         <KpiCard
           label="Patrimônio"

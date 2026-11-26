@@ -1,4 +1,6 @@
 // Rule-based insights (pt-BR) shared by the dashboard and the overview report.
+// Texts stay short (title ~1 line, description up to 2 lines in the dashboard card). Overdue bills are
+// not an insight: the dashboard shows them in their own red card.
 
 import { formatBRL, formatPercent, type Goal, type Insight } from '@effinance/shared';
 
@@ -12,7 +14,6 @@ export interface InsightContext {
   expense: number;
   previousExpenseByCategory: Map<string, CategoryTotal>;
   expenseByCategory: Map<string, CategoryTotal>;
-  overdue?: { count: number; amount: number };
   cards?: { name: string; usedLimit: number; limit: number }[];
   goals?: Goal[];
   fixedExpense?: number;
@@ -31,34 +32,24 @@ export function buildInsights(ctx: InsightContext): Insight[] {
   const net = ctx.income - ctx.expense;
   const savingsRate = ctx.income > 0 ? net / ctx.income : null;
 
-  if (ctx.overdue && ctx.overdue.count > 0) {
-    push(100, {
-      kind: 'warning',
-      title:
-        ctx.overdue.count === 1 ? '1 conta vencida' : `${ctx.overdue.count} contas vencidas`,
-      description: `Somam ${formatBRL(ctx.overdue.amount)}. Regularize para evitar juros e multas.`,
-      href: '/contas-a-pagar?status=overdue',
-    });
-  }
-
   if (ctx.income > 0 && net < 0) {
     push(95, {
       kind: 'warning',
       title: 'Despesas acima das receitas',
-      description: `Suas despesas superaram as receitas em ${formatBRL(-net)} neste período.`,
+      description: `Gastou ${formatBRL(-net)} a mais do que recebeu.`,
       href: '/relatorios?tab=fluxo',
     });
   } else if (savingsRate !== null && savingsRate >= 0.2) {
     push(60, {
       kind: 'achievement',
       title: 'Ótima taxa de economia',
-      description: `Você guardou ${formatPercent(savingsRate, 0)} da sua renda neste período. Continue assim!`,
+      description: `Você guardou ${formatPercent(savingsRate, 0)} da renda. Continue assim!`,
     });
   } else if (savingsRate !== null && savingsRate >= 0 && savingsRate < 0.1) {
     push(70, {
       kind: 'opportunity',
       title: 'Espaço para economizar mais',
-      description: `Você economizou ${formatPercent(savingsRate, 0)} da renda. A meta recomendada é 20% — revise os gastos variáveis.`,
+      description: `Guardou ${formatPercent(savingsRate, 0)} da renda; o ideal é 20%.`,
       href: '/relatorios?tab=categorias',
     });
   }
@@ -84,16 +75,16 @@ export function buildInsights(ctx: InsightContext): Insight[] {
   if (worst) {
     push(80, {
       kind: 'warning',
-      title: `Gastos com ${worst.name} subiram ${formatPercent(worst.ratio, 0)}`,
-      description: `Foram ${formatBRL(worst.cur)} contra ${formatBRL(worst.prev)} no ${ctx.previousLabel}.`,
+      title: `${worst.name} subiu ${formatPercent(worst.ratio, 0)}`,
+      description: `${formatBRL(worst.cur)} contra ${formatBRL(worst.prev)} no ${ctx.previousLabel}.`,
       href: '/relatorios?tab=comparacao',
     });
   }
   if (best) {
     push(65, {
       kind: 'achievement',
-      title: `Você reduziu gastos com ${best.name}`,
-      description: `Economia de ${formatBRL(best.prev - best.cur)} (${formatPercent(best.ratio, 0)}) em relação ao ${ctx.previousLabel}.`,
+      title: `${best.name} caiu ${formatPercent(-best.ratio, 0)}`,
+      description: `Economia de ${formatBRL(best.prev - best.cur)} sobre o ${ctx.previousLabel}.`,
     });
   }
 
@@ -104,7 +95,7 @@ export function buildInsights(ctx: InsightContext): Insight[] {
       push(85, {
         kind: 'warning',
         title: `Limite do ${card.name} em ${formatPercent(usage, 0)}`,
-        description: `Restam ${formatBRL(Math.max(0, card.limit - card.usedLimit))} disponíveis. Evite novas compras parceladas.`,
+        description: `Restam ${formatBRL(Math.max(0, card.limit - card.usedLimit))}. Evite novos parcelamentos.`,
         href: '/cartoes',
       });
     }
@@ -116,7 +107,7 @@ export function buildInsights(ctx: InsightContext): Insight[] {
     push(55, {
       kind: 'achievement',
       title: `Meta "${completed.name}" concluída! 🎉`,
-      description: `Você alcançou ${formatBRL(completed.targetAmount)}. Que tal definir o próximo objetivo?`,
+      description: `Você chegou a ${formatBRL(completed.targetAmount)}. Hora do próximo objetivo.`,
       href: '/metas',
     });
   }
@@ -127,10 +118,10 @@ export function buildInsights(ctx: InsightContext): Insight[] {
     const remaining = Math.max(0, closest.targetAmount - closest.currentAmount);
     push(58, {
       kind: 'opportunity',
-      title: `Sua meta "${closest.name}" chegou a ${formatPercent(closest.progress, 0)}`,
+      title: `Meta "${closest.name}" em ${formatPercent(closest.progress, 0)}`,
       description:
         `Faltam ${formatBRL(remaining)}.` +
-        (closest.monthlyNeeded ? ` Guardando ${formatBRL(closest.monthlyNeeded)} por mês você chega lá no prazo.` : ''),
+        (closest.monthlyNeeded ? ` Guarde ${formatBRL(closest.monthlyNeeded)}/mês para o prazo.` : ''),
       href: '/metas',
     });
   }
@@ -140,8 +131,8 @@ export function buildInsights(ctx: InsightContext): Insight[] {
     if (share >= 0.5) {
       push(50, {
         kind: 'info',
-        title: `Gastos fixos comprometem ${formatPercent(share, 0)} da renda`,
-        description: 'O ideal é manter os custos fixos abaixo de 50% para ter folga no orçamento.',
+        title: `Fixos levam ${formatPercent(share, 0)} da renda`,
+        description: 'O ideal é ficar abaixo de 50% para ter folga.',
         href: '/contas-a-pagar',
       });
     }
@@ -151,8 +142,8 @@ export function buildInsights(ctx: InsightContext): Insight[] {
   if (top && ctx.expense > 0 && top.amount / ctx.expense >= 0.35) {
     push(45, {
       kind: 'info',
-      title: `${top.name} concentra ${formatPercent(top.amount / ctx.expense, 0)} das despesas`,
-      description: `Foram ${formatBRL(top.amount)} neste período. Vale revisar se há espaço para reduzir.`,
+      title: `${top.name}: ${formatPercent(top.amount / ctx.expense, 0)} das despesas`,
+      description: `${formatBRL(top.amount)} no período. Veja se dá para reduzir.`,
       href: '/relatorios?tab=categorias',
     });
   }
@@ -162,9 +153,9 @@ export function buildInsights(ctx: InsightContext): Insight[] {
       kind: 'info',
       title:
         ctx.upcomingWeek.count === 1
-          ? '1 conta vence nos próximos 7 dias'
-          : `${ctx.upcomingWeek.count} contas vencem nos próximos 7 dias`,
-      description: `Total de ${formatBRL(ctx.upcomingWeek.amount)}. Confira se há saldo nas contas de pagamento.`,
+          ? '1 conta vence em 7 dias'
+          : `${ctx.upcomingWeek.count} contas vencem em 7 dias`,
+      description: `Total de ${formatBRL(ctx.upcomingWeek.amount)}. Confira o saldo para pagar.`,
       href: '/contas-a-pagar',
     });
   }

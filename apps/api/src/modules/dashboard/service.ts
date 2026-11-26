@@ -250,7 +250,6 @@ export async function getDashboard(db: DbExecutor, workspaceId: string, month: M
       expense: summary.expense,
       expenseByCategory: toCategoryTotalMap(expensesByCategory),
       previousExpenseByCategory: toCategoryTotalMap(toCategoryAmounts(prevExpenseTotals, catMap)),
-      overdue,
       cards: cards.map((c) => ({ name: c.name, usedLimit: c.usedLimit, limit: c.limit })),
       goals,
       fixedExpense: fixedExpenseTotal,
