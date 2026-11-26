@@ -295,3 +295,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: prévia `docs/prototipos/reserva-investimentos/` aguardando aprovação: meta "Acompanhar por Investimentos" (soma ativos marcados como reserva; renda fixa entra automaticamente; chave por ativo; "Aplicar" abre a compra com a chave "Contar na Reserva").
 - 2026-11-26: meta com corretora/banco + título: aportes viram compras de renda fixa em Investimentos (usuário preferiu isso à prévia de reserva por investimentos).
 - 2026-11-26: venda com resultado (saldo da corretora, fora de receitas/despesas) e proventos (receita em Rendimentos) nos investimentos; prévia `investimentos-vendas-proventos` implementada.
+- 2026-11-26: Gastos por categoria com barras juntas (gap pequeno, sem espalhar pela altura do card), a pedido.

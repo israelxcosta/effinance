@@ -13,13 +13,13 @@ export function CategoryBars({
   maxItems = 8,
   onSelect,
   direction = 'expense',
-  fill = false,
+  fill: _fill = false,
 }: {
   data: CategoryAmount[];
   maxItems?: number;
   onSelect?: (c: CategoryAmount) => void;
   direction?: 'expense' | 'income';
-  /** Spread the rows over the available height (card taller than the list). */
+  /** Kept for callers; rows always stay close together (the user asked for tight bars). */
   fill?: boolean;
 }) {
   const mirrored = direction === 'income';
@@ -32,7 +32,7 @@ export function CategoryBars({
     : head;
   const max = Math.max(1, ...items.map((i) => i.amount));
   return (
-    <ul className={cn('flex flex-col gap-2.5', fill && 'h-full justify-between')}>
+    <ul className="flex flex-col gap-1.5">
       {items.map((c) => {
         const color = tone(c.color || '#9A9EA5');
         const clickable = Boolean(onSelect && c.categoryId);
