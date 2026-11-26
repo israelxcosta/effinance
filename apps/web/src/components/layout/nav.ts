@@ -1,5 +1,4 @@
 import {
-  ArrowLeftRight,
   ChartLine,
   CreditCard,
   HandCoins,
@@ -29,7 +28,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/extrato', label: 'Extrato', icon: ScrollText, mobile: true, keywords: 'lancamentos movimentacoes saldo' },
   { to: '/contas-a-pagar', label: 'Contas a pagar', icon: Receipt, mobile: true, keywords: 'despesas boletos vencimentos' },
   { to: '/contas-a-receber', label: 'Contas a receber', icon: HandCoins, keywords: 'receitas entradas salario' },
-  { to: '/transferencias', label: 'Transferências e investimentos', icon: ArrowLeftRight, keywords: 'investir aplicar resgatar mover' },
   { to: '/contas', label: 'Contas e carteiras', icon: Landmark, keywords: 'bancos carteira poupanca' },
   { to: '/cartoes', label: 'Cartões de crédito', icon: CreditCard, keywords: 'fatura limite' },
   { to: '/investimentos', label: 'Investimentos', icon: TrendingUp, keywords: 'acoes fii carteira preco medio bolsa ticker cripto' },
