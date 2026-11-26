@@ -71,6 +71,7 @@ export function CategoryPicker({
   const [sheet, setSheet] = useState<CategorySheetState>({ open: false, type });
   const { canWrite } = usePermissions();
   const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const categories = useCategories({ type });
 
   const groups = useMemo(() => buildGroups(categories.data ?? []), [categories.data]);
@@ -126,6 +127,15 @@ export function CategoryPicker({
           aria-invalid={ariaInvalid}
           aria-describedby={ariaDescribedBy}
           aria-haspopup="listbox"
+          onKeyDown={(e) => {
+            // Typing on the closed field opens the list with what was typed already in the search.
+            if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault();
+              setOpen(true);
+              setQuery(e.key);
+              setActive(0);
+            }
+          }}
           className={cn(
             inputClasses,
             'group/picker flex cursor-pointer items-center gap-2 text-left data-[state=open]:border-brand-500 data-[state=open]:ring-[3px] data-[state=open]:ring-brand-500/15',
@@ -150,12 +160,21 @@ export function CategoryPicker({
             align="start"
             sideOffset={6}
             collisionPadding={12}
-            onOpenAutoFocus={(e) => e.preventDefault()}
+            onOpenAutoFocus={(e) => {
+              // The search box gets the focus (and the caret at the end of anything typed on the field).
+              e.preventDefault();
+              const input = searchRef.current;
+              if (input) {
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+              }
+            }}
             className="z-50 flex w-[max(var(--radix-popover-trigger-width),300px)] flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-lg data-[state=open]:animate-fade-in"
           >
             <label className="flex items-center gap-2 border-b border-border px-3.5">
               <Search className="size-4 shrink-0 text-subtle" aria-hidden />
               <input
+                ref={searchRef}
                 autoFocus
                 value={query}
                 onChange={(e) => {

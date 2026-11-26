@@ -97,8 +97,8 @@ export function CashflowTab({ from, to }: { from: string; to: string }) {
 
       {r && r.periods.length ? (
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
+          <div className="w-full">
+            <table className="w-full text-sm max-lg:[&_tr>*:nth-child(4)]:hidden max-lg:[&_tr>*:nth-child(5)]:hidden max-sm:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden">
               <thead>
                 <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                   <th className="px-4 py-2.5">Período</th>

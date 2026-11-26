@@ -103,8 +103,8 @@ export default function ContactsPage() {
             action={<WriteGate><Button variant="outline" onClick={() => setSheet({ open: true, contact: null })}>Adicionar contato</Button></WriteGate>}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+          <div className="w-full">
+            <table className="w-full text-sm max-md:[&_tr>*:nth-child(4)]:hidden max-sm:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(3)]:hidden">
               <thead>
                 <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                   <th className="px-4 py-2.5">Nome</th>

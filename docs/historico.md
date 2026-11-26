@@ -92,6 +92,14 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   direita, Resultado com "% guardado", exportação CSV (pt-BR, `;`, BOM, proteção contra fórmulas) e
   clique no valor abrindo contas a pagar/receber filtradas. Valores neutros e **com centavos**.
   Médias dividem só pelos períodos com movimento (meses antes do primeiro lançamento não diluem).
+- **Pedido do usuário (2026-11-26):** nada de barra de rolagem horizontal. Evolução sem minigráficos
+  (pedido) e sempre cabendo no card (`lib/evolution-layout.ts`: tira centavos, depois mostra só os
+  períodos mais recentes que cabem, com aviso; exportação mantém tudo). Abas de Relatórios,
+  Configurações, Transferências e Comparação viram Select em tela estreita
+  (`ResponsiveSegmentedControl`); tabelas escondem colunas secundárias no celular/tablet. Varredura
+  em 1440/1280/1024/768/390 px sem rolagem horizontal.
+- **Pedido do usuário (2026-11-26):** no seletor de categoria, digitar com o campo focado abre a lista
+  com o texto na busca; ao abrir por clique, o foco vai para a busca.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -209,3 +217,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: dashboard com card vermelho de contas atrasadas (no lugar de Eficiência); insights mais curtos e sem vencidas.
 - 2026-11-26: parceladas seguem mês a mês pelas parcelas; chave de regime adiada pelo usuário.
 - 2026-11-26: relatório **Evolução por categoria** (aba Evolução) implementado como o protótipo aprovado.
+- 2026-11-26: telas sem rolagem horizontal (Evolução se ajusta à largura, abas viram Select); busca do seletor de categoria ao digitar.

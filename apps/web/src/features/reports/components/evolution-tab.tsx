@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useActiveMonth } from '@/lib/active-month';
 import { useEvolutionReport } from '../api';
 import { downloadText, evolutionToCsv } from '../lib/evolution-csv';
+import { evolutionLayout } from '../lib/evolution-layout';
 
 type Kind = 'income' | 'expense';
 
@@ -33,19 +34,18 @@ const INTERVALS: { value: EvolutionInterval; label: string }[] = [
 
 /** Amount without "R$" (the column header already says it is money). */
 const money = (cents: number) => formatBRL(cents).replace(/R\$\s?/, '').trim();
+const noCents = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const moneyNoCents = (cents: number) => noCents.format(Math.round(cents / 100));
 const pct = (part: number, whole: number) => `${((part / whole) * 100).toFixed(1).replace('.', ',')}%`;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const monthLabel = (iso: string) => `${MONTH_SHORT[Number(iso.slice(5, 7)) - 1]}/${iso.slice(2, 4)}`;
 
-// Average and Total stay pinned on the right while the periods scroll.
-const PIN_AVG = 'sticky right-[112px] z-10 w-[104px] min-w-[104px] border-l border-border shadow-[-8px_0_12px_-10px_rgba(0,0,0,0.18)]';
-const PIN_TOTAL = 'sticky right-0 z-10 w-[112px] min-w-[112px]';
-const cellBase = 'px-2.5 text-right tabular whitespace-nowrap';
+const cellBase = 'overflow-hidden px-2 text-right tabular whitespace-nowrap';
 
 /**
  * Relatórios → Evolução: categories × periods (month, quarter or year), income and expense with
- * subcategories, % of the period's income, heat map on expenses, pinned average/total and the
- * result line. Dates follow the due date; installments count month by month.
+ * subcategories, % of the period's income, heat map on expenses, average/total and the result
+ * line. It always fits its card (no horizontal scrollbar): see `evolutionLayout`. Dates follow the due date; installments count month by month.
  */
 export function EvolutionTab() {
   const [activeMonth] = useActiveMonth();
@@ -164,36 +164,29 @@ function Totals({ d, interval }: { d: EvolutionReportResponse | undefined; inter
   );
 }
 
-function Spark({ values, tone }: { values: number[]; tone: 'success' | 'danger' | 'brand' }) {
-  if (values.length < 2) return null;
-  const max = Math.max(...values, 0);
-  const min = Math.min(...values, 0);
-  const span = max - min || 1;
-  const points = values.map((x, i) => [(i / (values.length - 1)) * 72, 20 - ((x - min) / span) * 18] as const);
-  const stroke = tone === 'success' ? 'var(--color-success)' : tone === 'danger' ? 'var(--color-danger)' : 'var(--color-brand-500)';
-  const last = points[points.length - 1]!;
-  return (
-    <svg width="60" height="22" viewBox="0 0 72 22" aria-hidden className="shrink-0 overflow-visible">
-      <polyline points={points.map((p) => p.join(',')).join(' ')} fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={last[0]} cy={last[1]} r="2.2" fill={stroke} />
-    </svg>
-  );
-}
-
 function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct: boolean; interval: EvolutionInterval }) {
   const navigate = useNavigate();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const incomeTotals = d.income.values;
   const totalIncome = d.income.total;
   // Heat map scale: the biggest single expense cell among the categories.
   const heatMax = useMemo(() => Math.max(1, ...d.expense.rows.flatMap((r) => r.values)), [d]);
 
-  // Opens on the most recent periods; older ones are a scroll away.
+  // The table always fits the card: fewer cents, then fewer (older) periods as the screen narrows.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollLeft = el.scrollWidth;
-  }, [d.periods.length, d.periods[0]?.key]);
+    const el = boxRef.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver(([entry]) => setWidth(Math.floor(entry!.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const layout = evolutionLayout(width || 1200, d.periods.length);
+  const first = d.periods.length - layout.visible;
+  const cols = d.periods.map((_, i) => i).slice(first);
+  const fmt = (cents: number) => (layout.cents ? money(cents) : moneyNoCents(cents));
 
   function linkFor(kind: Kind, row: EvolutionRow, period: EvolutionPeriod): string | null {
     if (!row.categoryId || interval === 'quarter') return null;
@@ -223,27 +216,35 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
     const tint = heat ? Math.min(16, 3 + (value / heatMax) * 13) : 0;
     const color =
       kind === 'result' ? (value >= 0 ? 'text-success' : 'text-danger') : strong ? (kind === 'income' ? 'text-success' : 'text-danger') : 'text-fg';
-    const share = kind === 'result' ? (incomeTotals[i] ? `${Math.round((value / incomeTotals[i]!) * 100)}% guardado` : null) : showPct && !noShare && incomeTotals[i] ? pct(value, incomeTotals[i]!) : null;
+    const share =
+      kind === 'result'
+        ? incomeTotals[i]
+          ? `${Math.round((value / incomeTotals[i]!) * 100)}%${layout.cents ? ' guardado' : ''}`
+          : null
+        : showPct && !noShare && incomeTotals[i]
+          ? pct(value, incomeTotals[i]!)
+          : null;
     const content = (
       <>
-        <span className={cn('block', kind === 'result' ? 'text-label font-semibold' : 'text-label', strong && 'font-semibold', color)}>
+        <span className={cn('block truncate text-label', (strong || kind === 'result') && 'font-semibold', color)}>
           {kind === 'result' && value > 0 ? '+' : ''}
-          {money(value)}
+          {fmt(value)}
         </span>
-        {share ? <span className="block text-2xs text-subtle">{share}</span> : null}
+        {share ? <span className="block truncate text-2xs text-subtle">{share}</span> : null}
       </>
     );
     return (
       <td
         className={cn(cellBase, 'py-2', current && 'bg-brand-50/60')}
         style={tint ? { backgroundImage: `linear-gradient(color-mix(in srgb, var(--color-danger) ${tint}%, transparent), color-mix(in srgb, var(--color-danger) ${tint}%, transparent))` } : undefined}
+        title={layout.cents ? undefined : formatBRL(value)}
       >
         {href ? (
           <button
             type="button"
             onClick={() => navigate(href)}
-            className="-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-right outline-none hover:bg-black/5 focus-visible:ring-[3px] focus-visible:ring-brand-500/30"
-            aria-label={`Ver lançamentos: ${money(value)}`}
+            className="-mx-1 -my-1 max-w-full rounded-md px-1 py-1 text-right outline-none hover:bg-black/5 focus-visible:ring-[3px] focus-visible:ring-brand-500/30"
+            aria-label={`Ver lançamentos: ${formatBRL(value)}`}
           >
             {content}
           </button>
@@ -259,11 +260,12 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
     const expandable = row.children.length > 0;
     const isOpen = open.has(key);
     const depth = parent ? 1 : 0;
+    const narrow = layout.categoryWidth < 170;
     return (
       <>
         <tr className="group border-t border-border/70 hover:bg-bg-subtle/60">
-          <th scope="row" className={cn('sticky left-0 z-10 bg-surface px-4 py-2 text-left font-normal group-hover:bg-bg-subtle', depth && 'pl-12')}>
-            <div className="flex items-center gap-2.5">
+          <th scope="row" className={cn('px-3 py-2 text-left font-normal sm:px-4', depth && (narrow ? 'pl-8' : 'pl-12'))}>
+            <div className="flex min-w-0 items-center gap-2">
               {expandable ? (
                 <button
                   type="button"
@@ -279,21 +281,22 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
               )}
               {depth ? (
                 <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} aria-hidden />
-              ) : (
+              ) : narrow ? null : (
                 <CategoryIcon icon={row.icon} color={row.color} size="sm" className="!size-7 !rounded-md [&_svg]:!size-3.5" />
               )}
               <span className={cn('min-w-0 flex-1 truncate text-label', depth ? 'text-muted' : 'font-medium text-fg')} title={row.name}>
                 {row.name}
               </span>
-              {depth ? null : <Spark values={row.values} tone={kind === 'income' ? 'success' : 'brand'} />}
             </div>
           </th>
-          {row.values.map((x, i) => (
-            <Value key={i} value={x} i={i} kind={kind} heat={kind === 'expense' && !depth} href={linkFor(kind, row, d.periods[i]!)} />
+          {cols.map((i) => (
+            <Value key={i} value={row.values[i]!} i={i} kind={kind} heat={kind === 'expense' && !depth} href={linkFor(kind, row, d.periods[i]!)} />
           ))}
-          <td className={cn(cellBase, PIN_AVG, 'bg-surface-muted py-2 text-label text-muted')}>{row.average ? money(row.average) : '—'}</td>
-          <td className={cn(cellBase, PIN_TOTAL, 'bg-surface-muted py-2 text-label font-semibold text-fg')}>
-            {money(row.total)}
+          {layout.showAverage ? (
+            <td className={cn(cellBase, 'border-l border-border bg-surface-muted py-2 text-label text-muted')}>{row.average ? fmt(row.average) : '—'}</td>
+          ) : null}
+          <td className={cn(cellBase, 'bg-surface-muted py-2 text-label font-semibold text-fg', !layout.showAverage && 'border-l border-border')}>
+            <span className="block truncate">{fmt(row.total)}</span>
             {showPct && totalIncome ? <span className="block text-2xs font-normal text-subtle">{pct(row.total, totalIncome)}</span> : null}
           </td>
         </tr>
@@ -308,21 +311,18 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
     return (
       <>
         <tr className={cn('border-t border-border', kind === 'income' ? 'bg-success-soft/60' : 'bg-danger-soft/60')}>
-          <th scope="row" className={cn('sticky left-0 z-10 px-4 py-3 text-left', soft)}>
-            <div className="flex items-center gap-2.5">
+          <th scope="row" className={cn('px-3 py-3 text-left sm:px-4', soft)}>
+            <div className="flex min-w-0 items-center gap-2.5">
               <span className={cn('h-5 w-1 shrink-0 rounded-full', kind === 'income' ? 'bg-success' : 'bg-danger')} aria-hidden />
-              <span className="text-label font-semibold text-fg">{label}</span>
+              <span className="truncate text-label font-semibold text-fg">{label}</span>
               <span className="rounded-full bg-surface/80 px-1.5 text-2xs font-medium text-muted">{group.rows.length}</span>
-              <span className="ml-auto">
-                <Spark values={group.values} tone={kind === 'income' ? 'success' : 'danger'} />
-              </span>
             </div>
           </th>
-          {group.values.map((x, i) => (
-            <Value key={i} value={x} i={i} kind={kind} strong noShare={kind === 'income'} />
+          {cols.map((i) => (
+            <Value key={i} value={group.values[i]!} i={i} kind={kind} strong noShare={kind === 'income'} />
           ))}
-          <td className={cn(cellBase, PIN_AVG, soft, text, 'py-3 text-label font-semibold')}>{money(group.average)}</td>
-          <td className={cn(cellBase, PIN_TOTAL, soft, text, 'py-3 text-label font-semibold')}>{money(group.total)}</td>
+          {layout.showAverage ? <td className={cn(cellBase, 'border-l border-border py-3 text-label font-semibold', soft, text)}>{fmt(group.average)}</td> : null}
+          <td className={cn(cellBase, 'py-3 text-label font-semibold', soft, text, !layout.showAverage && 'border-l border-border')}>{fmt(group.total)}</td>
         </tr>
         {group.rows.map((r) => (
           <CategoryRow key={r.categoryId ?? 'none'} row={r} kind={kind} />
@@ -332,24 +332,40 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
   }
 
   const resultTotal = sum(d.result);
+  const resultTone = resultTotal >= 0 ? 'text-success' : 'text-danger';
   return (
-    <div ref={scrollRef} className="scrollbar-thin overflow-x-auto">
-      <table className="w-full border-collapse" style={{ minWidth: 260 + 216 + d.periods.length * 100 }}>
+    <div ref={boxRef} className="w-full">
+      {layout.visible < d.periods.length ? (
+        <p className="border-b border-border bg-brand-50/60 px-4 py-2 text-xs text-brand-text">
+          {layout.visible === 1 ? 'Mostrando só o último período' : `Mostrando os últimos ${layout.visible} períodos`} para caber na tela. Média e Total consideram todo o período
+          escolhido; use Trimestral ou Anual para ver tudo de uma vez.
+        </p>
+      ) : null}
+      <table className="w-full table-fixed border-collapse">
+        <colgroup>
+          <col style={{ width: layout.categoryWidth }} />
+          {cols.map((i) => (
+            <col key={i} />
+          ))}
+          {layout.showAverage ? <col style={{ width: 96 }} /> : null}
+          <col style={{ width: 104 }} />
+        </colgroup>
         <thead>
           <tr className="bg-surface-muted">
-            <th scope="col" className="sticky left-0 z-20 w-[260px] min-w-[260px] bg-surface-muted px-4 py-2.5 text-left text-2xs font-semibold tracking-[0.08em] text-subtle uppercase">
+            <th scope="col" className="px-3 py-2.5 text-left text-2xs font-semibold tracking-[0.08em] text-subtle uppercase sm:px-4">
               Categoria
             </th>
-            {d.periods.map((p) => (
-              <th key={p.key} scope="col" className={cn('px-2.5 py-2.5 text-right text-xs font-semibold whitespace-nowrap text-muted', p.current && 'bg-brand-50 text-brand-text')}>
-                {p.label}
-                {p.current ? <span className="block text-2xs font-medium text-brand-text/70">parcial</span> : null}
-              </th>
-            ))}
-            <th scope="col" className={cn(PIN_AVG, 'bg-surface-muted px-2.5 py-2.5 text-right text-xs font-semibold text-muted')}>
-              Média
-            </th>
-            <th scope="col" className={cn(PIN_TOTAL, 'bg-surface-muted px-2.5 py-2.5 text-right text-xs font-semibold text-fg')}>
+            {cols.map((i) => {
+              const p = d.periods[i]!;
+              return (
+                <th key={p.key} scope="col" className={cn('truncate px-2 py-2.5 text-right text-xs font-semibold text-muted', p.current && 'bg-brand-50 text-brand-text')}>
+                  {p.label}
+                  {p.current ? <span className="block text-2xs font-medium text-brand-text/70">parcial</span> : null}
+                </th>
+              );
+            })}
+            {layout.showAverage ? <th scope="col" className="border-l border-border px-2 py-2.5 text-right text-xs font-semibold text-muted">Média</th> : null}
+            <th scope="col" className={cn('px-2 py-2.5 text-right text-xs font-semibold text-fg', !layout.showAverage && 'border-l border-border')}>
               Total
             </th>
           </tr>
@@ -360,25 +376,22 @@ function Matrix({ d, showPct, interval }: { d: EvolutionReportResponse; showPct:
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-border-strong bg-surface">
-            <th scope="row" className="sticky left-0 z-10 bg-surface px-4 py-3 text-left">
-              <div className="flex items-center gap-2.5">
-                <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-fg">Resultado</span>
-                  <span className="block text-2xs font-normal text-subtle">receitas − despesas</span>
-                </div>
-                <Spark values={d.result} tone={resultTotal >= 0 ? 'success' : 'danger'} />
-              </div>
+            <th scope="row" className="px-3 py-3 text-left sm:px-4">
+              <span className="block truncate text-sm font-semibold text-fg">Resultado</span>
+              <span className="block truncate text-2xs font-normal text-subtle">receitas − despesas</span>
             </th>
-            {d.result.map((x, i) => (
-              <Value key={i} value={x} i={i} kind="result" />
+            {cols.map((i) => (
+              <Value key={i} value={d.result[i]!} i={i} kind="result" />
             ))}
-            <td className={cn(cellBase, PIN_AVG, 'bg-surface py-3 text-label font-semibold', resultTotal >= 0 ? 'text-success' : 'text-danger')}>
+            {layout.showAverage ? (
+              <td className={cn(cellBase, 'border-l border-border py-3 text-label font-semibold', resultTone)}>
+                {resultTotal > 0 ? '+' : ''}
+                {fmt(Math.round(resultTotal / Math.max(1, d.activePeriods)))}
+              </td>
+            ) : null}
+            <td className={cn(cellBase, 'py-3 text-sm font-semibold', resultTone, !layout.showAverage && 'border-l border-border')}>
               {resultTotal > 0 ? '+' : ''}
-              {money(Math.round(resultTotal / Math.max(1, d.activePeriods)))}
-            </td>
-            <td className={cn(cellBase, PIN_TOTAL, 'bg-surface py-3 text-sm font-semibold', resultTotal >= 0 ? 'text-success' : 'text-danger')}>
-              {resultTotal > 0 ? '+' : ''}
-              {money(resultTotal)}
+              {fmt(resultTotal)}
             </td>
           </tr>
         </tfoot>

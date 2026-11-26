@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState, MiniStat, PageHeader } from '@/components/ui/misc';
 import { PeriodNavigator } from '@/components/ui/period-navigator';
 import { useScreenPeriod } from '@/lib/active-month';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ResponsiveSegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton';
 import { periodRange } from '@/lib/period';
 import { useAccounts } from '@/features/accounts/api';
@@ -89,7 +89,9 @@ export default function TransfersPage() {
                 modes={['week', 'month', 'year']}
                 onChange={setPeriod}
               />
-              <SegmentedControl
+              <ResponsiveSegmentedControl
+                collapseBelow="sm"
+                selectClassName="min-w-[180px]"
                 ariaLabel="Tipo"
                 value={kind}
                 onChange={(k) => update({ tipo: k === 'all' ? null : k })}

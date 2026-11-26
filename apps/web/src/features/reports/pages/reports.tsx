@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ChartNoAxesColumn, GitCompareArrows, LayoutDashboard, Tags, Users, Waves } from 'lucide-react';
 import { PageHeader } from '@/components/ui/misc';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ResponsiveSegmentedControl } from '@/components/ui/segmented-control';
 import { CashflowTab } from '../components/cashflow-tab';
 import { CategoriesTab } from '../components/categories-tab';
 import { ComparisonTab } from '../components/comparison-tab';
@@ -56,8 +56,9 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <SegmentedControl
+      <div>
+        <ResponsiveSegmentedControl
+          collapseBelow="lg"
           variant="solid"
           ariaLabel="Relatório"
           value={tab}

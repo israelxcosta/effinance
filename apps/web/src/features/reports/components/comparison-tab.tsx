@@ -17,7 +17,7 @@ import { CategoryIcon } from '@/components/ui/category-icon';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ErrorState } from '@/components/ui/misc';
 import { Input } from '@/components/ui/input';
-import { SegmentedControl } from '@/components/ui/segmented-control';
+import { ResponsiveSegmentedControl, SegmentedControl } from '@/components/ui/segmented-control';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { axisProps, CHART_COLORS, LegendDot, moneyAxisFormatter, MoneyTooltip, StripeDefs } from '@/components/charts/chart-utils';
@@ -75,7 +75,8 @@ export function ComparisonTab() {
           <Select value={quick} onChange={(e) => setQuick(e.target.value as Quick)} className="h-10 min-w-[290px] font-medium" aria-label="Comparação">
             {Object.entries(QUICK).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </Select>
-          <SegmentedControl
+          <ResponsiveSegmentedControl
+            collapseBelow="sm"
             ariaLabel="Tipo"
             value={type}
             onChange={setType}
@@ -138,8 +139,8 @@ export function ComparisonTab() {
 
           {r && r.rows.length ? (
             <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
+              <div className="w-full">
+                <table className="w-full text-sm max-sm:[&_tr>*:nth-child(2)]:hidden max-sm:[&_tr>*:nth-child(4)]:hidden">
                   <thead>
                     <tr className="border-b border-border bg-surface-muted text-left text-2xs font-semibold tracking-wide text-muted uppercase">
                       <th className="px-4 py-2.5">Categoria</th>

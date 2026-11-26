@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Select } from './select';
 import { cn } from '@/lib/utils';
 
 export interface SegmentOption<T extends string> {
@@ -84,5 +85,45 @@ export function SegmentedControl<T extends string>({
         );
       })}
     </div>
+  );
+}
+
+const COLLAPSE = {
+  sm: { wide: 'hidden sm:block', narrow: 'sm:hidden' },
+  md: { wide: 'hidden md:block', narrow: 'md:hidden' },
+  lg: { wide: 'hidden lg:block', narrow: 'lg:hidden' },
+} as const;
+
+/**
+ * Segmented tabs that turn into a select below `collapseBelow`, so a row of tabs never needs a
+ * horizontal scrollbar on narrow screens.
+ */
+export function ResponsiveSegmentedControl<T extends string>({
+  collapseBelow = 'md',
+  selectClassName,
+  ...props
+}: SegmentedControlProps<T> & { collapseBelow?: keyof typeof COLLAPSE; selectClassName?: string }) {
+  const c = COLLAPSE[collapseBelow];
+  return (
+    <>
+      <div className={c.wide}>
+        <SegmentedControl {...props} />
+      </div>
+      <div className={c.narrow}>
+        <Select
+          aria-label={props.ariaLabel}
+          value={props.value}
+          onChange={(e) => props.onChange(e.target.value as T)}
+          size_="sm"
+          className={cn('h-10 w-full font-medium', selectClassName)}
+        >
+          {props.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {typeof o.label === 'string' ? o.label : (o.title ?? o.value)}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </>
   );
 }
