@@ -52,6 +52,11 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - "Recorrente" sem quantidade (vazio ou 0) é uma série sem fim; a opção "Fixa mensal" saiu do
   formulário.
 - Compra no cartão só fica "vencida" quando a fatura vence, não na data da compra.
+- **Decisão do usuário (2026-11-26):** compras parceladas entram nos relatórios e nas categorias **mês a
+  mês, pelas parcelas** (regime de caixa): 1.000 em 5x = 200/mês em Vestuário, não 1.000 na compra.
+  Nada de chave "pela compra / pelas parcelas" por enquanto (foi proposta e adiada). Despesas comuns
+  contam pelo **vencimento** (Dashboard, categorias, comparação); Extrato e Fluxo de caixa usam a data
+  de **pagamento** ("Pago em").
 - Antecipação de parcelas: as últimas parcelas pendentes passam para hoje (no cartão, entram na
   fatura aberta).
 - Divisão de um lançamento em 2 a 10 categorias: uma transação por parte, ligadas por
@@ -196,3 +201,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: calendário próprio `<DateInput>` no lugar do seletor de data nativo em todas as telas.
 - 2026-11-26: criar subcategoria direto do lançamento (campo "Categoria pai" em Nova categoria).
 - 2026-11-26: dashboard com card vermelho de contas atrasadas (no lugar de Eficiência); insights mais curtos e sem vencidas.
+- 2026-11-26: parceladas seguem mês a mês pelas parcelas; chave de regime adiada pelo usuário.
