@@ -418,14 +418,33 @@ describe('pay a different amount', () => {
     // A chosen category wins; invalid combinations are rejected.
     const third = (await mk(10000, '2026-10-06')).body[0];
     const food = await firstCategory(c, 'expense', 'Alimentação');
-    const custom = await c.patch(`/transactions/${third.id}/paid`, { paid: true, amount: 12000, differenceCategoryId: food.id });
+    const custom = await c.patch(`/transactions/${third.id}/paid`, { paid: true, amount: 12000, paidAt: '2026-10-18', differenceCategoryId: food.id });
     expect(custom.status).toBe(200);
     const extra = (await c.get('/transactions?type=expense&search=Juros')).body.items.find((t: any) => t.amount === 2000);
     expect(extra.categoryId).toBe(food.id);
     const salary = await firstCategory(c, 'income', 'Salário');
     const fourth = (await mk(10000, '2026-10-07')).body[0];
-    expect((await c.patch(`/transactions/${fourth.id}/paid`, { paid: true, amount: 12000, differenceCategoryId: salary.id })).status).toBe(422);
+    expect((await c.patch(`/transactions/${fourth.id}/paid`, { paid: true, amount: 12000, paidAt: '2026-10-18', differenceCategoryId: salary.id })).status).toBe(422);
     expect((await c.patch(`/transactions/${fourth.id}/paid`, { paid: true, amount: 0 })).status).toBe(400);
+  });
+
+  it('higher on time (or with the switch off) corrects the entry itself; fees only when late', async () => {
+    const energy = await firstCategory(c, 'expense', 'Moradia');
+    const mk = (date: string) =>
+      c.post('/transactions', { type: 'expense', description: 'Conta de luz', amount: 20000, date, accountId: account, categoryId: energy.id });
+    // Paid on the due date with a higher value: higher consumption, not interest.
+    const onTime = (await mk('2026-10-15')).body[0];
+    const r1 = await c.patch(`/transactions/${onTime.id}/paid`, { paid: true, amount: 23500, paidAt: '2026-10-15' });
+    expect(r1.body).toMatchObject({ amount: 23500, paid: true });
+    // Late, but the user says it is a price correction: no separate entry.
+    const late = (await mk('2026-10-01')).body[0];
+    const r2 = await c.patch(`/transactions/${late.id}/paid`, { paid: true, amount: 21000, paidAt: '2026-10-08', differenceAs: 'amount' });
+    expect(r2.body).toMatchObject({ amount: 21000 });
+    expect((await c.get('/transactions?type=expense&search=Juros')).body.items).toHaveLength(0);
+    // Interest and fines cannot be booked for an on-time payment.
+    const other = (await mk('2026-10-16')).body[0];
+    const r3 = await c.patch(`/transactions/${other.id}/paid`, { paid: true, amount: 25000, paidAt: '2026-10-16', differenceAs: 'fees' });
+    expect(r3.status).toBe(422);
   });
 
   it('creates "Juros e multas" when the workspace has none', async () => {
@@ -434,7 +453,7 @@ describe('pay a different amount', () => {
     // Simulates an older workspace whose tree predates the category.
     await c.del(`/categories/${lateFee.id}`);
     const bill = (await c.post('/transactions', { type: 'expense', description: 'Água', amount: 8000, date: '2026-10-02', accountId: account })).body[0];
-    await c.patch(`/transactions/${bill.id}/paid`, { paid: true, amount: 8500 });
+    await c.patch(`/transactions/${bill.id}/paid`, { paid: true, amount: 8500, paidAt: '2026-10-10' });
     const again = (await firstCategory(c, 'expense', 'Impostos e taxas')).subcategories.find((s: any) => s.name === 'Juros e multas')!;
     expect(again).toBeTruthy();
     const fee = (await c.get('/transactions?type=expense&search=Juros')).body.items[0];

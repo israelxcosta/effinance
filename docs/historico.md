@@ -106,6 +106,10 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   vira um lançamento **já pago**, na data do pagamento, "Juros e multa — <descrição>", na subcategoria
   **Juros e multas** (em Impostos e taxas; criada automaticamente em espaços antigos) ou na categoria
   escolhida. Em receitas, a diferença vai para a categoria do próprio lançamento por padrão.
+  **Ajuste do usuário (2026-11-26):** juros e multa só quando **pago depois do vencimento**, com chave
+  "Lançar como juros e multa" (ligada por padrão, pode desligar). Em dia, ou com a chave desligada, o valor
+  maior **corrige o próprio lançamento** (correção de valor, consumo maior em contas fixas). API:
+  `differenceAs` ('fees' | 'amount'); 'fees' em dia é recusado.
 - **Pedido do usuário (2026-11-26):** página **Investimentos** (`/investimentos`, menu lateral), só com o
   **cadastro das compras** por enquanto: ativo/ticker (maiúsculas), tipo (ação, FII, ETF, BDR, renda fixa,
   cripto, outro), nome, corretora (conta do tipo Investimento, opcional), data, quantidade (até 8 casas;
@@ -238,3 +242,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: pagar outro valor (menor ajusta; maior lança juros e multa em categoria própria).
 - 2026-11-26: linha de lançamento: coluna Conta/Cartão só em linhas largas (@4xl, 160→224 px); no card Próximos vencimentos a descrição aparece inteira.
 - 2026-11-26: módulo **Investimentos** (compras e preço médio) e espaçamentos do Dashboard inteligente.
+- 2026-11-26: juros e multa só com pagamento atrasado e chave para desligar.

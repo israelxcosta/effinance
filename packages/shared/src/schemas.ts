@@ -386,10 +386,17 @@ export const setPaidSchema = z.object({
   accountId: idSchema.nullish(),
   /**
    * Amount actually paid/received, when it differs from the planned one (only with `paid: true`).
-   * Lower: this entry becomes that amount (the bill was smaller this month). Higher: the entry keeps
-   * its amount and the difference becomes its own paid entry (interest and fines).
+   * Lower, or higher on/before the due date: this entry becomes that amount (smaller bill, price
+   * correction, higher consumption). Higher after the due date: by default the entry keeps its amount
+   * and the difference becomes its own paid entry (interest and fines) — see `differenceAs`.
    */
   amount: amountSchema.nullish(),
+  /**
+   * What to do with a higher amount: 'fees' = separate interest-and-fines entry (only when paid after
+   * the due date); 'amount' = the entry itself becomes the paid amount. Default: 'fees' when late,
+   * otherwise 'amount'.
+   */
+  differenceAs: z.enum(['fees', 'amount']).nullish(),
   /** Category of the difference when `amount` is higher; default: "Juros e multas" (created if missing). */
   differenceCategoryId: idSchema.nullish(),
   differenceSubcategoryId: idSchema.nullish(),

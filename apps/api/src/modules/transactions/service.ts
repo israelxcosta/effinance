@@ -437,7 +437,14 @@ export async function setPaid(
     if (row.type === 'transfer' || row.creditCardId) {
       throw new ValidationError('Só contas a pagar e a receber aceitam outro valor no pagamento');
     }
-    if (amount < row.amount) {
+    const paidAt = patch.paidAt ?? defaultPaidAt(row.date);
+    const late = paidAt > row.date;
+    if (input.differenceAs === 'fees' && amount > row.amount && !late) {
+      throw new ValidationError('Juros e multa só quando o pagamento é depois do vencimento');
+    }
+    const asFees = amount > row.amount && late && input.differenceAs !== 'amount';
+    if (!asFees) {
+      // Smaller bill, price correction or higher consumption: this occurrence takes the paid amount.
       patch.amount = amount;
     } else {
       const type = row.type as 'income' | 'expense';
@@ -456,7 +463,6 @@ export async function setPaid(
         subcategoryId,
         contactId: row.contactId,
       });
-      const paidAt = patch.paidAt ?? defaultPaidAt(row.date);
       difference = {
         workspaceId,
         type,

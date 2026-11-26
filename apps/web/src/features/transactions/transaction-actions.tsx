@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MoneyInput } from '@/components/ui/money-input';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useCategories } from '@/features/categories/api';
 import { CategoryPicker, type CategoryValue } from '@/features/categories/category-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { formatBRL, formatMonthKey, todayISO, type Transaction, type TransactionListResponse } from '@effinance/shared';
+import { formatBRL, formatDateBR, formatMonthKey, todayISO, type Transaction, type TransactionListResponse } from '@effinance/shared';
 import { ConfirmDialog, Modal } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
@@ -321,6 +322,11 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
   const income = tx?.type === 'income';
   const planned = tx?.amount ?? 0;
   const diff = amount - planned;
+  // Interest and fines only make sense when paid after the due date; even then the user may say the
+  // extra is a price correction or higher consumption (switch off).
+  const late = Boolean(tx) && paidAt > tx!.date;
+  const [asFees, setAsFees] = useState(true);
+  const separate = diff > 0 && late && asFees;
 
   // Default for the extra on an expense: the "Juros e multas" subcategory, when the workspace has it.
   const lateFee = useMemo(() => {
@@ -336,6 +342,7 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
     setAmount(t.amount);
     setAccountId(t.accountId ?? '');
     setPaidAt(todayISO());
+    setAsFees(true);
     setDiffCategory(
       t.type === 'income' ? { categoryId: t.categoryId ?? '', subcategoryId: t.subcategoryId ?? '' } : (lateFee ?? { categoryId: '', subcategoryId: '' }),
     );
@@ -358,15 +365,16 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
           paidAt,
           accountId: accountId || undefined,
           amount,
-          differenceCategoryId: diff > 0 ? diffCategory.categoryId || undefined : undefined,
-          differenceSubcategoryId: diff > 0 ? diffCategory.subcategoryId || undefined : undefined,
+          differenceAs: diff > 0 ? (separate ? 'fees' : 'amount') : undefined,
+          differenceCategoryId: separate ? diffCategory.categoryId || undefined : undefined,
+          differenceSubcategoryId: separate ? diffCategory.subcategoryId || undefined : undefined,
         },
       });
       toast.success(
-        diff > 0
+        separate
           ? `${income ? 'Recebido' : 'Pago'} com ${formatBRL(diff)} de ${income ? 'acréscimo' : 'juros e multa'} 👍`
-          : diff < 0
-            ? `${income ? 'Recebido' : 'Pago'}: ${formatBRL(amount)} (${formatBRL(-diff)} a menos) 👍`
+          : diff !== 0
+            ? `${income ? 'Recebido' : 'Pago'}: ${formatBRL(amount)} (${formatBRL(Math.abs(diff))} a ${diff > 0 ? 'mais' : 'menos'}) 👍`
             : income
               ? 'Recebimento confirmado 👍'
               : 'Pagamento confirmado 👍',
@@ -400,29 +408,6 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
         <Field label={income ? 'Valor recebido' : 'Valor pago'}>
           <MoneyInput value={amount} onChange={setAmount} size="lg" autoFocus />
         </Field>
-        {diff !== 0 && amount > 0 ? (
-          <div className={cn('rounded-lg px-3.5 py-3 text-label', diff > 0 ? 'bg-danger-soft text-fg' : 'bg-success-soft text-fg')}>
-            {diff > 0 ? (
-              <>
-                <strong className="font-semibold">{formatBRL(diff)}</strong> a mais. O lançamento continua com {formatBRL(planned)} e a
-                diferença entra como um lançamento separado{income ? '' : ' de juros e multa'}, já {income ? 'recebido' : 'pago'}.
-              </>
-            ) : (
-              <>
-                <strong className="font-semibold">{formatBRL(-diff)}</strong> a menos. O lançamento passa a ser de {formatBRL(amount)} só neste
-                mês; os próximos continuam com {formatBRL(planned)}.
-              </>
-            )}
-          </div>
-        ) : null}
-        {diff > 0 ? (
-          <Field
-            label={income ? 'Categoria do acréscimo' : 'Categoria dos juros e multa'}
-            hint={!income && !diffCategory.categoryId ? 'Em branco, vai para "Juros e multas" (criada se ainda não existir).' : undefined}
-          >
-            <CategoryPicker type={income ? 'income' : 'expense'} value={diffCategory} onChange={setDiffCategory} placeholder="Juros e multas" />
-          </Field>
-        ) : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label={income ? 'Recebido em' : 'Pago em'}>
             <DateInput value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
@@ -440,6 +425,40 @@ function PayAmountDialog({ tx, onClose }: { tx: Transaction | null; onClose: () 
             </Select>
           </Field>
         </div>
+        {diff > 0 && amount > 0 ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-border p-3.5">
+            <label className={cn('flex items-center justify-between gap-3', !late && 'opacity-60')}>
+              <span className="min-w-0">
+                <span className="block text-label font-semibold text-fg">{income ? 'Lançar a diferença à parte' : 'Lançar como juros e multa'}</span>
+                <span className="block text-xs text-muted">
+                  {late
+                    ? `${income ? 'Recebido' : 'Pago'} depois do vencimento (${formatDateBR(tx!.date)}).`
+                    : `Só para ${income ? 'recebimentos' : 'pagamentos'} depois do vencimento (${tx ? formatDateBR(tx.date) : ''}).`}
+                </span>
+              </span>
+              <Switch checked={separate} onCheckedChange={setAsFees} disabled={!late} aria-label={income ? 'Lançar a diferença à parte' : 'Lançar como juros e multa'} />
+            </label>
+            <p className={cn('rounded-md px-3 py-2.5 text-label text-fg', separate ? 'bg-danger-soft' : 'bg-primary-soft')}>
+              <strong className="font-semibold">{formatBRL(diff)}</strong> a mais.{' '}
+              {separate
+                ? `O lançamento continua com ${formatBRL(planned)} e a diferença entra como um lançamento separado${income ? '' : ' de juros e multa'}, já ${income ? 'recebido' : 'pago'}.`
+                : `O lançamento passa a ser de ${formatBRL(amount)} só neste mês (correção de valor ou consumo maior); os próximos continuam com ${formatBRL(planned)}.`}
+            </p>
+            {separate ? (
+              <Field
+                label={income ? 'Categoria do acréscimo' : 'Categoria dos juros e multa'}
+                hint={!income && !diffCategory.categoryId ? 'Em branco, vai para "Juros e multas" (criada se ainda não existir).' : undefined}
+              >
+                <CategoryPicker type={income ? 'income' : 'expense'} value={diffCategory} onChange={setDiffCategory} placeholder="Juros e multas" />
+              </Field>
+            ) : null}
+          </div>
+        ) : diff < 0 && amount > 0 ? (
+          <p className="rounded-lg bg-success-soft px-3.5 py-3 text-label text-fg">
+            <strong className="font-semibold">{formatBRL(-diff)}</strong> a menos. O lançamento passa a ser de {formatBRL(amount)} só neste mês; os
+            próximos continuam com {formatBRL(planned)}.
+          </p>
+        ) : null}
       </div>
     </Modal>
   );
