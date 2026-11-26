@@ -64,6 +64,7 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | GET | `/api/dashboard?month=YYYY-MM` | `dashboardQuerySchema` | `DashboardResponse` |
 | GET | `/api/reports/overview` | `overviewReportQuerySchema` | `OverviewReportResponse` |
 | GET | `/api/reports/categories` | `categoryReportQuerySchema` | `CategoryReportResponse` |
+| GET | `/api/reports/evolution` | `evolutionReportQuerySchema` (`to` AAAA-MM, `months` 1–36, `interval` month/quarter/year) | `EvolutionReportResponse` (categorias × períodos, com subcategorias; médias só sobre períodos com movimento) |
 | GET | `/api/reports/contacts` | `contactReportQuerySchema` | `ContactReportResponse` |
 | GET | `/api/reports/comparison` | `comparisonReportQuerySchema` | `ComparisonReportResponse` |
 | GET | `/api/reports/cashflow` | `cashflowReportQuerySchema` | `CashflowReportResponse` |

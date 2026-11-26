@@ -8,6 +8,8 @@ import type {
   ComparisonReportResponse,
   ContactReportQuery,
   ContactReportResponse,
+  EvolutionReportQuery,
+  EvolutionReportResponse,
   OverviewReportQuery,
   OverviewReportResponse,
 } from '@effinance/shared';
@@ -27,6 +29,7 @@ function useReport<T>(name: string, params: object, enabled = true) {
 
 export const useOverviewReport = (p: OverviewReportQuery) => useReport<OverviewReportResponse>('overview', p);
 export const useCategoryReport = (p: CategoryReportQuery) => useReport<CategoryReportResponse>('categories', p);
+export const useEvolutionReport = (p: EvolutionReportQuery) => useReport<EvolutionReportResponse>('evolution', p);
 export const useContactReport = (p: ContactReportQuery) => useReport<ContactReportResponse>('contacts', p);
 export const useComparisonReport = (p: ComparisonReportQuery) => useReport<ComparisonReportResponse>('comparison', p);
 export const useCashflowReport = (p: CashflowReportQuery, enabled = true) =>

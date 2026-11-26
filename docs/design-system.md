@@ -143,6 +143,7 @@ Pesos: 400 texto, 500 rótulos, 600 títulos e valores (700/800 só nas siglas d
 | EmptyState         | caixa com borda tracejada raio lg, ícone em quadrado `bg-subtle`, título 14/600, descrição muted, botão outline |
 | ProgressBar        | trilho `brand-100`, preenchimento `brand-800` (metas) ou `success`/`danger` (limite) |
 | InsightCard        | gradiente `brand-700 → brand-900`, texto branco, cartão interno vidro (`white/8`, borda `white/12`), chip overline; título em 1 linha e descrição em até 2 (`line-clamp-2`); todos os insights empilhados na mesma célula de grid, então as setas não mudam a altura |
+| Matriz de evolução | Relatórios → Evolução: 1ª coluna fixa (ícone, nome, minigráfico); Média e Total fixos à direita; grupos Receitas/Despesas com faixa `success/danger-soft`; subcategorias expansíveis; valores neutros, vermelho/verde só em subtotais e Resultado; mapa de calor `danger` 3–16% nas despesas; zero = "—"; % da receita em `text-2xs subtle`; período atual `brand-50` + "parcial"; abre rolada nos períodos recentes |
 | BankLogo           | círculo com cor oficial aproximada do banco e sigla (Nu, Itaú, BB, Cx...) — sem marcas registradas |
 | CategoryIcon       | quadrado raio md com fundo `cor/12%` e ícone lucide na cor da categoria |
 

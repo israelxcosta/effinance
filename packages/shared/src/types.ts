@@ -402,6 +402,48 @@ export interface CategoryReportResponse {
   total: number;
 }
 
+export interface EvolutionPeriod {
+  key: string;
+  /** "Nov/26", "4º tri/26", "2026". */
+  label: string;
+  start: ISODate;
+  end: ISODate;
+  /** Today falls inside the period: values are still coming in. */
+  current: boolean;
+}
+
+export interface EvolutionRow {
+  /** null = "Sem categoria" (or "Sem subcategoria" inside a category). */
+  categoryId: string | null;
+  name: string;
+  icon: IconName;
+  color: string;
+  /** One value per period (same order as `periods`), in cents. */
+  values: number[];
+  total: number;
+  /** total / `activePeriods` of the report. */
+  average: number;
+  /** Subcategories, only when the category has amounts in at least one of them. */
+  children: EvolutionRow[];
+}
+
+export interface EvolutionGroup {
+  rows: EvolutionRow[];
+  values: number[];
+  total: number;
+  average: number;
+}
+
+export interface EvolutionReportResponse {
+  periods: EvolutionPeriod[];
+  /** Periods with any income or expense; averages divide by it (min. 1). */
+  activePeriods: number;
+  income: EvolutionGroup;
+  expense: EvolutionGroup;
+  /** income − expense per period. */
+  result: number[];
+}
+
 export interface ContactSeries {
   contactId: string | null;
   name: string;

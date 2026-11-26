@@ -86,6 +86,12 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   vencidas (qualquer mês), levando a `/contas-a-pagar?status=overdue`. Contas vencidas **saíram dos
   insights** (`reports/insights.ts`). Textos dos insights encurtados (título ≤ 40, descrição ≤ 90
   caracteres, testado) e o InsightCard mantém altura fixa ao trocar com as setas.
+- **Pedido do usuário (2026-11-26), aprovado "do jeito que está":** aba **Evolução** em Relatórios
+  (`GET /reports/evolution`, `evolution-tab.tsx`): categorias × meses/trimestres/anos (6–36 meses até o
+  mês ativo), receitas e despesas com subcategorias, % da receita, mapa de calor, Média/Total fixos à
+  direita, Resultado com "% guardado", exportação CSV (pt-BR, `;`, BOM, proteção contra fórmulas) e
+  clique no valor abrindo contas a pagar/receber filtradas. Valores neutros e **com centavos**.
+  Médias dividem só pelos períodos com movimento (meses antes do primeiro lançamento não diluem).
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -202,5 +208,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: criar subcategoria direto do lançamento (campo "Categoria pai" em Nova categoria).
 - 2026-11-26: dashboard com card vermelho de contas atrasadas (no lugar de Eficiência); insights mais curtos e sem vencidas.
 - 2026-11-26: parceladas seguem mês a mês pelas parcelas; chave de regime adiada pelo usuário.
-- 2026-11-26: protótipo do relatório "Evolução por categoria" apresentado (`docs/prototipos/evolucao-por-categoria/`);
-  aguarda aprovação e respostas (despesas neutras? centavos? ajustes) antes de implementar.
+- 2026-11-26: relatório **Evolução por categoria** (aba Evolução) implementado como o protótipo aprovado.

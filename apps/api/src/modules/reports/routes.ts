@@ -4,9 +4,10 @@ import {
   categoryReportQuerySchema,
   comparisonReportQuerySchema,
   contactReportQuerySchema,
+  evolutionReportQuerySchema,
   overviewReportQuerySchema,
 } from '@effinance/shared';
-import { cashflowReport, categoryReport, comparisonReport, contactReport, overviewReport } from './service';
+import { cashflowReport, categoryReport, comparisonReport, contactReport, evolutionReport, overviewReport } from './service';
 
 export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/overview', { schema: { querystring: overviewReportQuerySchema } }, async (req) =>
@@ -14,6 +15,9 @@ export const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   );
   app.get('/categories', { schema: { querystring: categoryReportQuerySchema } }, async (req) =>
     categoryReport(req.db, req.workspaceId, req.query),
+  );
+  app.get('/evolution', { schema: { querystring: evolutionReportQuerySchema } }, async (req) =>
+    evolutionReport(req.db, req.workspaceId, req.query),
   );
   app.get('/contacts', { schema: { querystring: contactReportQuerySchema } }, async (req) =>
     contactReport(req.db, req.workspaceId, req.query),

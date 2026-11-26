@@ -1,7 +1,10 @@
 import { and, between, desc, eq, inArray, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import {
+  MONTH_SHORT,
   PAYMENT_METHOD_LABELS,
   addDays,
+  addMonthKey,
+  monthRange,
   diffInDays,
   enumeratePeriods,
   getInvoiceDates,
@@ -12,6 +15,11 @@ import {
   type CategorySeries,
   type ComparisonReportResponse,
   type ContactReportResponse,
+  type EvolutionGroup,
+  type EvolutionPeriod,
+  type EvolutionReportResponse,
+  type EvolutionRow,
+  type evolutionReportQuerySchema,
   type Granularity,
   type IconName,
   type ISODate,
@@ -174,6 +182,126 @@ export async function categoryReport(
   series.sort((a, b) => b.total - a.total);
 
   return { type: q.type, periods, series, totals, total };
+}
+
+// ---------------------------------------------------------------------------
+// Evolution: category × period matrix (income and expense, with subcategories)
+// ---------------------------------------------------------------------------
+
+type EvolutionReportQuery = z.output<typeof evolutionReportQuerySchema>;
+
+/** Groups the months of the range into the report columns (month, calendar quarter or year). */
+export function evolutionPeriods(to: string, months: number, interval: EvolutionReportQuery['interval'], now: ISODate): {
+  periods: EvolutionPeriod[];
+  columnOf: Map<string, number>;
+} {
+  const periods: EvolutionPeriod[] = [];
+  const columnOf = new Map<string, number>();
+  for (let i = months - 1; i >= 0; i--) {
+    const month = addMonthKey(to, -i);
+    const [y, m] = [Number(month.slice(0, 4)), Number(month.slice(5, 7))];
+    const yy = String(y).slice(2);
+    const key = interval === 'month' ? month : interval === 'quarter' ? `${y}-Q${Math.ceil(m / 3)}` : String(y);
+    const label =
+      interval === 'month' ? `${MONTH_SHORT[m - 1]}/${yy}` : interval === 'quarter' ? `${Math.ceil(m / 3)}º tri/${yy}` : String(y);
+    const range = monthRange(month);
+    let last = periods[periods.length - 1];
+    if (!last || last.key !== key) {
+      last = { key, label, start: range.from, end: range.to, current: false };
+      periods.push(last);
+    }
+    last.end = range.to;
+    columnOf.set(month, periods.length - 1);
+  }
+  for (const p of periods) p.current = p.start <= now && now <= p.end;
+  return { periods, columnOf };
+}
+
+export async function evolutionReport(
+  db: DbExecutor,
+  workspaceId: string,
+  q: EvolutionReportQuery,
+): Promise<EvolutionReportResponse> {
+  const { periods, columnOf } = evolutionPeriods(q.to, q.months, q.interval, today());
+  const from = periods[0]!.start;
+  const to = periods[periods.length - 1]!.end;
+  await ensureMaterialized(db, workspaceId, to);
+
+  const month = sql<string>`to_char(${transactions.date}, 'YYYY-MM')`;
+  const rows = await db
+    .select({
+      type: transactions.type,
+      categoryId: transactions.categoryId,
+      subcategoryId: transactions.subcategoryId,
+      month,
+      amount: sumOf(transactions.amount),
+    })
+    .from(transactions)
+    .where(competenceWhere(workspaceId, from, to, 'all'))
+    .groupBy(transactions.type, transactions.categoryId, transactions.subcategoryId, month);
+
+  const cats = await categoryMap(db, workspaceId);
+  const zeros = () => Array.from({ length: periods.length }, () => 0);
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  // Averages count only periods with any movement, so months before the user started do not dilute them.
+  const activeCols = new Set<number>();
+  for (const r of rows) {
+    const col = columnOf.get(r.month);
+    if (col !== undefined && r.amount !== 0) activeCols.add(col);
+  }
+  const activePeriods = Math.max(1, activeCols.size);
+  const finish = (row: Omit<EvolutionRow, 'total' | 'average'>): EvolutionRow => {
+    const total = sum(row.values);
+    return { ...row, total, average: Math.round(total / activePeriods) };
+  };
+
+  // type → category → subcategory ('' = none) → values
+  const tree = new Map<string, Map<string, Map<string, number[]>>>();
+  for (const r of rows) {
+    const col = columnOf.get(r.month);
+    if (col === undefined || r.amount === 0) continue;
+    const byCat = tree.get(r.type) ?? new Map<string, Map<string, number[]>>();
+    tree.set(r.type, byCat);
+    const catKey = r.categoryId ?? '';
+    const bySub = byCat.get(catKey) ?? new Map<string, number[]>();
+    byCat.set(catKey, bySub);
+    const subKey = r.subcategoryId ?? '';
+    const values = bySub.get(subKey) ?? zeros();
+    values[col]! += r.amount;
+    bySub.set(subKey, values);
+  }
+
+  function group(type: 'income' | 'expense'): EvolutionGroup {
+    const out: EvolutionRow[] = [];
+    for (const [catKey, bySub] of tree.get(type) ?? []) {
+      const values = zeros();
+      for (const v of bySub.values()) v.forEach((x, i) => (values[i]! += x));
+      const meta = categoryMeta(cats, catKey || null);
+      const hasSubs = [...bySub.keys()].some((k) => k !== '');
+      const children = hasSubs
+        ? [...bySub.entries()]
+            .map(([subKey, v]) =>
+              finish({
+                categoryId: subKey || null,
+                ...(subKey ? categoryMeta(cats, subKey) : { ...meta, name: 'Sem subcategoria' }),
+                values: v,
+                children: [],
+              }),
+            )
+            .sort((a, b) => b.total - a.total)
+        : [];
+      out.push(finish({ categoryId: catKey || null, ...meta, values, children }));
+    }
+    out.sort((a, b) => b.total - a.total);
+    const values = zeros();
+    for (const r of out) r.values.forEach((x, i) => (values[i]! += x));
+    const total = sum(values);
+    return { rows: out, values, total, average: Math.round(total / activePeriods) };
+  }
+
+  const income = group('income');
+  const expense = group('expense');
+  return { periods, activePeriods: activeCols.size, income, expense, result: income.values.map((v, i) => v - expense.values[i]!) };
 }
 
 // ---------------------------------------------------------------------------

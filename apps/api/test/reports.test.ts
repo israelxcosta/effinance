@@ -68,6 +68,52 @@ describe('reports', () => {
     expect(weekly.totals.reduce((a: number, b: number) => a + b, 0)).toBe(230000);
   });
 
+  it('evolution matrix: income and expense by category and subcategory', async () => {
+    const res = await c.get('/reports/evolution?to=2026-10&months=3');
+    expect(res.status).toBe(200);
+    const r = res.body;
+    expect(r.periods.map((p: any) => p.label)).toEqual(['Ago/26', 'Set/26', 'Out/26']);
+    expect(r.periods.map((p: any) => p.current)).toEqual([false, false, true]);
+    // Income: fixed salary from September on.
+    expect(r.income.values).toEqual([0, 500000, 500000]);
+    expect(r.income.rows).toHaveLength(1);
+    expect(r.income.rows[0]).toMatchObject({ categoryId: salary.id, total: 1000000, children: [] });
+    // August has no movement at all: averages divide by the 2 active months, not 3.
+    expect(r.activePeriods).toBe(2);
+    expect(r.income.rows[0].average).toBe(500000);
+    expect(r.expense.average).toBe(215000);
+    // Expense: rent first (bigger total), food broken down by subcategory.
+    expect(r.expense.rows.map((x: any) => x.categoryId)).toEqual([home.id, food.id]);
+    const alim = r.expense.rows[1];
+    expect(alim.values).toEqual([0, 50000, 80000]);
+    expect(alim.children.map((x: any) => [x.name, x.values])).toEqual([
+      [food.subcategories[0]!.name, [0, 50000, 60000]],
+      [food.subcategories[1]!.name, [0, 0, 20000]],
+    ]);
+    expect(r.expense.values).toEqual([0, 200000, 230000]);
+    expect(r.expense.total).toBe(430000);
+    expect(r.result).toEqual([0, 300000, 270000]);
+    // Rent has no subcategory: no children row.
+    expect(r.expense.rows[0].children).toEqual([]);
+  });
+
+  it('evolution matrix groups months into quarters and years', async () => {
+    const q = (await c.get('/reports/evolution?to=2026-12&months=6&interval=quarter')).body;
+    expect(q.periods.map((p: any) => [p.label, p.start, p.end])).toEqual([
+      ['3º tri/26', '2026-07-01', '2026-09-30'],
+      ['4º tri/26', '2026-10-01', '2026-12-31'],
+    ]);
+    // Q4: food Oct (80000) + rent Oct..Dec (3 × 150000).
+    expect(q.expense.values).toEqual([200000, 530000]);
+    const y = (await c.get('/reports/evolution?to=2027-01&months=4&interval=year')).body;
+    expect(y.periods.map((p: any) => [p.label, p.start, p.end])).toEqual([
+      ['2026', '2026-10-01', '2026-12-31'],
+      ['2027', '2027-01-01', '2027-01-31'],
+    ]);
+    expect((await c.get('/reports/evolution?to=2026-13')).status).toBe(400);
+    expect((await c.get('/reports/evolution?to=2026-10&months=37')).status).toBe(400);
+  });
+
   it('totals and evolution by contact', async () => {
     const res = (await c.get('/reports/contacts?from=2026-09-01&to=2026-10-31')).body;
     const lar = res.items.find((i: any) => i.contactId === landlord);

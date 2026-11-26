@@ -494,6 +494,17 @@ export const cashflowReportQuerySchema = z.object({
 });
 export type CashflowReportQuery = z.input<typeof cashflowReportQuerySchema>;
 
+export const EVOLUTION_INTERVALS = ['month', 'quarter', 'year'] as const;
+export type EvolutionInterval = (typeof EVOLUTION_INTERVALS)[number];
+
+/** Category × period matrix: `months` months ending at `to` (inclusive), grouped by `interval`. */
+export const evolutionReportQuerySchema = z.object({
+  to: monthKeySchema,
+  months: z.coerce.number().int().min(1).max(36).default(12),
+  interval: z.enum(EVOLUTION_INTERVALS).default('month'),
+});
+export type EvolutionReportQuery = z.input<typeof evolutionReportQuerySchema>;
+
 export const overviewReportQuerySchema = z.object({
   ...reportRange,
 });
