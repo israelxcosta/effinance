@@ -76,6 +76,17 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   Aplicação saindo da conta corrente; vínculo `goal_contributions.purchase_id` (0011). Retirar =
   Resgate (sem venda na carteira ainda). Na carteira, renda fixa mostra só o valor (sem quantidade e
   preço médio) e o nome do título.
+- **Venda e proventos** (pedido; método como Kinvo/Gorila/Investidor10): venda com preço, taxas e
+  resultado pelo **preço médio** (o médio do que fica não muda; vender tudo leva o custo inteiro);
+  o resultado fica na venda (`investment_sales`, migração 0012) e entra **só no saldo da corretora**
+  (`accountMovements`), fora de receitas/despesas e relatórios; no extrato da corretora vira linha
+  somente leitura. **Proventos** (Dividendos, JCP, Juros, Rendimento) = receita em **Rendimentos ›
+  subcategoria** (criada se faltar; padrão agora tem JCP e Rendimento) na conta da corretora
+  (`investment_incomes` + transação, CASCADE). Página: botão Provento; totais Total investido,
+  Disponível nas corretoras, Proventos no ano, Resultado de vendas; card "Disponível nas corretoras"
+  com Transferir (Resgate pré-preenchido) e Aplicar (compra sem "Pago com"); colunas Proventos e
+  Resultado; vender/provento por ativo (no celular, dentro do ativo aberto). Renda fixa vende por valor
+  (valor aplicado que sai + valor recebido). Retirar de meta com título = venda do título + Resgate.
 
 ### Visual (UI)
 
@@ -283,3 +294,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: auditoria de segurança com as 5 skills pedidas (6 frentes; relatórios em `docs/seguranca/`); metas com aplicação e aporte por transferência (reserva de emergência).
 - 2026-11-26: prévia `docs/prototipos/reserva-investimentos/` aguardando aprovação: meta "Acompanhar por Investimentos" (soma ativos marcados como reserva; renda fixa entra automaticamente; chave por ativo; "Aplicar" abre a compra com a chave "Contar na Reserva").
 - 2026-11-26: meta com corretora/banco + título: aportes viram compras de renda fixa em Investimentos (usuário preferiu isso à prévia de reserva por investimentos).
+- 2026-11-26: venda com resultado (saldo da corretora, fora de receitas/despesas) e proventos (receita em Rendimentos) nos investimentos; prévia `investimentos-vendas-proventos` implementada.

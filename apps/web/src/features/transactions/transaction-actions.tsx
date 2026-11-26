@@ -28,7 +28,7 @@ interface OpenTransactionOptions {
 
 interface TransactionActions {
   openTransaction: (options: OpenTransactionOptions) => void;
-  openTransfer: (mode?: TransferMode) => void;
+  openTransfer: (mode?: TransferMode, preset?: TransferSheetState['preset']) => void;
   edit: (tx: Transaction) => void;
   duplicate: (tx: Transaction) => void;
   remove: (tx: Transaction) => void;
@@ -81,9 +81,9 @@ export function TransactionActionsProvider({ children }: { children: ReactNode }
   );
 
   const openTransfer = useCallback(
-    (mode: TransferMode = 'transfer') => {
+    (mode: TransferMode = 'transfer', preset?: TransferSheetState['preset']) => {
       if (blocked()) return;
-      setTransferSheet({ open: true, mode });
+      setTransferSheet({ open: true, mode, preset });
     },
     [blocked],
   );

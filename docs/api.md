@@ -41,6 +41,16 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | POST | `/api/investments/purchases` | `investmentPurchaseInputSchema` (`accountId` = corretora, padrão "Carteira"; `paidFromAccountId` lança a Aplicação) | `InvestmentPurchase` (201) |
 | PUT | `/api/investments/purchases/:id` | `investmentPurchaseInputSchema` | `InvestmentPurchase` |
 | DELETE | `/api/investments/purchases/:id` | — | 204 |
+| POST | `/api/investments/sales` | `investmentSaleInputSchema` (quantidade ≤ posição; custo = preço médio × quantidade) | `InvestmentSale` (201, com `cost`, `proceeds`, `result`) |
+| DELETE | `/api/investments/sales/:id` | — | 204 |
+| POST | `/api/investments/incomes` | `investmentIncomeInputSchema` (`dividend`, `jcp`, `interest`, `yield`) | `InvestmentIncome` (201) |
+| DELETE | `/api/investments/incomes/:id` | — | 204 (apaga também a receita) |
+
+Venda: o resultado (lucro/prejuízo) muda o **saldo da corretora**, mas não é receita nem despesa; no
+extrato da corretora aparece como linha somente leitura (`transaction.investmentSaleId`). Provento:
+receita em **Rendimentos › Dividendos/JCP/Juros/Rendimento** (subcategoria criada se faltar) na conta da
+corretora; apagar a receita no extrato apaga o provento. `available` de cada corretora = saldo da conta
+− custo dos ativos que ficam nela (Transferir = Resgate; Aplicar = compra sem "Pago com").
 | GET | `/api/goals` | — | `Goal[]` |
 | POST | `/api/goals` | `goalInputSchema` | `Goal` (201) |
 | PUT | `/api/goals/:id` | `goalInputSchema` | `Goal` |

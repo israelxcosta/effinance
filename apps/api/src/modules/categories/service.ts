@@ -162,3 +162,35 @@ export async function ensureLateFeeCategory(
     .returning({ id: categories.id });
   return { categoryId: created!.id, subcategoryId: null };
 }
+
+export const INVESTMENT_INCOME_CATEGORY = 'Rendimentos';
+
+/**
+ * "Rendimentos › <subcategory>" for investment income (Dividendos, JCP, Juros, Rendimento), created
+ * when missing (workspaces from before the defaults had them, or renamed/archived ones).
+ */
+export async function ensureInvestmentIncomeCategory(
+  db: DbExecutor,
+  workspaceId: string,
+  subcategory: string,
+): Promise<{ categoryId: string; subcategoryId: string }> {
+  const rows = await db
+    .select()
+    .from(categories)
+    .where(and(eq(categories.workspaceId, workspaceId), eq(categories.type, 'income')));
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.toLowerCase();
+  let top = rows.find((r) => !r.parentId && !r.archived && same(r.name, INVESTMENT_INCOME_CATEGORY));
+  if (!top) {
+    [top] = await db
+      .insert(categories)
+      .values({ workspaceId, name: INVESTMENT_INCOME_CATEGORY, type: 'income', icon: 'trending-up', color: '#0F766E' })
+      .returning();
+  }
+  const sub = rows.find((r) => r.parentId === top!.id && !r.archived && same(r.name, subcategory));
+  if (sub) return { categoryId: top!.id, subcategoryId: sub.id };
+  const [created] = await db
+    .insert(categories)
+    .values({ workspaceId, parentId: top!.id, name: subcategory, type: 'income', icon: 'coins', color: top!.color })
+    .returning({ id: categories.id });
+  return { categoryId: top!.id, subcategoryId: created!.id };
+}

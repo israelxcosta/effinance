@@ -111,6 +111,17 @@ export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   other: 'Outro',
 };
 
+/** Investment income (proventos): booked as income in "Rendimentos" at the broker account. */
+export const INVESTMENT_INCOME_KINDS = ['dividend', 'jcp', 'interest', 'yield'] as const;
+export type InvestmentIncomeKind = (typeof INVESTMENT_INCOME_KINDS)[number];
+
+export const INVESTMENT_INCOME_LABELS: Record<InvestmentIncomeKind, string> = {
+  dividend: 'Dividendos',
+  jcp: 'JCP',
+  interest: 'Juros',
+  yield: 'Rendimento',
+};
+
 export const GRANULARITIES = ['day', 'week', 'month', 'year'] as const;
 export type Granularity = (typeof GRANULARITIES)[number];
 

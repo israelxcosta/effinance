@@ -8,6 +8,7 @@ import type {
   CategoryType,
   Frequency,
   IconName,
+  InvestmentIncomeKind,
   InvoiceStatus,
   PaymentMethod,
   RecurrenceKind,
@@ -154,6 +155,8 @@ export interface GoalContribution {
   transferId: string | null;
   /** Investment purchase booked with it (goals with a title). */
   purchaseId: string | null;
+  /** Investment sale booked with a withdrawal (goals with a title). */
+  saleId: string | null;
   account: { id: string; name: string } | null;
   createdAt: string;
 }
@@ -206,6 +209,11 @@ export interface RefCard {
 
 export interface Transaction {
   id: string;
+  /**
+   * Set on the read-only statement line of an investment sale result (not a real transaction: no
+   * edit, delete or pay). The id is the sale's.
+   */
+  investmentSaleId?: string;
   type: TransactionType;
   description: string;
   amount: number;
@@ -565,6 +573,38 @@ export interface InvestmentPurchase {
   createdAt: string;
 }
 
+export interface InvestmentSale {
+  id: string;
+  ticker: string;
+  accountId: string | null;
+  account: { id: string; name: string; bank: BankCode | null; color: string } | null;
+  date: ISODate;
+  quantity: number;
+  /** Sale price per unit, in cents. */
+  unitPrice: number;
+  fees: number;
+  /** What the units sold had cost (average price × quantity), in cents. */
+  cost: number;
+  /** quantity × unitPrice − fees: what stayed at the broker. */
+  proceeds: number;
+  /** proceeds − cost: profit (+) or loss (−). Changes the broker balance, not income/expenses. */
+  result: number;
+  createdAt: string;
+}
+
+export interface InvestmentIncome {
+  id: string;
+  kind: InvestmentIncomeKind;
+  ticker: string | null;
+  accountId: string | null;
+  account: { id: string; name: string; bank: BankCode | null; color: string } | null;
+  date: ISODate;
+  amount: number;
+  /** Income transaction ("Rendimentos") at the broker account. */
+  transactionId: string | null;
+  createdAt: string;
+}
+
 /** Everything bought of one asset (same ticker). */
 export interface InvestmentPosition {
   ticker: string;
@@ -580,6 +620,10 @@ export interface InvestmentPosition {
   lastDate: ISODate;
   /** Share of the portfolio's total invested (0–1). */
   share: number;
+  /** Profit/loss of the sales of this asset (cents). */
+  realizedResult: number;
+  /** Income received from this asset (cents). */
+  incomes: number;
 }
 
 export interface InvestmentBroker {
@@ -591,6 +635,8 @@ export interface InvestmentBroker {
   invested: number;
   /** Distinct assets bought at this broker. */
   assets: number;
+  /** Money at the broker not in assets: account balance − cost of the assets held there. */
+  available: number;
 }
 
 export interface InvestmentPortfolioResponse {
@@ -599,5 +645,15 @@ export interface InvestmentPortfolioResponse {
   brokers: InvestmentBroker[];
   /** Newest first. */
   purchases: InvestmentPurchase[];
+  /** Newest first. */
+  sales: InvestmentSale[];
+  /** Newest first. */
+  incomes: InvestmentIncome[];
   totalInvested: number;
+  /** Sum of the brokers' available money. */
+  available: number;
+  /** Sales result of all time (cents). */
+  realizedResult: number;
+  /** Income received in the current year (cents). */
+  incomesYear: number;
 }

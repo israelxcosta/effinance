@@ -26,6 +26,7 @@ import { createAccount } from '../modules/accounts/service';
 import { createCreditCard, payInvoice } from '../modules/credit-cards/service';
 import { createContact } from '../modules/contacts/service';
 import { addContribution, createGoal } from '../modules/goals/service';
+import { createIncome, createPurchase, createSale } from '../modules/investments/service';
 import { createTransaction } from '../modules/transactions/service';
 import { createTransfer } from '../modules/transfers/service';
 import { commitImport, previewImport } from '../modules/imports/service';
@@ -647,6 +648,18 @@ async function seedPersonal(db: DbExecutor, workspaceId: string): Promise<number
     },
     [[dayIn(firstMonth, 3), 1200000]],
   );
+
+  // --- investments: stocks/FII at XP (money already there), a sale at a loss, dividends --------
+  const buy = (ticker: string, assetType: 'stock' | 'fii', name: string, date: ISODate, quantity: number, unitPrice: number, fees = 0) =>
+    createPurchase(db, workspaceId, { assetType, ticker, name, accountId: xp.id, paidFromAccountId: null, date, quantity, unitPrice, fees });
+  await buy('PETR4', 'stock', 'Petrobras PN', dayIn(addMonthKey(currentMonth, -6), 12), 100, 3650, 490);
+  await buy('PETR4', 'stock', 'Petrobras PN', dayIn(addMonthKey(currentMonth, -3), 8), 50, 3880);
+  await buy('HGLG11', 'fii', 'CSHG Logística', dayIn(addMonthKey(currentMonth, -5), 15), 10, 16000);
+  await createSale(db, workspaceId, { ticker: 'PETR4', accountId: xp.id, date: dayIn(addMonthKey(currentMonth, -1), 18), quantity: 60, unitPrice: 3420, fees: 0 });
+  for (const m of [-4, -3, -2, -1]) {
+    await createIncome(db, workspaceId, { kind: 'dividend', ticker: 'HGLG11', accountId: xp.id, date: dayIn(addMonthKey(currentMonth, m), 14), amount: 1100 });
+  }
+  await createIncome(db, workspaceId, { kind: 'jcp', ticker: 'PETR4', accountId: xp.id, date: dayIn(addMonthKey(currentMonth, -2), 21), amount: 8450 });
 
   const [count] = await db
     .select({ n: sql<number>`count(*)`.mapWith(Number) })

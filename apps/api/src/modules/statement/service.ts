@@ -1,13 +1,14 @@
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import {
   addDays,
+  formatBRL,
   type StatementEntry,
   type StatementResponse,
   type statementQuerySchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
 import type { DbExecutor } from '../../db/client';
-import { accounts, transactions, type AccountRow, type TransactionRow } from '../../db/schema';
+import { accounts, investmentSales, transactions, type AccountRow, type InvestmentSaleRow, type TransactionRow } from '../../db/schema';
 import { getAccountWithBalance } from '../accounts/service';
 import { accountMovements } from '../accounts/balances';
 import { getAccountOrThrow } from '../common/ownership';
@@ -75,6 +76,25 @@ export async function getStatement(db: DbExecutor, workspaceId: string, q: State
           )
           .orderBy(asc(transactions.date), asc(transactions.createdAt));
 
+  // Investment sale results move broker balances (accountMovements): read-only lines keep the
+  // running balance of a broker's statement right. Only brokers selected one by one have them.
+  const sales =
+    set.some((a) => a.type === 'investment')
+      ? await db
+          .select()
+          .from(investmentSales)
+          .where(
+            and(
+              eq(investmentSales.workspaceId, workspaceId),
+              inArray(investmentSales.accountId, [...ids]),
+              sql`${investmentSales.date} between ${q.from} and ${q.to}`,
+              ne(investmentSales.result, 0),
+            ),
+          )
+      : [];
+  const saleIds = new Set(sales.map((sale) => sale.id));
+  rows.push(...sales.map(saleRow));
+
   rows.sort((a, b) => {
     const ea = effectiveDateOf(a);
     const eb = effectiveDateOf(b);
@@ -101,8 +121,10 @@ export async function getStatement(db: DbExecutor, workspaceId: string, q: State
       if (amount > 0) totalIn += amount;
       else totalOut += -amount;
     }
+    const transaction = toTransaction(row, refs, now);
+    if (saleIds.has(row.id)) transaction.investmentSaleId = row.id;
     return {
-      transaction: toTransaction(row, refs, now),
+      transaction,
       amount,
       balanceAfter: pending ? projected : realized,
       pending,
@@ -121,5 +143,42 @@ export async function getStatement(db: DbExecutor, workspaceId: string, q: State
     pendingIn,
     pendingOut,
     entries,
+  };
+}
+
+/** A sale result as a statement row (never stored as a transaction). */
+function saleRow(sale: InvestmentSaleRow): TransactionRow {
+  const qty = String(sale.quantity).replace('.', ',');
+  return {
+    id: sale.id,
+    workspaceId: sale.workspaceId,
+    type: sale.result > 0 ? 'income' : 'expense',
+    description: `Venda ${sale.ticker} (${qty} × ${formatBRL(sale.unitPrice)}) · ${sale.result > 0 ? 'lucro' : 'prejuízo'}`,
+    amount: Math.abs(sale.result),
+    date: sale.date,
+    paid: true,
+    paidAt: sale.date,
+    accountId: sale.accountId,
+    toAccountId: null,
+    creditCardId: null,
+    invoiceMonth: null,
+    categoryId: null,
+    subcategoryId: null,
+    contactId: null,
+    paymentMethod: null,
+    notes: null,
+    transferKind: null,
+    recurrenceId: null,
+    recurrenceKind: 'single',
+    frequency: null,
+    installmentNumber: null,
+    installmentTotal: null,
+    occurrenceIndex: null,
+    splitGroupId: null,
+    origin: 'manual',
+    importBatchId: null,
+    externalId: null,
+    createdAt: sale.createdAt,
+    updatedAt: sale.createdAt,
   };
 }

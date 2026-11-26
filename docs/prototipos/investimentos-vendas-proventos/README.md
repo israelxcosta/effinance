@@ -1,4 +1,4 @@
-# Protótipo: venda com resultado e proventos (aguardando aprovação)
+# Protótipo: venda com resultado e proventos (implementado em 2026-11-26)
 
 Pedido do usuário (2026-11-26): vender com preço de venda (pode dar prejuízo) e lançar proventos
 (dividendos, JCP, juros, rendimento); o dinheiro fica na corretora e pode ser transferido para a conta

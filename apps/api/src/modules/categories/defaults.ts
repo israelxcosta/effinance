@@ -159,7 +159,9 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
     color: '#0F766E',
     subcategories: [
       { name: 'Dividendos', icon: 'coins' },
+      { name: 'JCP', icon: 'hand-coins' },
       { name: 'Juros', icon: 'piggy-bank' },
+      { name: 'Rendimento', icon: 'trending-up' },
     ],
   },
   { name: 'Aluguéis recebidos', type: 'income', icon: 'building-2', color: '#84CC16' },

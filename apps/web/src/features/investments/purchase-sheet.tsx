@@ -30,6 +30,8 @@ export interface PurchaseSheetState {
   purchase?: InvestmentPurchase | null;
   /** New purchase of an asset already in the portfolio ("Comprar mais"). */
   ticker?: string;
+  /** "Aplicar" the money available at a broker: that broker, paid with what is already there. */
+  accountId?: string;
 }
 
 interface Props {
@@ -64,15 +66,15 @@ export function PurchaseSheet({ state, onOpenChange, positions, purchases }: Pro
     setTicker(editing?.ticker ?? state.ticker ?? '');
     setName(editing?.name ?? known?.name ?? '');
     const lastAny = purchases[0];
-    setAccountId(editing?.accountId ?? last?.accountId ?? lastAny?.accountId ?? '');
-    setPaidFrom(editing ? (editing.paidFrom?.id ?? '') : (last?.paidFrom?.id ?? lastAny?.paidFrom?.id ?? ''));
+    setAccountId(editing?.accountId ?? state.accountId ?? last?.accountId ?? lastAny?.accountId ?? '');
+    setPaidFrom(editing ? (editing.paidFrom?.id ?? '') : state.accountId ? '' : (last?.paidFrom?.id ?? lastAny?.paidFrom?.id ?? ''));
     setDate(editing?.date ?? todayISO());
     setQuantityText(editing ? formatQuantity(editing.quantity) : '');
     setUnitPrice(editing?.unitPrice ?? 0);
     setFees(editing?.fees ?? 0);
     setErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.open, editing, state.ticker]);
+  }, [state.open, editing, state.ticker, state.accountId]);
 
   const brokers = (accounts.data ?? []).filter((a) => a.type === 'investment' && (!a.archived || a.id === editing?.accountId));
   const payers = (accounts.data ?? []).filter((a) => a.type !== 'investment' && (!a.archived || a.id === editing?.paidFrom?.id));

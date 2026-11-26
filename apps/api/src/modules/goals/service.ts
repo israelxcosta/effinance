@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
+  formatBRL,
   parseISODate,
   type Goal,
   type GoalContribution,
@@ -15,7 +16,8 @@ import { NotFoundError, ValidationError } from '../../lib/errors';
 import { sumOf } from '../../lib/sql';
 import { getAccountOrThrow, getGoalOrThrow } from '../common/ownership';
 import { createTransfer } from '../transfers/service';
-import { createPurchase, deletePurchase } from '../investments/service';
+import { createPurchase, createSale, deletePurchase, deleteSale, positionOf } from '../investments/service';
+import { roundQuantity } from '@effinance/shared';
 
 type GoalInput = z.output<typeof goalInputSchema>;
 type ContributionInput = z.output<typeof goalContributionInputSchema>;
@@ -191,6 +193,7 @@ async function toContributions(db: DbExecutor, workspaceId: string, rows: GoalCo
         note: await openNote(row.workspaceId, 'goal_contributions', 'note', row.note),
         transferId: row.transferId,
         purchaseId: row.purchaseId,
+        saleId: row.saleId,
         account: other && names.has(other) ? { id: other, name: names.get(other)! } : null,
         createdAt: row.createdAt.toISOString(),
       };
@@ -248,6 +251,30 @@ export async function addContribution(db: DbExecutor, workspaceId: string, goalI
           })
         ).id
       : null;
+    // Withdrawing from a title sells that amount of it (at the average price: no result), then the
+    // Resgate brings the money to the chosen account.
+    const asSale = input.amount < 0 && Boolean(goal.assetName && goal.accountId);
+    let saleId: string | null = null;
+    if (asSale) {
+      const ticker = goal.assetName!.toUpperCase().replace(/\s+/g, ' ');
+      const position = await positionOf(tx, workspaceId, ticker);
+      const value = Math.abs(input.amount);
+      if (!position || value > position.totalInvested) {
+        throw new ValidationError(`${goal.assetName} tem ${formatBRL(position?.totalInvested ?? 0)} aplicados`);
+      }
+      const quantity =
+        value === position.totalInvested ? position.quantity : Math.max(1e-8, roundQuantity(value / (position.totalInvested / position.quantity)));
+      saleId = (
+        await createSale(tx, workspaceId, {
+          ticker,
+          accountId: goal.accountId,
+          date: input.date,
+          quantity,
+          unitPrice: Math.max(1, Math.round(value / quantity)),
+          fees: 0,
+        })
+      ).id;
+    }
     const transferId = asPurchase ? null : await bookTransfer(tx, workspaceId, goal, input);
     const { accountId: _account, ...values } = input;
     const [created] = await tx
@@ -258,6 +285,7 @@ export async function addContribution(db: DbExecutor, workspaceId: string, goalI
         ...values,
         transferId,
         purchaseId,
+        saleId,
         note: await sealNote(workspaceId, 'goal_contributions', 'note', input.note),
       })
       .returning();
@@ -272,10 +300,11 @@ export async function deleteContribution(db: DbExecutor, workspaceId: string, go
     const deleted = await tx
       .delete(goalContributions)
       .where(and(eq(goalContributions.id, id), eq(goalContributions.goalId, goalId), eq(goalContributions.workspaceId, workspaceId)))
-      .returning({ transferId: goalContributions.transferId, purchaseId: goalContributions.purchaseId });
+      .returning({ transferId: goalContributions.transferId, purchaseId: goalContributions.purchaseId, saleId: goalContributions.saleId });
     if (deleted.length === 0) throw new NotFoundError('Aporte não encontrado');
     // The money goes back: the linked purchase (with its Aplicação) or transfer goes with it.
     if (deleted[0]!.purchaseId) await deletePurchase(tx, workspaceId, deleted[0]!.purchaseId);
+    if (deleted[0]!.saleId) await deleteSale(tx, workspaceId, deleted[0]!.saleId);
     const transferId = deleted[0]!.transferId;
     if (transferId) {
       await tx

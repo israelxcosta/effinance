@@ -22,6 +22,7 @@ import type {
   AccountType,
   AssetType,
   BankAccountKind,
+  InvestmentIncomeKind,
   BankCode,
   BankConnectionStatus,
   CardBrand,
@@ -449,6 +450,78 @@ export const investmentPurchases = pgTable(
   ],
 );
 
+/** Sales of portfolio assets (migration 0012). The result changes the broker balance only. */
+export const investmentSales = pgTable(
+  'investment_sales',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    /** Broker the money stays at. */
+    accountId: uuid(),
+    ticker: text().notNull(),
+    date: calendarDate().notNull(),
+    quantity: numeric({ precision: 24, scale: 8, mode: 'number' }).notNull(),
+    unitPrice: money().notNull(),
+    fees: money().notNull().default(0),
+    /** Average cost of the units sold, fixed at the sale. */
+    cost: money().notNull(),
+    /** quantity × unitPrice − fees − cost (negative = loss). */
+    result: money().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('investment_sales_workspace_ticker_idx').on(t.workspaceId, t.ticker),
+    index('investment_sales_account_idx').on(t.accountId),
+    tenantUnique('investment_sales', t),
+    check('investment_sales_ticker_chk', sql`length(${t.ticker}) between 1 and 30`),
+    check('investment_sales_quantity_chk', sql`${t.quantity} > 0`),
+    check('investment_sales_amounts_chk', sql`${t.unitPrice} > 0 and ${t.fees} >= 0 and ${t.cost} >= 0`),
+    check('investment_sales_result_chk', sql`abs(${t.result}) <= 100000000000`),
+    foreignKey({
+      name: 'investment_sales_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+  ],
+);
+
+/** Dividends, JCP, interest, yield: each one is an income transaction at the broker (migration 0012). */
+export const investmentIncomes = pgTable(
+  'investment_incomes',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    accountId: uuid(),
+    kind: text().$type<InvestmentIncomeKind>().notNull(),
+    ticker: text(),
+    date: calendarDate().notNull(),
+    amount: money().notNull(),
+    /** The income transaction; deleting it in the statement deletes the record (CASCADE). */
+    transactionId: uuid(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('investment_incomes_workspace_date_idx').on(t.workspaceId, t.date),
+    tenantUnique('investment_incomes', t),
+    check('investment_incomes_kind_chk', sql`${t.kind} in ('dividend', 'jcp', 'interest', 'yield')`),
+    check('investment_incomes_ticker_chk', sql`${t.ticker} is null or length(${t.ticker}) between 1 and 30`),
+    check('investment_incomes_amount_chk', sql`${t.amount} > 0`),
+    foreignKey({
+      name: 'investment_incomes_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+    foreignKey({
+      name: 'investment_incomes_transaction_fk',
+      columns: [t.workspaceId, t.transactionId],
+      foreignColumns: [transactions.workspaceId, transactions.id],
+    }).onDelete('cascade'),
+    uniqueIndex('investment_incomes_transaction_uq')
+      .on(t.workspaceId, t.transactionId)
+      .where(sql`${t.transactionId} is not null`),
+  ],
+);
+
 export const goalContributions = pgTable(
   'goal_contributions',
   {
@@ -466,6 +539,8 @@ export const goalContributions = pgTable(
     transferId: uuid(),
     /** Investment purchase booked with it (goals with a title); set by the server only (migration 0011). */
     purchaseId: uuid(),
+    /** Investment sale booked with a withdrawal (goals with a title; migration 0012). */
+    saleId: uuid(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -493,6 +568,14 @@ export const goalContributions = pgTable(
     uniqueIndex('goal_contributions_purchase_uq')
       .on(t.workspaceId, t.purchaseId)
       .where(sql`${t.purchaseId} is not null`),
+    foreignKey({
+      name: 'goal_contributions_sale_fk',
+      columns: [t.workspaceId, t.saleId],
+      foreignColumns: [investmentSales.workspaceId, investmentSales.id],
+    }).onDelete('set null'),
+    uniqueIndex('goal_contributions_sale_uq')
+      .on(t.workspaceId, t.saleId)
+      .where(sql`${t.saleId} is not null`),
   ],
 );
 
@@ -979,6 +1062,8 @@ export type AccountRow = typeof accounts.$inferSelect;
 export type CreditCardRow = typeof creditCards.$inferSelect;
 export type GoalRow = typeof goals.$inferSelect;
 export type GoalContributionRow = typeof goalContributions.$inferSelect;
+export type InvestmentSaleRow = typeof investmentSales.$inferSelect;
+export type InvestmentIncomeRow = typeof investmentIncomes.$inferSelect;
 export type InvestmentPurchaseRow = typeof investmentPurchases.$inferSelect;
 export type ContactRow = typeof contacts.$inferSelect;
 export type RecurrenceRow = typeof recurrences.$inferSelect;

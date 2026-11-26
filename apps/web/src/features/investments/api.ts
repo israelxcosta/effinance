@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { InvestmentPortfolioResponse, InvestmentPurchase, InvestmentPurchaseInput } from '@effinance/shared';
+import type {
+  InvestmentIncome,
+  InvestmentIncomeInput,
+  InvestmentPortfolioResponse,
+  InvestmentPurchase,
+  InvestmentPurchaseInput,
+  InvestmentSale,
+  InvestmentSaleInput,
+} from '@effinance/shared';
 import { api } from '@/lib/api';
 
 const KEY = ['investments'] as const;
@@ -24,6 +32,44 @@ export function useDeletePurchase() {
   return useMutation({
     mutationFn: (id: string) => api<void>(`/investments/purchases/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
+/** Sales and income change broker balances, the statement and reports: refresh everything. */
+function useInvalidateAll() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries();
+}
+
+export function useCreateSale() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (input: InvestmentSaleInput) => api<InvestmentSale>('/investments/sales', { method: 'POST', body: input }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteSale() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/investments/sales/${id}`, { method: 'DELETE' }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateIncome() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (input: InvestmentIncomeInput) => api<InvestmentIncome>('/investments/incomes', { method: 'POST', body: input }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteIncome() {
+  const invalidate = useInvalidateAll();
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/investments/incomes/${id}`, { method: 'DELETE' }),
+    onSuccess: invalidate,
   });
 }
 

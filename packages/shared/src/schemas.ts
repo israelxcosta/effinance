@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   ACCOUNT_TYPES,
   ASSET_TYPES,
+  INVESTMENT_INCOME_KINDS,
   BANK_CODES,
   CARD_BRANDS,
   CATEGORY_TYPES,
@@ -579,3 +580,40 @@ export const investmentPurchaseInputSchema = z.object({
     path: ['unitPrice'],
   });
 export type InvestmentPurchaseInput = z.input<typeof investmentPurchaseInputSchema>;
+
+const tickerSchema = z
+  .string()
+  .trim()
+  .min(1, { message: 'Informe o ativo' })
+  .max(30, { message: 'Máximo de 30 caracteres' })
+  .transform((v) => v.toUpperCase().replace(/\s+/g, ' '));
+
+/** Sale of part or all of a position: the result is computed with the average price. */
+export const investmentSaleInputSchema = z
+  .object({
+    ticker: tickerSchema,
+    /** Broker the money stays at. Empty: the broker of the latest purchase of the asset. */
+    accountId: idSchema.nullish().transform((v) => v ?? null),
+    date: isoDateSchema,
+    quantity: assetQuantitySchema,
+    /** Sale price per unit, in cents. */
+    unitPrice: amountSchema,
+    fees: z.int().min(0).max(100_000_000_000).default(0),
+  })
+  .refine((v) => Math.round(v.quantity * v.unitPrice) <= MAX_AMOUNT_CENTS, {
+    message: 'Valor da venda muito alto',
+    path: ['unitPrice'],
+  });
+export type InvestmentSaleInput = z.input<typeof investmentSaleInputSchema>;
+
+/** Dividends, JCP, interest or yield received at a broker (an income transaction in "Rendimentos"). */
+export const investmentIncomeInputSchema = z.object({
+  kind: z.enum(INVESTMENT_INCOME_KINDS),
+  /** Asset that paid it (optional: e.g. interest on the cash at the broker). */
+  ticker: tickerSchema.nullish().transform((v) => v ?? null),
+  /** Broker the money went to. Empty: the broker of the asset, else the default "Carteira". */
+  accountId: idSchema.nullish().transform((v) => v ?? null),
+  date: isoDateSchema,
+  amount: amountSchema,
+});
+export type InvestmentIncomeInput = z.input<typeof investmentIncomeInputSchema>;

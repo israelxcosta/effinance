@@ -31,6 +31,8 @@ export interface TransferSheetState {
   open: boolean;
   mode: TransferMode;
   transfer?: Transaction;
+  /** Prefill of a new transfer (e.g. "Transferir" the money available at a broker). */
+  preset?: { fromAccountId?: string; amount?: number };
 }
 
 interface FormValues {
@@ -48,9 +50,9 @@ function initial(state: TransferSheetState): FormValues {
   const t = state.transfer;
   return {
     mode: t?.transferKind === 'investment' || t?.transferKind === 'redemption' ? t.transferKind : state.mode,
-    fromAccountId: t?.accountId ?? '',
+    fromAccountId: t?.accountId ?? state.preset?.fromAccountId ?? '',
     toAccountId: t?.toAccountId ?? '',
-    amount: t?.amount ?? 0,
+    amount: t?.amount ?? state.preset?.amount ?? 0,
     date: t?.date ?? todayISO(),
     description: t?.description ?? '',
     notes: t?.notes ?? '',

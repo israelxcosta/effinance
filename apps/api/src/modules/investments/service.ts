@@ -1,22 +1,88 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
+  INVESTMENT_INCOME_LABELS,
   MAX_AMOUNT_CENTS,
   buildPositions,
   formatBRL,
   purchaseTotal,
+  roundQuantity,
+  saleCost,
   type InvestmentBroker,
+  type InvestmentIncome,
   type InvestmentPortfolioResponse,
   type InvestmentPurchase,
+  type InvestmentSale,
+  type investmentIncomeInputSchema,
   type investmentPurchaseInputSchema,
+  type investmentSaleInputSchema,
 } from '@effinance/shared';
 import type { z } from 'zod';
 import type { DbExecutor } from '../../db/client';
-import { accounts, investmentPurchases, transactions, type InvestmentPurchaseRow } from '../../db/schema';
+import {
+  accounts,
+  investmentIncomes,
+  investmentPurchases,
+  investmentSales,
+  transactions,
+  type InvestmentIncomeRow,
+  type InvestmentPurchaseRow,
+  type InvestmentSaleRow,
+} from '../../db/schema';
+import { today } from '../../lib/clock';
+import { accountMovements } from '../accounts/balances';
+import { ensureInvestmentIncomeCategory } from '../categories/service';
 import { NotFoundError, ValidationError } from '../../lib/errors';
 import { getAccountOrThrow } from '../common/ownership';
 import { createTransfer } from '../transfers/service';
 
 type PurchaseInput = z.output<typeof investmentPurchaseInputSchema>;
+type SaleInput = z.output<typeof investmentSaleInputSchema>;
+type IncomeInput = z.output<typeof investmentIncomeInputSchema>;
+
+type AccountRef = { id: string; name: string; bank: InvestmentBroker['bank']; color: string };
+
+/** Name/bank/color of accounts, filtered by workspace (ids come from the server). */
+async function accountRefs(db: DbExecutor, workspaceId: string, ids: (string | null)[]): Promise<Map<string, AccountRef>> {
+  const unique = [...new Set(ids.filter((v): v is string => Boolean(v)))];
+  if (!unique.length) return new Map();
+  const rows = await db
+    .select({ id: accounts.id, name: accounts.name, bank: accounts.bank, color: accounts.color })
+    .from(accounts)
+    .where(and(eq(accounts.workspaceId, workspaceId), inArray(accounts.id, unique)));
+  return new Map(rows.map((a) => [a.id, a]));
+}
+
+function toSale(r: InvestmentSaleRow, refs: Map<string, AccountRef>): InvestmentSale {
+  const quantity = Number(r.quantity);
+  return {
+    id: r.id,
+    ticker: r.ticker,
+    accountId: r.accountId,
+    account: r.accountId ? (refs.get(r.accountId) ?? null) : null,
+    date: r.date,
+    quantity,
+    unitPrice: r.unitPrice,
+    fees: r.fees,
+    cost: r.cost,
+    proceeds: Math.round(quantity * r.unitPrice) - r.fees,
+    result: r.result,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+function toIncome(r: InvestmentIncomeRow, refs: Map<string, AccountRef>): InvestmentIncome {
+  return {
+    id: r.id,
+    kind: r.kind,
+    ticker: r.ticker,
+    accountId: r.accountId,
+    account: r.accountId ? (refs.get(r.accountId) ?? null) : null,
+    date: r.date,
+    amount: r.amount,
+    transactionId: r.transactionId,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
 
 async function toPurchases(db: DbExecutor, workspaceId: string, rows: InvestmentPurchaseRow[]): Promise<InvestmentPurchase[]> {
   // The linked transfers tell which account paid (filtered by workspace: ids come from the server).
@@ -124,27 +190,177 @@ async function getPurchaseOrThrow(db: DbExecutor, workspaceId: string, id: strin
 }
 
 export async function getPortfolio(db: DbExecutor, workspaceId: string): Promise<InvestmentPortfolioResponse> {
-  const rows = await db
-    .select()
-    .from(investmentPurchases)
-    .where(eq(investmentPurchases.workspaceId, workspaceId))
-    .orderBy(desc(investmentPurchases.date), desc(investmentPurchases.createdAt));
+  const [rows, saleRows, incomeRows] = await Promise.all([
+    db
+      .select()
+      .from(investmentPurchases)
+      .where(eq(investmentPurchases.workspaceId, workspaceId))
+      .orderBy(desc(investmentPurchases.date), desc(investmentPurchases.createdAt)),
+    db
+      .select()
+      .from(investmentSales)
+      .where(eq(investmentSales.workspaceId, workspaceId))
+      .orderBy(desc(investmentSales.date), desc(investmentSales.createdAt)),
+    db
+      .select()
+      .from(investmentIncomes)
+      .where(eq(investmentIncomes.workspaceId, workspaceId))
+      .orderBy(desc(investmentIncomes.date), desc(investmentIncomes.createdAt)),
+  ]);
   const purchases = await toPurchases(db, workspaceId, rows);
-  const positions = buildPositions(purchases);
+  const refs = await accountRefs(db, workspaceId, [...saleRows.map((r) => r.accountId), ...incomeRows.map((r) => r.accountId)]);
+  const sales = saleRows.map((r) => toSale(r, refs));
+  const incomes = incomeRows.map((r) => toIncome(r, refs));
+  const positions = buildPositions(purchases, sales, incomes);
+  const held = new Set(positions.map((p) => p.ticker));
+
   const brokerRows = await db
-    .select({ id: accounts.id, name: accounts.name, bank: accounts.bank, color: accounts.color, archived: accounts.archived })
+    .select({ id: accounts.id, name: accounts.name, bank: accounts.bank, color: accounts.color, archived: accounts.archived, initialBalance: accounts.initialBalance })
     .from(accounts)
     .where(and(eq(accounts.workspaceId, workspaceId), eq(accounts.type, 'investment')))
     .orderBy(asc(accounts.createdAt));
+  const now = today();
+  const movements = await accountMovements(db, workspaceId, now);
   const brokers: InvestmentBroker[] = brokerRows
     .map((b) => {
       const mine = purchases.filter((p) => p.accountId === b.id);
-      return { id: b.id, name: b.name, bank: b.bank, color: b.color, invested: mine.reduce((s, p) => s + p.total, 0), assets: new Set(mine.map((p) => p.ticker)).size, archived: b.archived };
+      // Cost of what is still held here: purchases minus the cost of what was sold here.
+      const invested =
+        mine.reduce((sum, p) => sum + p.total, 0) - sales.filter((x) => x.accountId === b.id).reduce((sum, x) => sum + x.cost, 0);
+      const balance = b.initialBalance + (movements.get(b.id)?.realized ?? 0);
+      return {
+        id: b.id,
+        name: b.name,
+        bank: b.bank,
+        color: b.color,
+        invested,
+        assets: new Set(mine.map((p) => p.ticker).filter((t) => held.has(t))).size,
+        available: balance - invested,
+        archived: b.archived,
+      };
     })
-    .filter((b) => !b.archived || b.invested > 0)
+    .filter((b) => !b.archived || b.invested > 0 || b.available !== 0)
     .map(({ archived: _a, ...b }) => b)
     .sort((a, b) => b.invested - a.invested);
-  return { positions, brokers, purchases, totalInvested: positions.reduce((a, p) => a + p.totalInvested, 0) };
+  const year = now.slice(0, 4);
+  return {
+    positions,
+    brokers,
+    purchases,
+    sales,
+    incomes,
+    totalInvested: positions.reduce((a, p) => a + p.totalInvested, 0),
+    available: brokers.reduce((a, b) => a + b.available, 0),
+    realizedResult: sales.reduce((a, x) => a + x.result, 0),
+    incomesYear: incomes.filter((x) => x.date.startsWith(year)).reduce((a, x) => a + x.amount, 0),
+  };
+}
+
+/** Broker for a sale/income: the one chosen, else the latest purchase of the asset, else "Carteira". */
+async function brokerFor(db: DbExecutor, workspaceId: string, accountId: string | null, ticker: string | null): Promise<string> {
+  if (accountId) {
+    await checkAccount(db, workspaceId, accountId);
+    return accountId;
+  }
+  if (ticker) {
+    const [last] = await db
+      .select({ accountId: investmentPurchases.accountId })
+      .from(investmentPurchases)
+      .where(and(eq(investmentPurchases.workspaceId, workspaceId), eq(investmentPurchases.ticker, ticker)))
+      .orderBy(desc(investmentPurchases.date), desc(investmentPurchases.createdAt))
+      .limit(1);
+    if (last?.accountId) return last.accountId;
+  }
+  return defaultBroker(db, workspaceId);
+}
+
+/** Current position of one asset (purchases minus sales). */
+export async function positionOf(db: DbExecutor, workspaceId: string, ticker: string) {
+  const [buys, sells] = await Promise.all([
+    db.select().from(investmentPurchases).where(and(eq(investmentPurchases.workspaceId, workspaceId), eq(investmentPurchases.ticker, ticker))),
+    db.select().from(investmentSales).where(and(eq(investmentSales.workspaceId, workspaceId), eq(investmentSales.ticker, ticker))),
+  ]);
+  const [position] = buildPositions(
+    buys.map((b) => ({ ...b, quantity: Number(b.quantity) })),
+    sells.map((x) => ({ ticker: x.ticker, quantity: Number(x.quantity), cost: x.cost, result: x.result })),
+  );
+  return position ?? null;
+}
+
+/**
+ * Sells part or all of a position. The cost is the average price × quantity (the average price of
+ * what is left does not change); the result (proceeds − fees − cost) changes the broker balance only.
+ */
+export async function createSale(db: DbExecutor, workspaceId: string, input: SaleInput): Promise<InvestmentSale> {
+  const row = await db.transaction(async (tx) => {
+    const position = await positionOf(tx, workspaceId, input.ticker);
+    if (!position) throw new ValidationError(`Não há ${input.ticker} na carteira para vender`);
+    if (roundQuantity(input.quantity - position.quantity) > 0) {
+      throw new ValidationError(`A carteira tem ${String(position.quantity).replace('.', ',')} de ${input.ticker}`);
+    }
+    const brokerId = await brokerFor(tx, workspaceId, input.accountId, input.ticker);
+    const cost = saleCost(position, input.quantity);
+    const result = Math.round(input.quantity * input.unitPrice) - input.fees - cost;
+    const [created] = await tx
+      .insert(investmentSales)
+      .values({ workspaceId, accountId: brokerId, ticker: input.ticker, date: input.date, quantity: input.quantity, unitPrice: input.unitPrice, fees: input.fees, cost, result })
+      .returning();
+    return created!;
+  });
+  return toSale(row, await accountRefs(db, workspaceId, [row.accountId]));
+}
+
+export async function deleteSale(db: DbExecutor, workspaceId: string, id: string): Promise<void> {
+  const deleted = await db
+    .delete(investmentSales)
+    .where(and(eq(investmentSales.workspaceId, workspaceId), eq(investmentSales.id, id)))
+    .returning({ id: investmentSales.id });
+  if (!deleted.length) throw new NotFoundError('Venda não encontrada');
+}
+
+/** Dividends, JCP, interest or yield: an income transaction in "Rendimentos" at the broker account. */
+export async function createIncome(db: DbExecutor, workspaceId: string, input: IncomeInput): Promise<InvestmentIncome> {
+  const row = await db.transaction(async (tx) => {
+    const brokerId = await brokerFor(tx, workspaceId, input.accountId, input.ticker);
+    const label = INVESTMENT_INCOME_LABELS[input.kind];
+    const category = await ensureInvestmentIncomeCategory(tx, workspaceId, label);
+    const [transaction] = await tx
+      .insert(transactions)
+      .values({
+        workspaceId,
+        type: 'income',
+        description: input.ticker ? `${label} ${input.ticker}` : label,
+        amount: input.amount,
+        date: input.date,
+        paid: true,
+        paidAt: input.date,
+        accountId: brokerId,
+        categoryId: category.categoryId,
+        subcategoryId: category.subcategoryId,
+        recurrenceKind: 'single',
+      })
+      .returning({ id: transactions.id });
+    const [created] = await tx
+      .insert(investmentIncomes)
+      .values({ workspaceId, accountId: brokerId, kind: input.kind, ticker: input.ticker, date: input.date, amount: input.amount, transactionId: transaction!.id })
+      .returning();
+    return created!;
+  });
+  return toIncome(row, await accountRefs(db, workspaceId, [row.accountId]));
+}
+
+export async function deleteIncome(db: DbExecutor, workspaceId: string, id: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const deleted = await tx
+      .delete(investmentIncomes)
+      .where(and(eq(investmentIncomes.workspaceId, workspaceId), eq(investmentIncomes.id, id)))
+      .returning({ transactionId: investmentIncomes.transactionId });
+    if (!deleted.length) throw new NotFoundError('Provento não encontrado');
+    const transactionId = deleted[0]!.transactionId;
+    if (transactionId) {
+      await tx.delete(transactions).where(and(eq(transactions.workspaceId, workspaceId), eq(transactions.id, transactionId)));
+    }
+  });
 }
 
 export async function createPurchase(db: DbExecutor, workspaceId: string, input: PurchaseInput): Promise<InvestmentPurchase> {

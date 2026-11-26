@@ -45,4 +45,6 @@ export const TENANT_TABLES = [
   'bank_connection_accounts',
   'import_tombstones',
   'investment_purchases',
+  'investment_sales',
+  'investment_incomes',
 ] as const;

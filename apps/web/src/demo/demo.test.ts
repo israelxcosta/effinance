@@ -36,11 +36,18 @@ describe('demo api (PGlite)', () => {
     await call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
     const empty = await call('GET', '/investments');
     expect(empty.status).toBe(200);
-    const created = await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'petr4', date: '2026-11-26', quantity: 100, unitPrice: 1500, fees: 490 });
+    const created = await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'itsa4', date: '2026-11-26', quantity: 100, unitPrice: 1500, fees: 490 });
     expect(created.status).toBe(201);
-    await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'PETR4', date: '2026-11-27', quantity: 50, unitPrice: 1800 });
+    await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'ITSA4', date: '2026-11-27', quantity: 50, unitPrice: 1800 });
     const r = (await call('GET', '/investments')).body;
-    expect(r.positions.find((p: { ticker: string }) => p.ticker === 'PETR4')).toMatchObject({ quantity: 150, averagePrice: 1603 });
+    expect(r.positions.find((p: { ticker: string }) => p.ticker === 'ITSA4')).toMatchObject({ quantity: 150, averagePrice: 1603 });
+    // Seeded sale at a loss and income (migration 0012): result in the broker balance, income in Rendimentos.
+    expect(r.positions.find((p: { ticker: string }) => p.ticker === 'PETR4')).toMatchObject({ quantity: 90 });
+    expect(r.realizedResult).toBeLessThan(0);
+    expect(r.incomes.length).toBe(5);
+    const sale = await call('POST', '/investments/sales', { ticker: 'ITSA4', date: '2026-11-27', quantity: 50, unitPrice: 2000 });
+    expect(sale.status).toBe(201);
+    expect(sale.body.result).toBeGreaterThan(0);
     // The seeded emergency fund saves into a title: its contributions are purchases too (migration 0011).
     expect(r.positions.find((p: { ticker: string }) => p.ticker === 'TESOURO SELIC 2029')).toMatchObject({ assetType: 'fixed_income' });
   });

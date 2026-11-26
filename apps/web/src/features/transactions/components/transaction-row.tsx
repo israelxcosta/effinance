@@ -133,7 +133,9 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
   const amountTone = tx.type === 'transfer' && amount === undefined ? 'neutral' : undefined;
   const isCardPurchase = Boolean(tx.creditCardId) && tx.type !== 'transfer';
   // Read-only workspaces (viewer / inactive subscription): the row is informational only.
-  const readOnly = Boolean(actions.readOnlyReason);
+  // Investment sale results are statement lines, not transactions: nothing to pay, edit or delete.
+  const saleLine = Boolean(tx.investmentSaleId);
+  const readOnly = Boolean(actions.readOnlyReason) || saleLine;
   const Main = readOnly ? 'div' : 'button';
   return (
     <div className="@container">
@@ -143,7 +145,9 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
         muted && 'opacity-70',
       )}
     >
-      {tx.type !== 'transfer' ? (
+      {saleLine ? (
+        <PaidToggle paid kind={tx.type} disabled disabledReason="Resultado de venda de investimento" onToggle={() => undefined} />
+      ) : tx.type !== 'transfer' ? (
         isCardPurchase ? (
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-muted" title="Quitado ao pagar a fatura">
             <CreditCard className="size-4" />
@@ -212,7 +216,7 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
         <Money value={signed} tone={amountTone} signed className="text-title" />
         {trailing}
       </div>
-      <RowMenu tx={tx} />
+      {saleLine ? <span className="size-8 shrink-0" aria-hidden /> : <RowMenu tx={tx} />}
     </div>
     </div>
   );

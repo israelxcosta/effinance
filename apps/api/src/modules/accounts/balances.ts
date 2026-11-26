@@ -12,7 +12,8 @@ export interface AccountMovementSums {
 
 /**
  * Net movement per account. Income adds, expense subtracts, a transfer subtracts from the origin
- * and adds to the destination. Card purchases have no account and never count here.
+ * and adds to the destination. Card purchases have no account and never count here. Investment sale
+ * results (profit +, loss −) count on the broker account.
  */
 export async function accountMovements(
   db: DbExecutor,
@@ -31,6 +32,11 @@ export async function accountMovements(
       select to_account_id as acc, amount as delta, paid, coalesce(paid_at, date) as eff, date
         from transactions
        where workspace_id = ${workspaceId} and type = 'transfer' and to_account_id is not null
+      union all
+      -- Result of investment sales: profit/loss changes the broker balance (not income/expenses).
+      select account_id as acc, result as delta, true as paid, date as eff, date
+        from investment_sales
+       where workspace_id = ${workspaceId} and account_id is not null and result <> 0
     )
     select acc,
            coalesce(sum(case when paid and eff <= ${asOf} then delta else 0 end), 0) as realized,
