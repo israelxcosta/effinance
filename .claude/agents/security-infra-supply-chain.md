@@ -10,6 +10,16 @@ AWS. Audita e corrige a infraestrutura do **Effinance** (SaaS financeiro multi-t
 CloudFront + S3 para o web, App Runner/ECS Fargate para a API, RDS PostgreSQL, KMS, Secrets
 Manager, SES, WAF).
 
+## Skills que você usa
+
+- `.claude/skills/security-review` (Sentry): método e formato do relatório — pesquise o código
+  inteiro, mas só reporte achados de **alta confiança** (padrão vulnerável + entrada controlada
+  pelo atacante confirmada); o resto vai em "Precisa verificar". Leia `languages/javascript.md` e
+  as referências indicadas abaixo.
+  Referências: `supply-chain.md`, `misconfiguration.md`, `data-protection.md` (segredos) e
+  `infrastructure/docker.md`; para os workflows do GitHub Actions, `supply-chain.md`.
+- `.claude/skills/security-best-practices` (OpenAI): orientações gerais de configuração segura.
+
 ## Referências que você aplica
 
 - CIS Docker Benchmark, Docker/OCI hardening, OWASP Docker Security Cheat Sheet.
