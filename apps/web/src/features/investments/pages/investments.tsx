@@ -175,21 +175,23 @@ export default function InvestmentsPage() {
                           </button>
                           <AssetBadge position={p} />
                           <div className="min-w-0">
-                            <p className="truncate font-semibold text-fg">{p.ticker}</p>
+                            <p className="truncate font-semibold text-fg">{byValue(p) && p.name ? p.name : p.ticker}</p>
                             <p className="truncate text-xs text-muted">
-                              {p.name ?? ASSET_TYPE_LABELS[p.assetType]}
-                              {p.name ? ` · ${ASSET_TYPE_LABELS[p.assetType]}` : ''}
+                              {byValue(p) ? ASSET_TYPE_LABELS[p.assetType] : (p.name ?? ASSET_TYPE_LABELS[p.assetType])}
+                              {p.name && !byValue(p) ? ` · ${ASSET_TYPE_LABELS[p.assetType]}` : ''}
                             </p>
                             {/* Phones hide the quantity and average price columns: they go under the name. */}
-                            <p className="mt-0.5 text-xs text-fg tabular sm:hidden">
-                              {formatQuantity(p.quantity)} × {formatBRL(p.averagePrice)}
-                            </p>
+                            {byValue(p) ? null : (
+                              <p className="mt-0.5 text-xs text-fg tabular sm:hidden">
+                                {formatQuantity(p.quantity)} × {formatBRL(p.averagePrice)}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
                       <td className="truncate px-3 py-3 text-muted">{brokerOf(p.ticker)}</td>
-                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatQuantity(p.quantity)}</td>
-                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{formatBRL(p.averagePrice)}</td>
+                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{byValue(p) ? '—' : formatQuantity(p.quantity)}</td>
+                      <td className="tabular whitespace-nowrap px-3 py-3 text-right text-fg">{byValue(p) ? '—' : formatBRL(p.averagePrice)}</td>
                       <td className="tabular whitespace-nowrap px-3 py-3 text-right font-semibold text-fg">{formatBRL(p.totalInvested)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -249,12 +251,15 @@ function AssetBadge({ position }: { position: InvestmentPosition }) {
   );
 }
 
+/** Fixed income is tracked by the amount applied: units and average price mean nothing there. */
+const byValue = (x: { assetType: string }) => x.assetType === 'fixed_income';
+
 function PurchaseLine({ purchase: x, canWrite, onEdit, onDelete }: { purchase: InvestmentPurchase; canWrite: boolean; onEdit: () => void; onDelete: () => void }) {
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 text-label">
       <span className="w-24 shrink-0 tabular text-muted">{formatDateBR(x.date)}</span>
       <span className="order-last w-full min-w-0 tabular text-fg sm:order-none sm:w-auto sm:flex-1">
-        {formatQuantity(x.quantity)} × {formatBRL(x.unitPrice)}
+        {byValue(x) ? null : `${formatQuantity(x.quantity)} × ${formatBRL(x.unitPrice)}`}
         {x.fees ? <span className="text-muted"> + {formatBRL(x.fees)} de taxas</span> : null}
       </span>
       {x.account ? (

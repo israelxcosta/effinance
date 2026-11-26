@@ -130,6 +130,8 @@ export interface Goal {
   icon: IconName;
   color: string;
   accountId: string | null;
+  /** Fixed-income title the money is applied to (contributions appear in Investimentos). */
+  assetName: string | null;
   notes: string | null;
   archived: boolean;
   createdAt: string;
@@ -150,6 +152,8 @@ export interface GoalContribution {
   note: string | null;
   /** Transfer booked with it (Aplicação or Resgate) and the current account on the other side. */
   transferId: string | null;
+  /** Investment purchase booked with it (goals with a title). */
+  purchaseId: string | null;
   account: { id: string; name: string } | null;
   createdAt: string;
 }

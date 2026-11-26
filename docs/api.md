@@ -53,7 +53,9 @@ Metas guardadas numa aplicação (`accountId` = conta de investimento ou poupan�
 `accountId` (conta corrente) lança uma transferência — Aplicação ao guardar, Resgate ao retirar —
 vinculada pelo `transferId` (migração 0010). Sem `accountId` = "já estava na aplicação" (sem
 transferência). Excluir o aporte apaga a transferência; apagar a transferência no Extrato só
-desvincula o aporte.
+desvincula o aporte. Com `assetName` (título, ex. "Tesouro Selic 2029"; exige corretora/banco do tipo
+investimento), guardar vira **compra** desse título em Investimentos (renda fixa, valor aplicado),
+com a própria Aplicação, vinculada por `purchaseId` (migração 0011); retirar lança o Resgate.
 | GET | `/api/contacts` | `contactQuerySchema` | `Paginated<Contact>` |
 | GET | `/api/contacts/:id` | — | `Contact` |
 | POST | `/api/contacts` | `contactInputSchema` | `Contact` (201) |

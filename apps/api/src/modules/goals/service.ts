@@ -8,13 +8,14 @@ import {
 } from '@effinance/shared';
 import type { z } from 'zod';
 import type { DbExecutor } from '../../db/client';
-import { accounts, goalContributions, goals, transactions, type GoalContributionRow, type GoalRow } from '../../db/schema';
+import { accounts, goalContributions, goals, investmentPurchases, transactions, type GoalContributionRow, type GoalRow } from '../../db/schema';
 import { today } from '../../lib/clock';
 import { getCipher } from '../../lib/crypto/keyring';
 import { NotFoundError, ValidationError } from '../../lib/errors';
 import { sumOf } from '../../lib/sql';
 import { getAccountOrThrow, getGoalOrThrow } from '../common/ownership';
 import { createTransfer } from '../transfers/service';
+import { createPurchase, deletePurchase } from '../investments/service';
 
 type GoalInput = z.output<typeof goalInputSchema>;
 type ContributionInput = z.output<typeof goalContributionInputSchema>;
@@ -52,6 +53,7 @@ export function toGoal(row: GoalRow, currentAmount: number, now = today()): Goal
     icon: row.icon,
     color: row.color,
     accountId: row.accountId,
+    assetName: row.assetName,
     notes: row.notes,
     archived: row.archived,
     createdAt: row.createdAt.toISOString(),
@@ -93,17 +95,24 @@ async function getGoal(db: DbExecutor, workspaceId: string, id: string) {
   return goal!;
 }
 
-/** Where a goal's money is kept: an Aplicação (investment) or a savings account. */
-async function checkGoalAccount(db: DbExecutor, workspaceId: string, accountId: string | null) {
-  if (!accountId) return;
-  const account = await getAccountOrThrow(db, workspaceId, accountId);
+/**
+ * Where a goal's money is kept: a broker/bank (investment account) or a savings account. A title
+ * ("Tesouro Selic 2029") needs a broker: saving books an investment purchase there.
+ */
+async function checkGoalAccount(db: DbExecutor, workspaceId: string, input: Pick<GoalInput, 'accountId' | 'assetName'>) {
+  if (input.assetName && !input.accountId) throw new ValidationError('Escolha a corretora ou banco do título');
+  if (!input.accountId) return;
+  const account = await getAccountOrThrow(db, workspaceId, input.accountId);
+  if (input.assetName && account.type !== 'investment') {
+    throw new ValidationError('O título precisa de uma corretora ou banco (conta de investimento)');
+  }
   if (account.type !== 'investment' && account.type !== 'savings') {
-    throw new ValidationError('Escolha uma aplicação (conta de investimento ou poupança)');
+    throw new ValidationError('Escolha uma corretora, banco de investimento ou poupança');
   }
 }
 
 export async function createGoal(db: DbExecutor, workspaceId: string, input: GoalInput) {
-  await checkGoalAccount(db, workspaceId, input.accountId);
+  await checkGoalAccount(db, workspaceId, input);
   const [row] = await db
     .insert(goals)
     .values({ workspaceId, ...input, notes: await sealNote(workspaceId, 'goals', 'notes', input.notes) })
@@ -114,7 +123,9 @@ export async function createGoal(db: DbExecutor, workspaceId: string, input: Goa
 export async function updateGoal(db: DbExecutor, workspaceId: string, id: string, input: GoalInput) {
   const current = await getGoalOrThrow(db, workspaceId, id);
   // Goals linked before this rule keep their account until it changes.
-  if (input.accountId !== current.accountId) await checkGoalAccount(db, workspaceId, input.accountId);
+  if (input.accountId !== current.accountId || input.assetName !== current.assetName) {
+    await checkGoalAccount(db, workspaceId, input);
+  }
   await db
     .update(goals)
     .set({ ...input, notes: await sealNote(workspaceId, 'goals', 'notes', input.notes) })
@@ -129,7 +140,20 @@ export async function deleteGoal(db: DbExecutor, workspaceId: string, id: string
 
 async function toContributions(db: DbExecutor, workspaceId: string, rows: GoalContributionRow[]): Promise<GoalContribution[]> {
   // The current account is the other side of the linked transfer (ids come from the server).
-  const transferIds = rows.map((r) => r.transferId).filter((v): v is string => Boolean(v));
+  // Contributions booked as purchases carry the purchase's Aplicação.
+  const purchaseIds = rows.map((r) => r.purchaseId).filter((v): v is string => Boolean(v));
+  const purchaseTransfer = new Map(
+    purchaseIds.length
+      ? (
+          await db
+            .select({ id: investmentPurchases.id, transferId: investmentPurchases.transferId })
+            .from(investmentPurchases)
+            .where(and(eq(investmentPurchases.workspaceId, workspaceId), inArray(investmentPurchases.id, purchaseIds)))
+        ).map((p) => [p.id, p.transferId])
+      : [],
+  );
+  const transferOf = (r: GoalContributionRow) => r.transferId ?? (r.purchaseId ? (purchaseTransfer.get(r.purchaseId) ?? null) : null);
+  const transferIds = rows.map(transferOf).filter((v): v is string => Boolean(v));
   const links = transferIds.length
     ? await db
         .select({ id: transactions.id, from: transactions.accountId, to: transactions.toAccountId })
@@ -139,7 +163,7 @@ async function toContributions(db: DbExecutor, workspaceId: string, rows: GoalCo
   const otherIds = new Set<string>();
   const sideOf = new Map<string, string | null>();
   for (const row of rows) {
-    const link = links.find((l) => l.id === row.transferId);
+    const link = links.find((l) => l.id === transferOf(row));
     if (!link) continue;
     // Saving: current account → goal account (from). Withdrawal: goal account → current account (to).
     const other = row.amount >= 0 ? link.from : link.to;
@@ -166,6 +190,7 @@ async function toContributions(db: DbExecutor, workspaceId: string, rows: GoalCo
         date: row.date,
         note: await openNote(row.workspaceId, 'goal_contributions', 'note', row.note),
         transferId: row.transferId,
+        purchaseId: row.purchaseId,
         account: other && names.has(other) ? { id: other, name: names.get(other)! } : null,
         createdAt: row.createdAt.toISOString(),
       };
@@ -206,7 +231,24 @@ async function bookTransfer(db: DbExecutor, workspaceId: string, goal: GoalRow, 
 export async function addContribution(db: DbExecutor, workspaceId: string, goalId: string, input: ContributionInput) {
   const goal = await getGoalOrThrow(db, workspaceId, goalId);
   const row = await db.transaction(async (tx) => {
-    const transferId = await bookTransfer(tx, workspaceId, goal, input);
+    // Goals with a title: saving is a purchase of it (shows in Investimentos, books its own Aplicação).
+    const asPurchase = input.amount > 0 && Boolean(goal.assetName && goal.accountId);
+    const purchaseId = asPurchase
+      ? (
+          await createPurchase(tx, workspaceId, {
+            assetType: 'fixed_income',
+            ticker: goal.assetName!.toUpperCase().replace(/\s+/g, ' '),
+            name: goal.assetName,
+            accountId: goal.accountId,
+            paidFromAccountId: input.accountId,
+            date: input.date,
+            quantity: 1,
+            unitPrice: input.amount,
+            fees: 0,
+          })
+        ).id
+      : null;
+    const transferId = asPurchase ? null : await bookTransfer(tx, workspaceId, goal, input);
     const { accountId: _account, ...values } = input;
     const [created] = await tx
       .insert(goalContributions)
@@ -215,6 +257,7 @@ export async function addContribution(db: DbExecutor, workspaceId: string, goalI
         goalId,
         ...values,
         transferId,
+        purchaseId,
         note: await sealNote(workspaceId, 'goal_contributions', 'note', input.note),
       })
       .returning();
@@ -229,9 +272,10 @@ export async function deleteContribution(db: DbExecutor, workspaceId: string, go
     const deleted = await tx
       .delete(goalContributions)
       .where(and(eq(goalContributions.id, id), eq(goalContributions.goalId, goalId), eq(goalContributions.workspaceId, workspaceId)))
-      .returning({ transferId: goalContributions.transferId });
+      .returning({ transferId: goalContributions.transferId, purchaseId: goalContributions.purchaseId });
     if (deleted.length === 0) throw new NotFoundError('Aporte não encontrado');
-    // The money goes back: the linked transfer is removed with the contribution.
+    // The money goes back: the linked purchase (with its Aplicação) or transfer goes with it.
+    if (deleted[0]!.purchaseId) await deletePurchase(tx, workspaceId, deleted[0]!.purchaseId);
     const transferId = deleted[0]!.transferId;
     if (transferId) {
       await tx

@@ -70,6 +70,12 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   a transferência — Aplicação ou Resgate — vinculada por `goal_contributions.transfer_id`
   (migração 0010, FK composta, SET NULL). Padrão: a última conta usada ou a primeira corrente;
   opção "Já estava na aplicação" (sem transferência). Excluir o aporte apaga a transferência.
+- **Meta com título** (pedido, no lugar da prévia `reserva-investimentos`): na meta, "Corretora ou
+  banco" (conta de investimento ou poupança) e "Título" (só para conta de investimento). Guardar =
+  compra do título em Investimentos (renda fixa por valor: quantidade 1, preço = valor), com a
+  Aplicação saindo da conta corrente; vínculo `goal_contributions.purchase_id` (0011). Retirar =
+  Resgate (sem venda na carteira ainda). Na carteira, renda fixa mostra só o valor (sem quantidade e
+  preço médio) e o nome do título.
 
 ### Visual (UI)
 
@@ -276,3 +282,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: dashboard: Metas no Resumo do período; Gastos por categoria em barras horizontais (legenda à direita, valor no hover) ao lado de Próximos vencimentos; Distribuição das receitas em barras espelhadas (nascendo da direita). Pagar outro valor: só a chave "Lançar como juros e multa" com legenda curta (sem caixas de explicação); **receitas sem juros e multa** (valor maior corrige o lançamento; API recusa 'fees' em receitas).
 - 2026-11-26: auditoria de segurança com as 5 skills pedidas (6 frentes; relatórios em `docs/seguranca/`); metas com aplicação e aporte por transferência (reserva de emergência).
 - 2026-11-26: prévia `docs/prototipos/reserva-investimentos/` aguardando aprovação: meta "Acompanhar por Investimentos" (soma ativos marcados como reserva; renda fixa entra automaticamente; chave por ativo; "Aplicar" abre a compra com a chave "Contar na Reserva").
+- 2026-11-26: meta com corretora/banco + título: aportes viram compras de renda fixa em Investimentos (usuário preferiu isso à prévia de reserva por investimentos).

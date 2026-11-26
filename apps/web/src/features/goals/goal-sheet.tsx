@@ -29,6 +29,7 @@ function defaults(goal?: Goal | null): FormIn {
     icon: goal?.icon ?? 'target',
     color: goal?.color ?? '#152B61',
     accountId: goal?.accountId ?? null,
+    assetName: goal?.assetName ?? null,
     notes: goal?.notes ?? null,
     archived: goal?.archived ?? false,
   };
@@ -43,10 +44,13 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
     if (open) reset(defaults(goal));
   }, [open, goal, reset]);
   const color = watch('color') ?? '#152B61';
+  const accountId = watch('accountId');
+  // A title (purchase in Investimentos) only makes sense in a broker/bank investment account.
+  const isBroker = (accounts.data ?? []).some((a) => a.id === accountId && a.type === 'investment');
 
   const onSubmit = handleSubmit(async (input) => {
     try {
-      await save.mutateAsync({ id: goal?.id, input });
+      await save.mutateAsync({ id: goal?.id, input: { ...input, assetName: isBroker ? input.assetName : null } });
       toast.success(goal ? 'Meta atualizada' : 'Meta criada 🎯');
       onOpenChange(false);
     } catch (error) {
@@ -84,7 +88,7 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
               render={({ field }) => <DateInput value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />}
             />
           </Field>
-          <Field label="Aplicação" error={formState.errors.accountId?.message}>
+          <Field label="Corretora ou banco" error={formState.errors.accountId?.message}>
             <Controller
               control={control}
               name="accountId"
@@ -106,6 +110,11 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
             />
           </Field>
         </div>
+        {isBroker ? (
+          <Field label="Título" error={formState.errors.assetName?.message}>
+            <Input placeholder="Ex: Tesouro Selic 2029, CDB liquidez diária" maxLength={30} {...register('assetName', { setValueAs: (v: string) => v || null })} />
+          </Field>
+        ) : null}
         <Field label="Cor">
           <Controller control={control} name="color" render={({ field }) => <ColorPicker value={field.value ?? '#152B61'} onChange={field.onChange} />} />
         </Field>

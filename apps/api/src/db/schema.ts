@@ -376,6 +376,8 @@ export const goals = pgTable(
     icon: text().$type<IconName>().notNull(),
     color: text().notNull(),
     accountId: uuid(),
+    /** Fixed-income title the money is applied to ("Tesouro Selic 2029"): saving books a purchase of it. */
+    assetName: text(),
     notes: text(),
     archived: boolean().notNull().default(false),
     createdAt: createdAt(),
@@ -383,6 +385,7 @@ export const goals = pgTable(
   (t) => [
     index('goals_workspace_idx').on(t.workspaceId),
     check('goals_target_amount_chk', sql`${t.targetAmount} > 0`),
+    check('goals_asset_name_chk', sql`${t.assetName} is null or length(${t.assetName}) between 1 and 30`),
     tenantUnique('goals', t),
     foreignKey({
       name: 'goals_account_fk',
@@ -461,6 +464,8 @@ export const goalContributions = pgTable(
      * set by the server only. Cleared when the transfer is deleted in the statement (migration 0010).
      */
     transferId: uuid(),
+    /** Investment purchase booked with it (goals with a title); set by the server only (migration 0011). */
+    purchaseId: uuid(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -480,6 +485,14 @@ export const goalContributions = pgTable(
     uniqueIndex('goal_contributions_transfer_uq')
       .on(t.workspaceId, t.transferId)
       .where(sql`${t.transferId} is not null`),
+    foreignKey({
+      name: 'goal_contributions_purchase_fk',
+      columns: [t.workspaceId, t.purchaseId],
+      foreignColumns: [investmentPurchases.workspaceId, investmentPurchases.id],
+    }).onDelete('set null'),
+    uniqueIndex('goal_contributions_purchase_uq')
+      .on(t.workspaceId, t.purchaseId)
+      .where(sql`${t.purchaseId} is not null`),
   ],
 );
 

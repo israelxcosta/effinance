@@ -198,6 +198,8 @@ export const goalInputSchema = z.object({
   icon: iconSchema.default('target'),
   color: colorSchema.default('#152B61'),
   accountId: idSchema.nullish().transform((v) => v ?? null),
+  /** Fixed-income title in that broker/bank ("Tesouro Selic 2029"): saving books a purchase of it. */
+  assetName: optionalText(30),
   notes: optionalText(500),
   archived: z.boolean().default(false),
 });

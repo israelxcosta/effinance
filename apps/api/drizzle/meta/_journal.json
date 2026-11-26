@@ -78,6 +78,13 @@
       "when": 1795710455367,
       "tag": "0010_goal_contribution_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795722400456,
+      "tag": "0011_goal_asset_purchase",
+      "breakpoints": true
     }
   ]
 }

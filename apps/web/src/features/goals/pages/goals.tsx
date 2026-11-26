@@ -83,6 +83,7 @@ export default function GoalsPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-title font-semibold">{g.name}</p>
                   <GoalDeadline goal={g} />
+                  {g.assetName ? <p className="truncate text-xs font-medium text-brand-text">{g.assetName}</p> : null}
                 </div>
                 {g.completed ? <Badge tone="success">Concluída</Badge> : null}
                 <DropdownMenu>

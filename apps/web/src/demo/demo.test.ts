@@ -40,7 +40,9 @@ describe('demo api (PGlite)', () => {
     expect(created.status).toBe(201);
     await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'PETR4', date: '2026-11-27', quantity: 50, unitPrice: 1800 });
     const r = (await call('GET', '/investments')).body;
-    expect(r.positions[0]).toMatchObject({ ticker: 'PETR4', quantity: 150, averagePrice: 1603 });
+    expect(r.positions.find((p: { ticker: string }) => p.ticker === 'PETR4')).toMatchObject({ quantity: 150, averagePrice: 1603 });
+    // The seeded emergency fund saves into a title: its contributions are purchases too (migration 0011).
+    expect(r.positions.find((p: { ticker: string }) => p.ticker === 'TESOURO SELIC 2029')).toMatchObject({ assetType: 'fixed_income' });
   });
 
   it('serves dashboard, statement and every report', async () => {

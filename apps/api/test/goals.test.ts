@@ -99,4 +99,40 @@ describe('goals kept in an Aplicação', () => {
     expect((await other.post(`/goals/${goal}/contributions`, { amount: 1000, date: '2026-10-15' })).status).toBe(404);
     expect(await balance(checking)).toBe(1000000);
   });
+
+  it('with a title, saving is a purchase in Investimentos (Aplicação from the current account)', async () => {
+    const goal = await newGoal({ assetName: 'Tesouro Selic 2029' });
+    const res = await contribute(goal, { amount: 300000, accountId: checking });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ transferId: null, account: { id: checking, name: 'Itaú' } });
+    expect(res.body.purchaseId).toBeTruthy();
+
+    const portfolio = (await c.get('/investments')).body;
+    expect(portfolio.positions).toMatchObject([{ ticker: 'TESOURO SELIC 2029', assetType: 'fixed_income', totalInvested: 300000 }]);
+    expect(portfolio.purchases[0]).toMatchObject({ id: res.body.purchaseId, accountId: reserve, paidFrom: { id: checking } });
+    expect(await balance(checking)).toBe(700000);
+    expect(await balance(reserve)).toBe(300000);
+    expect((await c.get('/goals')).body[0]).toMatchObject({ assetName: 'Tesouro Selic 2029', currentAmount: 300000 });
+
+    // Withdrawing books the Resgate; deleting the saving removes the purchase and its Aplicação.
+    const out = await contribute(goal, { amount: -50000, accountId: checking });
+    expect(out.body).toMatchObject({ purchaseId: null });
+    expect((await c.del(`/goals/${goal}/contributions/${res.body.id}`)).status).toBe(204);
+    expect((await c.get('/investments')).body.positions).toEqual([]);
+    expect(await balance(checking)).toBe(1000000 + 50000);
+  });
+
+  it('deleting the purchase in Investimentos only unlinks the contribution', async () => {
+    const goal = await newGoal({ assetName: 'CDB Liquidez diária' });
+    const res = (await contribute(goal, { amount: 100000, accountId: checking })).body;
+    expect((await c.del(`/investments/purchases/${res.purchaseId}`)).status).toBe(204);
+    expect((await c.get(`/goals/${goal}/contributions`)).body).toMatchObject([{ id: res.id, purchaseId: null, amount: 100000 }]);
+  });
+
+  it('a title needs a broker or bank (investment account)', async () => {
+    expect((await c.post('/goals', { name: 'X', targetAmount: 1000, assetName: 'Tesouro Selic' })).status).toBe(422);
+    const savings = await createAccount(c, { name: 'Poupança', type: 'savings' });
+    expect((await c.post('/goals', { name: 'X', targetAmount: 1000, accountId: savings, assetName: 'CDB' })).status).toBe(422);
+    expect((await c.post('/goals', { name: 'X', targetAmount: 1000, assetName: 'x'.repeat(31), accountId: reserve })).status).toBe(400);
+  });
 });
