@@ -231,8 +231,8 @@ export function TransactionListPage({ type }: { type: 'expense' | 'income' }) {
             <span className="sr-only">Status</span>
           </span>
           <span className="flex-1 pl-[52px]">Descrição</span>
-          <span className="hidden w-44 @3xl:block">Conta / Cartão</span>
-          <span className="w-36 text-right">Vencimento</span>
+          <span className="hidden w-40 @4xl:block @5xl:w-56">Conta / Cartão</span>
+          <span className="w-32 text-right">Vencimento</span>
           <span className="w-32 text-right">Valor</span>
           <span className="w-8" />
         </div>

@@ -198,11 +198,12 @@ export function TransactionRow({ tx, amount, trailing, showDue = true, muted }: 
           </span>
         </span>
       </Main>
-      <div className="hidden w-44 min-w-0 @3xl:block">
+      {/* Account/card only on wide rows (the description keeps the room on cards like "Próximos vencimentos"). */}
+      <div className="hidden w-40 min-w-0 shrink-0 @4xl:block @5xl:w-56">
         <SourceLabel tx={tx} />
       </div>
       {showDue ? (
-        <div className="hidden w-36 text-right @xl:block">
+        <div className="hidden w-32 shrink-0 text-right @xl:block">
           <p className="text-label font-medium text-fg tabular">{formatDateBR(tx.date)}</p>
           <DueLabel tx={tx} />
         </div>

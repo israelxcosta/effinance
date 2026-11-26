@@ -225,3 +225,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: relatório **Evolução por categoria** (aba Evolução) implementado como o protótipo aprovado.
 - 2026-11-26: telas sem rolagem horizontal (Evolução se ajusta à largura, abas viram Select); busca do seletor de categoria ao digitar.
 - 2026-11-26: pagar outro valor (menor ajusta; maior lança juros e multa em categoria própria).
+- 2026-11-26: linha de lançamento: coluna Conta/Cartão só em linhas largas (@4xl, 160→224 px); no card Próximos vencimentos a descrição aparece inteira.
