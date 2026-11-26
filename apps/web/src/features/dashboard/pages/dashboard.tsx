@@ -16,11 +16,11 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import {
-  MONTH_NAMES,
   formatBRL,
   formatMonthKey,
   formatPercent,
   percentChange,
+  todayISO,
   type DashboardResponse,
   type Transaction,
 } from '@effinance/shared';
@@ -32,7 +32,7 @@ import { ErrorState, StatPill } from '@/components/ui/misc';
 import { KpiCard } from '@/components/ui/kpi-card';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { Select } from '@/components/ui/select';
+import { MonthNavigator } from '@/components/ui/month-picker';
 import { Skeleton, SkeletonRows } from '@/components/ui/skeleton';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { axisProps, moneyAxisFormatter, MoneyTooltip } from '@/components/charts/chart-utils';
@@ -75,11 +75,6 @@ export default function DashboardPage() {
     update({ mes: null });
   }, [linkedMonth]);
 
-  const year = Number(month.slice(0, 4));
-  const monthIndex = Number(month.slice(5, 7));
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 6 }, (_, i) => currentYear - 3 + i);
-  const setMonth = (y: number, m: number) => setActiveMonth(`${y}-${String(m).padStart(2, '0')}`);
 
   return (
     <div className="flex flex-col gap-5">
@@ -95,20 +90,12 @@ export default function DashboardPage() {
           ]}
         />
         <div className="flex items-center gap-2">
-          <Select aria-label="Mês" value={monthIndex} onChange={(e) => setMonth(year, Number(e.target.value))} className="h-10 w-[150px] bg-surface font-medium">
-            {MONTH_NAMES.map((name, i) => (
-              <option key={name} value={i + 1}>
-                {name}
-              </option>
-            ))}
-          </Select>
-          <Select aria-label="Ano" value={year} onChange={(e) => setMonth(Number(e.target.value), monthIndex)} className="h-10 w-[100px] bg-surface font-medium">
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </Select>
+          <MonthNavigator value={month} onChange={setActiveMonth} />
+          {month !== todayISO().slice(0, 7) ? (
+            <Button variant="ghost" onClick={() => setActiveMonth(todayISO().slice(0, 7))}>
+              Hoje
+            </Button>
+          ) : null}
         </div>
       </div>
 

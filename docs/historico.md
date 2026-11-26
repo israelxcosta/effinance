@@ -243,3 +243,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: linha de lançamento: coluna Conta/Cartão só em linhas largas (@4xl, 160→224 px); no card Próximos vencimentos a descrição aparece inteira.
 - 2026-11-26: módulo **Investimentos** (compras e preço médio) e espaçamentos do Dashboard inteligente.
 - 2026-11-26: juros e multa só com pagamento atrasado e chave para desligar.
+- 2026-11-26: dashboard com o navegador ‹ mês › do extrato; clicar no nome abre grade de mês/ano (dia/semana: calendário; ano: lista de anos) em todas as telas com o navegador.
