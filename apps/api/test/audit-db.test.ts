@@ -41,6 +41,7 @@ import {
   goals,
   importBatches,
   importTombstones,
+  investmentPurchases,
   passwordResets,
   recurrences,
   sessions,
@@ -321,6 +322,30 @@ describe('catalog: row level security and privileges', () => {
     expect(sub!.ok).toBe(true);
   });
 
+  it('every reference column of a tenant table is a foreign key (no dangling or cross-tenant ids)', async () => {
+    // Audit 2026-11 (DB-01): investment_purchases.transfer_id (0008) had no FK — it could point to a
+    // transaction of another workspace, and kept pointing to deleted ones. Ids that name no parent row
+    // (a group label) are the only exception.
+    const NOT_A_REFERENCE = new Set(['transactions.split_group_id']);
+    const columns = await rows<{ tbl: string; col: string; fk: boolean; composite: boolean }>(sql`
+      select c.table_name as tbl, c.column_name as col,
+             exists (select 1 from pg_constraint k join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey)
+                      where k.contype = 'f' and k.conrelid = format('public.%I', c.table_name)::regclass and a.attname = c.column_name) as fk,
+             exists (select 1 from pg_constraint k
+                      join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey) and a.attname = c.column_name
+                      join pg_attribute w on w.attrelid = k.conrelid and w.attnum = any (k.conkey) and w.attname = 'workspace_id'
+                      where k.contype = 'f' and k.conrelid = format('public.%I', c.table_name)::regclass) as composite
+        from information_schema.columns c
+       where c.table_schema = 'public' and c.data_type = 'uuid' and right(c.column_name, 3) = '_id'
+         and c.column_name <> 'workspace_id' and c.table_name in ${[...TENANT_TABLES]}`);
+    expect(columns.length).toBeGreaterThan(20);
+    const missing = columns.filter((c) => !c.fk && !NOT_A_REFERENCE.has(`${c.tbl}.${c.col}`)).map((c) => `${c.tbl}.${c.col}`);
+    expect(missing).toEqual([]);
+    // References to financial rows stay inside the workspace (composite key with workspace_id).
+    const notComposite = columns.filter((c) => c.fk && !c.composite).map((c) => `${c.tbl}.${c.col}`);
+    expect(notComposite).toEqual([]);
+  });
+
   it('CHECK lists match the shared contract (a new enum value needs a migration)', async () => {
     const defs = await rows<{ name: string; def: string }>(sql`
       select conname as name, pg_get_constraintdef(oid) as def from pg_constraint
@@ -498,6 +523,19 @@ describe('foreign keys never cross workspaces', () => {
         (tx, id) => tx.update(bankConnectionAccounts).set({ linkedCreditCardId: id }).where(eq(bankConnectionAccounts.id, b.cardFeed)),
         a.card,
       ],
+      // Migration 0007/0009: portfolio purchases (broker account and the linked Aplicação).
+      [
+        'investment_purchases.account_id',
+        (tx, id) =>
+          tx.insert(investmentPurchases).values({ workspaceId: b.ws, assetType: 'stock', ticker: 'X', date: '2026-10-01', quantity: 1, unitPrice: 1, accountId: id }),
+        a.account,
+      ],
+      [
+        'investment_purchases.transfer_id',
+        (tx, id) =>
+          tx.insert(investmentPurchases).values({ workspaceId: b.ws, assetType: 'stock', ticker: 'X', date: '2026-10-01', quantity: 1, unitPrice: 1, transferId: id }),
+        a.tx,
+      ],
       // Re-pointing an existing row is blocked as well.
       ['transactions.account_id (update)', (tx, id) => tx.update(transactions).set({ accountId: id }).where(eq(transactions.id, b.tx)), a.account],
     ];
@@ -561,6 +599,37 @@ describe('foreign keys never cross workspaces', () => {
 // Domain checks and uniqueness
 // ---------------------------------------------------------------------------
 
+describe('investment purchases and their Aplicação', () => {
+  it('deleting the linked transfer only clears transfer_id (FK SET NULL inside the workspace)', async () => {
+    const a = await seedTenant('A');
+    const b = await seedTenant('B');
+    const { purchase, transfer } = await withTenant(app.db, a.ws, async (tx) => {
+      const [t] = await tx
+        .insert(transactions)
+        .values({ workspaceId: a.ws, type: 'transfer', description: 'Aplicação', amount: 100, date: '2026-10-01', accountId: a.account, transferKind: 'investment' })
+        .returning();
+      const [p] = await tx
+        .insert(investmentPurchases)
+        .values({ workspaceId: a.ws, assetType: 'stock', ticker: 'PETR4', date: '2026-10-01', quantity: 1, unitPrice: 100, transferId: t!.id })
+        .returning();
+      return { purchase: p!, transfer: t! };
+    });
+    // One Aplicação per purchase.
+    const second = await pgFailure(
+      withTenant(app.db, a.ws, (tx) =>
+        tx.insert(investmentPurchases).values({ workspaceId: a.ws, assetType: 'stock', ticker: 'VALE3', date: '2026-10-01', quantity: 1, unitPrice: 1, transferId: transfer.id }),
+      ),
+    );
+    expect(second?.code).toBe('23505');
+
+    const before = await Promise.all(TENANT_TABLES.map((t) => countRows(t, b.ws)));
+    await withTenant(app.db, a.ws, (tx) => tx.delete(transactions).where(eq(transactions.id, transfer.id)));
+    const [row] = await admin().select().from(investmentPurchases).where(eq(investmentPurchases.id, purchase.id));
+    expect(row).toMatchObject({ workspaceId: a.ws, transferId: null, ticker: 'PETR4' });
+    expect(await Promise.all(TENANT_TABLES.map((t) => countRows(t, b.ws)))).toEqual(before);
+  });
+});
+
 describe('domain checks', () => {
   it('rejects values outside the contract, negative/zero money and ownership through invites', async () => {
     const a = await seedTenant('A');
@@ -600,6 +669,13 @@ describe('domain checks', () => {
       ['platform key name', sql`insert into platform_keys (name, wrapped_key) values ('Bad Name!', 'x')`],
       ['tombstone without destination', sql`update import_tombstones set account_id = null where id = ${a.tombstone}`],
       ['tombstone with two destinations', sql`update import_tombstones set credit_card_id = ${a.card} where id = ${a.tombstone}`],
+      // Audit 2026-11 (DB-02): money beyond what the app reads back exactly (bigint mode 'number').
+      ['amount beyond Number.MAX_SAFE_INTEGER', sql`update transactions set amount = 9007199254740992 where id = ${a.tx}`],
+      [
+        'purchase total over the contract cap',
+        sql`insert into investment_purchases (workspace_id, asset_type, ticker, date, quantity, unit_price)
+            values (${a.ws}, 'stock', 'X', '2026-10-01', 1000000, 100000000000)`,
+      ],
       [
         'invite as owner',
         sql`insert into workspace_invites (workspace_id, email, role, token_hash, expires_at)

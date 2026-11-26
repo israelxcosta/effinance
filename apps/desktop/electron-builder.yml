@@ -1,4 +1,4 @@
-# Windows installer (NSIS). Built by .github/workflows/desktop.yml on windows-latest; works on Linux too.
+# Windows installer (NSIS). Built by .github/workflows/desktop.yml on windows-2025; works on Linux too.
 appId: br.com.efficio.effinance
 productName: Effinance
 copyright: Effinance
@@ -17,6 +17,17 @@ extraResources:
       - "**/*"
       - "!assets/pglite-*.data" # the build loads assets/pglite-fs.txt instead
 asar: true
+# Electron Fuses (flipped in the packaged Effinance.exe): the installed app cannot be run as plain
+# Node (ELECTRON_RUN_AS_NODE), take NODE_OPTIONS or --inspect, nor load code outside app.asar, whose
+# hash electron-builder embeds in the .exe and Electron checks at startup (Windows, Electron >= 30).
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
 npmRebuild: false
 nodeGypRebuild: false
 win:

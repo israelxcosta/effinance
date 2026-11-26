@@ -10,10 +10,24 @@ export function csvMoney(cents: number): string {
   return `${sign}${Math.floor(abs / 100)},${String(abs % 100).padStart(2, '0')}`;
 }
 
-/** Quotes when needed and defuses formula injection (=, +, -, @, tab, CR at the start). */
+// Formula triggers (OWASP CSV Injection), also the full-width forms some spreadsheets normalize,
+// optionally preceded by spaces (a "trim spaces" import would expose them).
+const FORMULA = '[\\s\\u3000]*[=+\\-@\\uFF1D\\uFF0B\\uFF0D\\uFF20]';
+const FORMULA_AT_START = new RegExp(`^(?:[\\t\\r\\n]|${FORMULA})`);
+/**
+ * A trigger right after `,` `;` tab or a line break: a spreadsheet that splits on another separator
+ * (Excel with a comma list separator, "paste as text") would start a cell there, ignoring the quotes.
+ */
+const FORMULA_AFTER_SEPARATOR = new RegExp(`([,;\\t\\r\\n])(${FORMULA})`, 'g');
+
+/**
+ * Quotes when needed and defuses formula injection: user text (category names, typed by any
+ * editor of a shared workspace) never starts a cell with =, +, -, @, tab, CR or LF.
+ */
 export function csvText(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[";\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  let safe = value.replace(FORMULA_AFTER_SEPARATOR, "$1'$2");
+  if (FORMULA_AT_START.test(safe)) safe = `'${safe}`;
+  return /[";,\t\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 export function evolutionToCsv(report: EvolutionReportResponse): string {

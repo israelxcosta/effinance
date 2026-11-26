@@ -11,7 +11,7 @@ import { errorMessage } from '@/lib/api';
 import { useAuth } from '../auth-context';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './login';
-import { IS_DESKTOP } from '@/lib/demo';
+import { IS_DEMO, IS_DESKTOP } from '@/lib/demo';
 import { PasswordChecklist } from '../password-checklist';
 import { FullPageLoader } from '@/components/layout/app-shell';
 import { safeInternalPath } from '@/lib/safe-url';
@@ -61,6 +61,13 @@ export default function RegisterPage() {
         </>
       }
     >
+      {IS_DEMO ? (
+        // The demo keeps accounts in this browser (IndexedDB of the page that hosts it), not on a server.
+        <p role="note" className="mb-4 rounded-xl border border-warning/30 bg-warning-soft px-4 py-3 text-label text-fg">
+          <strong className="font-semibold">Ambiente de testes.</strong> A conta fica só neste navegador. Não use seu
+          e-mail nem uma senha que você usa em outros sites.
+        </p>
+      ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <Field label="Nome" error={form.formState.errors.name?.message}>
           <Input autoComplete="name" placeholder="Seu nome" autoFocus {...form.register('name')} />

@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { todayISO, type ISODate } from '@effinance/shared';
+import { isISODate, todayISO, type ISODate } from '@effinance/shared';
 import type { PeriodMode, PeriodValue } from './period';
 
 /**
@@ -65,13 +65,27 @@ export function isCurrentMonth(month: string): boolean {
  * `data`) wins when present; otherwise the screen opens on the active month. Day, week and
  * month changes move the active month; a year view stays local to the screen.
  */
+const PERIOD_MODES: readonly PeriodMode[] = ['day', 'week', 'month', 'year'];
+
+/**
+ * `modo` and `data` of a list screen's URL. Links can be crafted (`?modo=x`, `?data=lixo`): unknown
+ * modes fall back to the month view and invalid dates are ignored, instead of breaking the screen.
+ */
+export function parsePeriodParams(params: URLSearchParams): { mode: PeriodMode; date: ISODate | null } {
+  const rawMode = params.get('modo');
+  const rawDate = params.get('data');
+  return {
+    mode: rawMode && (PERIOD_MODES as readonly string[]).includes(rawMode) ? (rawMode as PeriodMode) : 'month',
+    date: rawDate && isISODate(rawDate) ? rawDate : null,
+  };
+}
+
 export function useScreenPeriod(
   params: URLSearchParams,
   update: (patch: Record<string, string | null>) => void,
 ): { period: PeriodValue; setPeriod: (next: PeriodValue) => void } {
   const [month] = useActiveMonth();
-  const mode = (params.get('modo') as PeriodMode | null) || 'month';
-  const urlDate = params.get('data');
+  const { mode, date: urlDate } = parsePeriodParams(params);
   const local = mode === 'year';
 
   // A date in the URL (link, back button) seeds the active month for the other screens.

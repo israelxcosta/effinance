@@ -5,7 +5,9 @@
 #   docker run --rm --read-only --cap-drop ALL -e DATABASE_URL=... effinance-api node dist/migrate.js
 #
 # Hardening (CIS Docker 4.x / OWASP Docker cheat sheet):
-# - base image pinned by tag + digest (multi-arch index: amd64 and arm64). Bump both together.
+# - base image pinned by tag + digest (multi-arch index: amd64 and arm64). Bump both together and
+#   follow every Node 22 security release (https://nodejs.org/en/blog/vulnerability); Dependabot
+#   only proposes 22.x patches (majors are ignored in .github/dependabot.yml, see docs/historico.md).
 # - dependencies only from pnpm-lock.yaml (--frozen-lockfile; `pnpm deploy` derives a dedicated
 #   lockfile from it, never re-resolving from the registry); runtime gets production deps only.
 # - no secrets in ARG/ENV/layers: all configuration comes from the environment at run time
@@ -13,7 +15,7 @@
 # - non-root numeric user, application files owned by root (read-only for the process), works
 #   with a read-only root filesystem, tini as PID 1 (signal forwarding, zombie reaping).
 
-FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS node
+FROM node:22.23.5-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS node
 
 FROM node AS build
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0

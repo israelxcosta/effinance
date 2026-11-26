@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { App } from '../src/app';
-import { createAccount, createTestApp, registerUser, resetDb, type Client } from './helpers';
+import { executeRows } from '../src/lib/sql';
+import { admin, createAccount, createTestApp, registerUser, resetDb, type Client } from './helpers';
 
 let app: App;
 let c: Client;
@@ -138,5 +140,21 @@ describe('investments (portfolio purchases)', () => {
     expect((await c.del(`/transfers/${p.transferId}`)).status).toBe(204);
     const r = (await c.get('/investments')).body;
     expect(r.purchases[0]).toMatchObject({ id: p.id, transferId: null, paidFrom: null });
+    // The link itself is cleared by the database (FK ON DELETE SET NULL, migration 0009).
+    const [row] = await executeRows<{ transfer_id: string | null }>(admin(), sql`select transfer_id from investment_purchases where id = ${p.id}`);
+    expect(row!.transfer_id).toBeNull();
+  });
+
+  it('refuses a purchase whose total exceeds the money cap of the contract (no oversized Aplicação)', async () => {
+    // Audit 2026-11 (DB-02): quantity × unit price was unbounded, so "Pago com" booked transfers far
+    // beyond the R$ 1 bilhão cap of /transfers — or beyond bigint, failing with a 500.
+    const checking = await createAccount(c, { name: 'Nubank', initialBalance: 1000000 });
+    for (const quantity of [1_000_000, 1_000_000_000_000]) {
+      const res = await buy({ accountId: broker, paidFromAccountId: checking, quantity, unitPrice: 100_000_000_000 });
+      expect(res.status, String(quantity)).toBe(400);
+    }
+    expect((await buy({ accountId: broker, quantity: 1, unitPrice: 100_000_000_000 })).status).toBe(201);
+    expect((await buy({ accountId: broker, quantity: 1, unitPrice: 100_000_000_000, fees: 1 })).status).toBe(400);
+    expect((await c.get('/transfers?kind=investment')).body.items).toHaveLength(0);
   });
 });

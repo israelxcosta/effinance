@@ -183,6 +183,12 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - Teste ponta a ponta com o Electron real (Xvfb + CDP): criar conta, lançar despesa, senha, fechar →
   backup de ~6 KB; perfil novo restaura e mostra a despesa. Fechar por `window.close()` ou SIGTERM
   não dispara o evento `close`; usar `BrowserWindow.close()` (inspetor do main).
+- Segurança (auditoria `docs/seguranca/auditoria-desktop.md`): IPC só responde à página
+  `app://effinance/` de topo e valida argumentos; `finishRestore` só aceita a chave do backup aberto;
+  links externos só `https:`; permissões do navegador negadas (exceto escrever na área de
+  transferência); backup restaurado com teto de 64 MiB (arquivo) e 256 MiB (descompactado); Electron
+  Fuses ligados no `electron-builder.yml` (sem RunAsNode/NODE_OPTIONS/--inspect, só `app.asar` com
+  integridade) e DevTools só fora do instalador. **Conferir no Windows** que o instalador abre.
 
 ### SaaS e segurança
 

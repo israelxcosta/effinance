@@ -50,3 +50,8 @@ docs
 apps/web/src
 apps/web/public
 apps/web/index.html
+
+# Not needed by the API image (the filtered install works without the desktop manifest)
+apps/desktop
+.agents
+skills-lock.json

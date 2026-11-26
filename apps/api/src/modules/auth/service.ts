@@ -25,6 +25,7 @@ import {
   getUserRow,
   toMeUser,
 } from '../workspaces/service';
+import { LOGIN_FAILED_ACTION, verifyAccountPassword } from './password-attempts';
 import { revokeUserSessions } from './sessions';
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60_000;
@@ -83,10 +84,17 @@ export async function register(db: DbExecutor, input: RegisterInput): Promise<{ 
   }
 }
 
-export async function checkPassword(db: DbExecutor, input: LoginInput): Promise<UserRow> {
+/** Password login. Failures are audited; wrong passwords spend the account's budget (429 when exhausted). */
+export async function checkPassword(db: DbExecutor, input: LoginInput, ctx: AuditContext = {}): Promise<UserRow> {
   const [row] = await db.select().from(users).where(eq(users.email, input.email));
-  const ok = await verifyPassword(input.password, row?.passwordHash ?? (await timingGuardHash()));
-  if (!row || !ok) throw new UnauthorizedError('E-mail ou senha incorretos');
+  if (!row) {
+    await verifyPassword(input.password, await timingGuardHash());
+    await audit(db, { ...ctx, action: LOGIN_FAILED_ACTION });
+    throw new UnauthorizedError('E-mail ou senha incorretos');
+  }
+  if (!(await verifyAccountPassword(db, row, input.password, ctx, LOGIN_FAILED_ACTION))) {
+    throw new UnauthorizedError('E-mail ou senha incorretos');
+  }
   return row;
 }
 
@@ -101,9 +109,10 @@ export async function changePassword(
   userId: string,
   currentSessionId: string | null,
   input: ChangePasswordInput,
+  ctx: AuditContext = {},
 ): Promise<void> {
   const user = await getUserRow(db, userId);
-  if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
+  if (!(await verifyAccountPassword(db, user, input.currentPassword, ctx))) {
     throw new ValidationError('Senha atual incorreta');
   }
   if (input.currentPassword === input.newPassword) throw new ValidationError('A nova senha deve ser diferente da atual');
@@ -177,9 +186,10 @@ export async function deleteAccount(
   password: string,
   /** Runs after the password check, before anything is deleted (e.g. cancel paid subscriptions). */
   beforeDelete?: (ownedWorkspaceIds: string[]) => Promise<void>,
+  ctx: AuditContext = {},
 ): Promise<string[]> {
   const user = await getUserRow(db, userId);
-  if (!(await verifyPassword(password, user.passwordHash))) throw new ValidationError('Senha incorreta');
+  if (!(await verifyAccountPassword(db, user, password, ctx))) throw new ValidationError('Senha incorreta');
   const owned = await db
     .select({ id: workspaces.id })
     .from(workspaceMembers)

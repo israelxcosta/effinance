@@ -2,7 +2,14 @@
 
 import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { backupFileName, dayOfFile, isExpired } from './backup-file';
+import { BACKUP_LIMITS, BackupFileError, backupFileName, dayOfFile, isExpired } from './backup-file';
+
+/** Reads a backup text file (a picked file or this computer's), refusing anything too large first. */
+export function readBackupText(path: string, maxBytes = BACKUP_LIMITS.maxFileBytes): string {
+  const stat = statSync(path);
+  if (!stat.isFile() || stat.size > maxBytes) throw new BackupFileError('O arquivo é grande demais para ser um backup do Effinance.');
+  return readFileSync(path, 'utf8');
+}
 
 export interface LocalBackup {
   day: string;
@@ -35,7 +42,8 @@ export class LocalBackups {
   }
 
   read(day: string): string {
-    return readFileSync(join(this.folder, backupFileName(day)), 'utf8');
+    // backupFileName refuses anything but `YYYY-MM-DD`: no `..`, slashes or drive letters.
+    return readBackupText(join(this.folder, backupFileName(day)));
   }
 
   /** Deletes the days outside the retention window; returns them. */

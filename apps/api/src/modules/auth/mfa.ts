@@ -11,9 +11,9 @@ import { audit, type AuditContext } from '../../lib/audit';
 import { fromBase64Url, randomBytes, sha256Hex, timingSafeEqualStr, toBase64Url, utf8 } from '../../lib/crypto/encoding';
 import { keyProvider } from '../../lib/crypto/keyring';
 import { TooManyRequestsError, ValidationError } from '../../lib/errors';
-import { verifyPassword } from '../../lib/password';
 import { generateTotpSecret, otpauthUrl, verifyTotp } from '../../lib/totp';
 import { getUserRow } from '../workspaces/service';
+import { verifyAccountPassword } from './password-attempts';
 
 const RECOVERY_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 const RECOVERY_CODES = 8;
@@ -106,6 +106,8 @@ export interface Reauthentication {
   password?: string | null;
   /** Session (family) of the request: a login made minutes ago counts as re-authentication. */
   sessionId: string | null;
+  /** Request IP/User-Agent for the audit entry of a wrong password. */
+  ctx?: AuditContext;
 }
 
 /**
@@ -114,7 +116,8 @@ export interface Reauthentication {
  */
 async function assertReauthenticated(db: DbExecutor, user: UserRow, reauth: Reauthentication): Promise<void> {
   if (reauth.password) {
-    if (!(await verifyPassword(reauth.password, user.passwordHash))) throw new ValidationError('Senha incorreta');
+    // Same per-account budget as the login: a stolen session cannot guess the password here either.
+    if (!(await verifyAccountPassword(db, user, reauth.password, reauth.ctx))) throw new ValidationError('Senha incorreta');
     return;
   }
   if (reauth.sessionId) {

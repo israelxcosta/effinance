@@ -13,6 +13,19 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 
 const MAGIC = 'EFFINANCE-BACKUP 1';
 const ITERATIONS = 600_000;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Size caps for a backup being restored (it may come from anywhere: a picked file, the Drive). Real
+ * backups are a few KB to a few MB; the caps stop a huge file or a gzip bomb from exhausting memory.
+ */
+export const BACKUP_LIMITS = {
+  /** The encrypted text file. */
+  maxFileBytes: 64 * 1024 * 1024,
+  /** The decompressed JSON payload. */
+  maxPayloadBytes: 256 * 1024 * 1024,
+};
+export type BackupLimits = typeof BACKUP_LIMITS;
 const pbkdf2Async = promisify(pbkdf2);
 
 export const RETENTION_DAYS = 30;
@@ -61,7 +74,8 @@ export function backupCreatedAt(text: string): string | null {
   }
 }
 
-export async function openBackup(text: string, password: string): Promise<BackupPayload> {
+export async function openBackup(text: string, password: string, limits: BackupLimits = BACKUP_LIMITS): Promise<BackupPayload> {
+  if (text.length > limits.maxFileBytes) throw new BackupFileError('O arquivo é grande demais para ser um backup do Effinance.');
   const [magic, headerLine, body] = text.replace(/\r/g, '').split('\n');
   if (magic !== MAGIC || !headerLine || !body) throw new BackupFileError('Este arquivo não é um backup do Effinance.');
   let header: Header;
@@ -70,23 +84,50 @@ export async function openBackup(text: string, password: string): Promise<Backup
   } catch {
     throw new BackupFileError('O arquivo de backup está corrompido.');
   }
-  if (header.kdf !== 'pbkdf2-sha256' || !Number.isInteger(header.iterations) || header.iterations < 100_000 || header.iterations > 5_000_000) {
+  if (
+    header === null ||
+    typeof header !== 'object' ||
+    header.kdf !== 'pbkdf2-sha256' ||
+    !Number.isInteger(header.iterations) ||
+    header.iterations < 100_000 ||
+    header.iterations > 5_000_000 ||
+    typeof header.salt !== 'string' ||
+    typeof header.iv !== 'string'
+  ) {
     throw new BackupFileError('O arquivo de backup está corrompido.');
   }
   const data = Buffer.from(body, 'base64');
   if (data.length < 17) throw new BackupFileError('O arquivo de backup está corrompido.');
-  const key = await deriveKey(password, Buffer.from(header.salt, 'base64'), header.iterations);
+  const salt = Buffer.from(header.salt, 'base64');
+  const iv = Buffer.from(header.iv, 'base64');
+  if (salt.length < 16 || iv.length !== 12) throw new BackupFileError('O arquivo de backup está corrompido.');
+  const key = await deriveKey(password, salt, header.iterations);
+  let plain: Buffer;
   try {
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(header.iv, 'base64'));
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     decipher.setAAD(Buffer.from(headerLine));
     decipher.setAuthTag(data.subarray(data.length - 16));
-    const plain = Buffer.concat([decipher.update(data.subarray(0, data.length - 16)), decipher.final()]);
-    const payload = JSON.parse(gunzipSync(plain).toString('utf8')) as BackupPayload;
-    if (typeof payload.masterKey !== 'string' || typeof payload.snapshot !== 'string') throw new Error('payload');
-    return payload;
+    plain = Buffer.concat([decipher.update(data.subarray(0, data.length - 16)), decipher.final()]);
   } catch {
     throw new BackupFileError('Senha do backup incorreta, ou arquivo alterado.');
   }
+  let json: string;
+  try {
+    // Bounded: a tiny file must not inflate into gigabytes in the main process.
+    json = gunzipSync(plain, { maxOutputLength: limits.maxPayloadBytes }).toString('utf8');
+  } catch {
+    throw new BackupFileError('O backup é grande demais ou está corrompido.');
+  }
+  let payload: BackupPayload;
+  try {
+    payload = JSON.parse(json) as BackupPayload;
+  } catch {
+    throw new BackupFileError('O arquivo de backup está corrompido.');
+  }
+  if (payload === null || typeof payload !== 'object' || typeof payload.masterKey !== 'string' || typeof payload.snapshot !== 'string') {
+    throw new BackupFileError('O arquivo de backup está corrompido.');
+  }
+  return payload;
 }
 
 /** Local calendar day, `YYYY-MM-DD`. */
@@ -95,7 +136,11 @@ export function localDay(date = new Date()): string {
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
 }
 
-export const backupFileName = (day: string) => `${FILE_PREFIX}${day}.txt`;
+/** File name of a day's backup; the day must be `YYYY-MM-DD` (never a path). */
+export function backupFileName(day: string): string {
+  if (!DAY_RE.test(day)) throw new BackupFileError('Data do backup inválida.');
+  return `${FILE_PREFIX}${day}.txt`;
+}
 
 export function dayOfFile(name: string): string | null {
   return FILE_RE.exec(name)?.[1] ?? null;

@@ -406,7 +406,10 @@ export const investmentPurchases = pgTable(
     quantity: numeric({ precision: 24, scale: 8, mode: 'number' }).notNull(),
     unitPrice: money().notNull(),
     fees: money().notNull().default(0),
-    /** Linked "Aplicação" (transfer) created with the purchase; set by the server only. */
+    /**
+     * Linked "Aplicação" (transfer) created with the purchase; set by the server only. Composite FK
+     * inside the workspace, cleared when the transfer is deleted (migration 0009).
+     */
     transferId: uuid(),
     createdAt: createdAt(),
   },
@@ -421,11 +424,25 @@ export const investmentPurchases = pgTable(
     check('investment_purchases_name_chk', sql`${t.name} is null or length(${t.name}) <= 80`),
     check('investment_purchases_quantity_chk', sql`${t.quantity} > 0`),
     check('investment_purchases_amounts_chk', sql`${t.unitPrice} > 0 and ${t.fees} >= 0`),
+    // Migration 0009 (NOT VALID in the SQL): the total stays within the contract's money cap.
+    check(
+      'investment_purchases_total_chk',
+      sql`round(${t.quantity} * ${t.unitPrice}) + ${t.fees} <= 100000000000`,
+    ),
     foreignKey({
       name: 'investment_purchases_account_fk',
       columns: [t.workspaceId, t.accountId],
       foreignColumns: [accounts.workspaceId, accounts.id],
     }).onDelete('set null'),
+    foreignKey({
+      name: 'investment_purchases_transfer_fk',
+      columns: [t.workspaceId, t.transferId],
+      foreignColumns: [transactions.workspaceId, transactions.id],
+    }).onDelete('set null'),
+    // One Aplicação per purchase; also the index behind the foreign key above.
+    uniqueIndex('investment_purchases_transfer_uq')
+      .on(t.workspaceId, t.transferId)
+      .where(sql`${t.transferId} is not null`),
   ],
 );
 
@@ -586,6 +603,11 @@ export const transactions = pgTable(
     index('transactions_subcategory_idx').on(t.subcategoryId).where(sql`${t.subcategoryId} is not null`),
     check('transactions_type_chk', sql`${t.type} in ('income', 'expense', 'transfer')`),
     check('transactions_amount_chk', sql`${t.amount} > 0`),
+    // Migration 0009 (NOT VALID in the SQL): amounts are read as JS numbers (`money()`), exact only up
+    // to Number.MAX_SAFE_INTEGER.
+    check('transactions_amount_max_chk', sql`${t.amount} <= 9007199254740991`),
+    // Parent key of composite references (investment_purchases.transfer_id, migration 0009).
+    tenantUnique('transactions', t),
     check(
       'transactions_recurrence_kind_chk',
       sql`${t.recurrenceKind} in ('single', 'installment', 'recurring', 'fixed')`,

@@ -9,24 +9,26 @@ import { ApiRequestError, errorMessage } from '@/lib/api';
 import { useAuth } from '@/features/auth/auth-context';
 import { AuthLayout } from '@/features/auth/pages/auth-layout';
 import { acceptInvite, useInvitePreview } from '../api';
+import { inviteReturnPath, readInviteToken } from '../invite-token';
 import { WORKSPACE_KIND_ICONS } from '../kind-icon';
 
 /** `/convite/:token` — public preview; accepting requires being signed in with the invited e-mail. */
 export default function InvitePage() {
-  const { token: urlToken } = useParams();
+  const { token: param } = useParams();
   const location = useLocation();
-  const stateToken = (location.state as { inviteToken?: unknown } | null)?.inviteToken;
-  const token = urlToken ?? (typeof stateToken === 'string' ? stateToken : '');
+  // `/convite#token=…` (preferred: fragments never reach a server) or `/convite/<token>` (older links).
+  const { token, inUrl } = readInviteToken({ param, hash: location.hash, state: location.state });
   const { user, loading, applySession, logout } = useAuth();
   const navigate = useNavigate();
   // The token moves from the address bar into this history entry's state (`/convite`), so it doesn't
   // linger in the browser history, screenshots or the Referer of later requests.
   useEffect(() => {
-    if (urlToken) navigate('/convite', { replace: true, state: { inviteToken: urlToken } });
-  }, [urlToken, navigate]);
+    if (inUrl) navigate('/convite', { replace: true, state: { inviteToken: token } });
+  }, [inUrl, token, navigate]);
   const preview = useInvitePreview(token);
   const [accepting, setAccepting] = useState(false);
-  const back = { from: `/convite/${encodeURIComponent(token)}` };
+  // After signing in, come back with the token in the fragment only (never in the path again).
+  const back = { from: inviteReturnPath(token) };
 
   const footer = (
     <Link to="/" className="font-semibold text-brand-text hover:underline">

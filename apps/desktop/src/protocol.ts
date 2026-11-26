@@ -3,7 +3,7 @@
 // which file:// would not allow.
 
 import { readFile } from 'node:fs/promises';
-import { extname, normalize, relative, resolve, sep } from 'node:path';
+import nodePath, { extname } from 'node:path';
 
 export const SCHEME = 'app';
 export const HOST = 'effinance';
@@ -22,14 +22,25 @@ const TYPES: Record<string, string> = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-/** Absolute file for a request URL, or null when it is outside the renderer folder. */
-export function resolveAsset(root: string, url: string): string | null {
+/**
+ * Absolute file for a request URL, or null when it is outside the renderer folder. `paths` is the
+ * platform's path module (the tests pass `path.win32` to check backslashes, UNC and drive letters).
+ */
+export function resolveAsset(root: string, url: string, paths: typeof nodePath = nodePath): string | null {
   const { host, pathname } = new URL(url);
   if (host !== HOST) return null;
-  const path = decodeURIComponent(pathname) === '/' ? '/index.html' : decodeURIComponent(pathname);
-  const file = resolve(root, `.${normalize(path)}`);
-  const rel = relative(root, file);
-  if (!rel || rel.startsWith('..') || rel.includes(`..${sep}`)) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null; // malformed %-escape
+  }
+  // NUL, and `:` (Windows drive letters and NTFS alternate data streams such as `index.html::$DATA`).
+  if (/[\0:]/.test(decoded)) return null;
+  const path = decoded === '/' ? '/index.html' : decoded;
+  const file = paths.resolve(root, `.${paths.normalize(path)}`);
+  const rel = paths.relative(root, file);
+  if (!rel || paths.isAbsolute(rel) || rel === '..' || rel.startsWith(`..${paths.sep}`) || rel.split(paths.sep).includes('..')) return null;
   return file;
 }
 

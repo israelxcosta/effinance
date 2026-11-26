@@ -1,11 +1,20 @@
 # Effinance para Windows: builds the NSIS installer on a Windows runner and attaches it to a DRAFT
-# release named "desktop-latest" (drafts are visible only to people with access to the repository
-# and create no tag). Same supply-chain rules as ci.yml: actions pinned by SHA, frozen lockfile,
-# no dependency cache; the only write permission is `contents: write`, for the draft release.
+# release named "desktop-latest" (drafts are visible only to people with write access to the
+# repository and create no tag). Same supply-chain rules as ci.yml: actions pinned by SHA, frozen
+# lockfile, no dependency cache.
+#
+# Two jobs, so the write token never coexists with third-party code:
+# - `windows` installs the dependencies and runs every build tool (vite, tsup, electron-builder and
+#   whatever they download) with a READ-ONLY token, then uploads the .exe as a short-lived artifact;
+# - `release` runs no repository code (no checkout, no install): it downloads that artifact, records
+#   a signed build provenance attestation (SLSA, Sigstore) and replaces the draft release with
+#   `gh`. Only this job gets `contents: write` / `id-token: write` / `attestations: write`.
+# Anyone can check an installer with: gh attestation verify Effinance-Setup-<v>.exe -R <owner>/<repo>
 #
 # Optional repository secrets GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET bake the Google
 # Drive OAuth client (a "Desktop app" client, not confidential) into the installer; without them,
-# the app asks for it in Configurações > Backup. See docs/desktop.md.
+# the app asks for it in Configurações > Backup. They are exposed to the single step that bundles
+# the Electron main process and are never printed. See docs/desktop.md.
 
 name: Desktop (Windows)
 
@@ -19,6 +28,7 @@ on:
       - apps/api/drizzle/**
       - packages/shared/**
       - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .github/workflows/desktop.yml
   workflow_dispatch:
 
@@ -31,10 +41,11 @@ concurrency:
 jobs:
   windows:
     name: Windows installer
-    runs-on: windows-latest
+    # Pinned runner image (windows-latest moves without notice); bump deliberately.
+    runs-on: windows-2025
     timeout-minutes: 40
     permissions:
-      contents: write
+      contents: read
     defaults:
       run:
         shell: bash
@@ -64,18 +75,57 @@ jobs:
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      - name: No source maps in the packaged app
+        run: |
+          if find apps/web/dist-desktop apps/desktop/dist -name '*.map' | grep -q .; then
+            echo "::error::source maps found in the desktop build output"; exit 1
+          fi
       - name: Package the NSIS installer
         run: pnpm --filter @effinance/desktop exec electron-builder --win nsis --publish never
+      - name: Installer checksum
+        run: |
+          exe=$(ls apps/desktop/release/Effinance-Setup-*.exe)
+          echo "Built: $(basename "$exe") — SHA-256 $(sha256sum "$exe" | cut -d' ' -f1)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-installer
+          path: apps/desktop/release/Effinance-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: Draft release "desktop-latest"
+    needs: windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # One release update at a time across branches (delete + create of the same draft).
+    concurrency:
+      group: desktop-release
+      cancel-in-progress: false
+    permissions:
+      contents: write # draft release
+      id-token: write # Sigstore signing of the provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-installer
+          path: installer
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: installer/Effinance-Setup-*.exe
       - name: Attach to the draft release "desktop-latest"
         env:
           GH_TOKEN: ${{ github.token }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          exe=$(ls apps/desktop/release/Effinance-Setup-*.exe)
+          exe=$(ls installer/Effinance-Setup-*.exe)
           sha=$(sha256sum "$exe" | cut -d' ' -f1)
           notes="Instalador do Effinance para Windows, gerado a partir de \`$REF_NAME\` (${GITHUB_SHA::7}).
 
           SHA-256: \`$sha\`
+
+          Conferir a origem (atestado de build assinado pelo GitHub): \`gh attestation verify $(basename "$exe") -R $GITHUB_REPOSITORY\`
 
           Como instalar: baixe o .exe, abra e, se o Windows mostrar \"O Windows protegeu o computador\", clique em \"Mais informações\" e depois em \"Executar assim mesmo\" (o instalador não tem assinatura de código paga)."
           gh release delete desktop-latest --yes --repo "$GITHUB_REPOSITORY" 2>/dev/null || true

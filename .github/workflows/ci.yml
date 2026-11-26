@@ -10,9 +10,12 @@
 
 name: CI
 
+# Pushes run on every working branch: the repository has no `main` (the default branch and all
+# work live under claude/**), so `branches: [main]` alone meant the audit, gitleaks and image
+# checks never ran on pushed commits — only on Dependabot PRs.
 on:
   push:
-    branches: [main]
+    branches: [main, 'claude/**']
   pull_request:
   workflow_dispatch:
 
@@ -31,7 +34,8 @@ jobs:
       contents: read
     services:
       postgres:
-        image: postgres:16.15-alpine3.24@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        # Same image as docker-compose.yml (Dependabot does not update service images: bump both).
+        image: postgres:16.16-alpine3.24@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres # throwaway CI database, not a secret

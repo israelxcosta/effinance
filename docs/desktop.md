@@ -20,6 +20,9 @@ mantendo os **últimos 30 dias**.
 
 1. No GitHub, abra **Releases** do repositório e baixe `Effinance-Setup-<versão>.exe` do rascunho
    **"Effinance para Windows (teste)"** (gerado pelo workflow `Desktop (Windows)` a cada push).
+   Opcional, para conferir que o arquivo saiu do workflow deste repositório (sem alteração no
+   caminho): `gh attestation verify Effinance-Setup-<versão>.exe -R israelxcosta/effinance`. O
+   SHA-256 também está nas notas do rascunho.
 2. Abra o instalador. Se aparecer **"O Windows protegeu o computador"**, clique em
    **Mais informações → Executar assim mesmo** (o instalador não tem assinatura de código paga).
 3. Escolha a pasta e conclua. O atalho **Effinance** fica na área de trabalho e no menu Iniciar.
@@ -102,4 +105,5 @@ Sem cofre de senhas do sistema (Linux de CI), rode com `EFFINANCE_DEV_PLAIN_SECR
 instalador). Peças: `src/main.ts` (janela, IPC, backup ao fechar), `src/preload.ts` (ponte
 `window.effinanceDesktop`, espelhada em `apps/web/src/desktop/bridge.ts`), `src/backup-file.ts`
 (formato), `src/backup-service.ts` (orquestração e 30 dias), `src/drive.ts` (OAuth e Drive),
-`src/protocol.ts` (`app://`); no web, `src/desktop/` (retrato do banco, licença, telas).
+`src/protocol.ts` (`app://`), `src/security.ts` (remetente do IPC, links externos, permissões); no web,
+`src/desktop/` (retrato do banco, licença, telas). Auditoria de segurança: `docs/seguranca/auditoria-desktop.md`.

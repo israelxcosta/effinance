@@ -76,13 +76,8 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
   });
 
   app.post('/login', { schema: { body: loginSchema }, config: limit(10) }, async (req, reply) => {
-    let user: UserRow;
-    try {
-      user = await checkPassword(app.db, req.body);
-    } catch (error) {
-      await audit(app.db, { ...requestContext(req), action: 'auth.login_failed' });
-      throw error;
-    }
+    // Audits failures and enforces the per-account budget of wrong passwords (429), on top of the per-IP limit.
+    const user = await checkPassword(app.db, req.body, requestContext(req));
     if (user.mfaEnabled) {
       return { mfaRequired: true, mfaToken: await signMfaToken(reply, user.id) } satisfies MfaChallengeResponse;
     }
@@ -189,8 +184,12 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     authed.put('/me', { schema: { body: updateProfileSchema } }, async (req) => updateProfile(app.db, req.userId, req.body));
 
     authed.delete('/me', { schema: { body: deleteAccountSchema }, config: limit(5) }, async (req, reply) => {
-      const deleted = await deleteAccount(app.db, req.userId, req.body.password, (ids) =>
-        prepareWorkspaceDeletion(app.db, app.platform, ids, req.log),
+      const deleted = await deleteAccount(
+        app.db,
+        req.userId,
+        req.body.password,
+        (ids) => prepareWorkspaceDeletion(app.db, app.platform, ids, req.log),
+        requestContext(req),
       );
       await audit(app.db, {
         ...requestContext(req),
@@ -204,7 +203,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     });
 
     authed.post('/password', { schema: { body: changePasswordSchema }, config: limit(5) }, async (req, reply) => {
-      await changePassword(app.db, req.userId, req.sessionId, req.body);
+      await changePassword(app.db, req.userId, req.sessionId, req.body, requestContext(req));
       await audit(app.db, { ...requestContext(req), action: 'auth.password_changed', userId: req.userId });
       return reply.code(204).send();
     });
@@ -230,6 +229,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       const result = await enableMfa(app.db, req.userId, req.body.code, {
         password: req.body.password,
         sessionId: req.sessionId,
+        ctx: requestContext(req),
       });
       await audit(app.db, { ...requestContext(req), action: 'auth.mfa_enabled', userId: req.userId });
       return result;

@@ -81,6 +81,10 @@ endurecida (`apps/api/Dockerfile`), o CI (`.github/workflows/ci.yml`) e as trava
      endpoints de VPC e NAT (API do Mercado Pago).
    - `sg-db`: entrada 5432 apenas de `sg-api` e `sg-migrate` (e do bastion SSM, se houver); sem saída.
    - `sg-redis`: entrada 6379 apenas de `sg-api`.
+   - ALB (AWS FSBP ELB.4/ELB.5/ELB.12/ELB.6): listener HTTPS com `ELBSecurityPolicy-TLS13-1-2-2021-06`,
+     `routing.http.drop_invalid_header_fields.enabled=true`, `routing.http.desync_mitigation_mode=strictest`,
+     `deletion_protection.enabled=true` e *access logs* em bucket cifrado (as URIs incluem o segredo
+     do webhook do Open Finance, §8: acesso restrito). Sem listener HTTP 80 (ALB interno).
 3. VPC endpoints (Interface) para KMS, Secrets Manager, ECR (`api` e `dkr`), CloudWatch Logs e SES
    (onde disponível); endpoint *Gateway* do S3 (camadas do ECR). Políticas de endpoint restritas
    aos recursos da conta (`aws:ResourceAccount`). O tráfego com esses serviços não sai para a
@@ -337,7 +341,11 @@ docker buildx build --platform linux/arm64 -f apps/api/Dockerfile \
 A imagem (ver comentários no `Dockerfile`):
 
 - base `node:22-alpine` fixada por **tag + digest** (multi-arch: amd64/arm64); atualizações via
-  Dependabot e rebuild ao menos mensal para patches do SO;
+  Dependabot e rebuild ao menos mensal para patches do SO. **Cada release de segurança do Node 22**
+  (<https://nodejs.org/en/blog/vulnerability>) exige nova imagem e deploy em até 7 dias (High) —
+  o Dependabot ignora majors do `node` justamente para propor esses patches 22.x (em 2026-11 a
+  imagem estava em 22.23.3, duas releases de segurança atrás; corrigido para 22.23.5). O Node 22 sai
+  de suporte em **30/04/2027**: planeje a migração para a LTS seguinte (testes + RDS) antes disso;
 - dependências só do `pnpm-lock.yaml` (`--frozen-lockfile` + `pnpm deploy` não legado), apenas de
   produção; sem npm/corepack/yarn no runtime; sem o seed de demonstração;
 - usuário `10001:10001`, código pertencente ao root (somente leitura), compatível com
@@ -704,15 +712,35 @@ classificação de segredo) ou filtre o caminho no envio.
 
 ### 13. CI/CD
 
-- CI (`.github/workflows/ci.yml`, em todo PR e push na `main`): token só `contents: read`, actions
+- CI (`.github/workflows/ci.yml`, em todo PR e em push na `main` e em `claude/**` — o repositório
+  não tem `main`: a branch padrão e o trabalho vivem em `claude/**`; até 2026-11 o CI só rodava nos
+  PRs do Dependabot): token só `contents: read`, actions
   fixadas por SHA, `pnpm install --frozen-lockfile`, typecheck, testes com Postgres, builds (falha
   se houver sourcemap no web), `pnpm audit`, gitleaks no histórico inteiro (`.gitleaks.toml`) e
   build da imagem com checagens (UID 10001, FS somente leitura, sem npm, sem seed, CA presente).
-  Dependabot (`.github/dependabot.yml`) mantém SHAs, digests e dependências atualizados.
-- No GitHub: proteção da `main` (PR com revisão, checks obrigatórios `verify`/`audit`/`secrets`/
-  `image`), CODEOWNERS para `apps/api/Dockerfile`, `.github/`, `pnpm-workspace.yaml`,
-  `pnpm-lock.yaml` e `docs/deploy-aws.md`; secret scanning com *push protection*; Dependabot alerts;
-  *private vulnerability reporting*.
+  Dependabot (`.github/dependabot.yml`) mantém SHAs, digests e dependências atualizados (majors do
+  `node` e do `postgres` ignorados: são migrações planejadas; a imagem de serviço do Postgres no CI é
+  atualizada à mão junto com o `docker-compose.yml`).
+- Instalador Windows (`.github/workflows/desktop.yml`): o job que instala dependências e roda as
+  ferramentas de build tem token **somente leitura**; um segundo job, sem checkout nem código do
+  repositório, baixa o `.exe`, gera o **atestado de proveniência** (Sigstore) e só ele tem
+  `contents: write` para trocar o rascunho `desktop-latest`. Conferir um instalador:
+  `gh attestation verify Effinance-Setup-<versão>.exe -R israelxcosta/effinance`.
+- No GitHub (o repositório é **público**):
+  - *Ruleset* na **branch padrão** (hoje `claude/ecstatic-bell-m0uo3h`; renomeie para `main` quando
+    puder) e em `main`: PR com revisão, checks obrigatórios `verify`/`audit`/`secrets`/`image`,
+    sem *force push* nem exclusão. CODEOWNERS para `apps/api/Dockerfile`, `.github/`,
+    `pnpm-workspace.yaml`, `pnpm-lock.yaml` e `docs/deploy-aws.md`.
+  - *Settings → Actions → General*: "Workflow permissions" = **Read repository contents** (padrão
+    do `GITHUB_TOKEN`); **desmarcar** "Allow GitHub Actions to create and approve pull requests";
+    "Fork pull request workflows from outside collaborators" = **Require approval for all external
+    contributors**; opcional: "Allow specified actions" limitado a `actions/*`, `pnpm/action-setup`
+    e "Require actions to be pinned to a full-length commit SHA".
+  - Secrets `GOOGLE_OAUTH_CLIENT_ID/SECRET` só como *repository secrets* (o workflow do desktop
+    roda apenas em push de quem tem escrita; forks não os recebem). Ao girar o client secret no
+    Google Cloud, atualize os dois secrets e gere um novo instalador.
+  - Secret scanning com *push protection*; Dependabot alerts e *security updates*;
+    *private vulnerability reporting*.
 - Deploy (workflow separado, a criar): `environment: production` com aprovação obrigatória,
   `permissions: { id-token: write, contents: read }`, credenciais AWS por **OIDC** (sem access keys
   em secrets). Trust policy da role de deploy:
@@ -735,7 +763,9 @@ classificação de segredo) ou filtre o caminho no envio.
 - [ ] Origem (ALB) inacessível fora do CloudFront; `TRUST_PROXY=2` conferido com um IP forjado.
 - [ ] Política da `effinance-data` com contexto obrigatório; nenhuma outra role decifra.
 - [ ] Execution role ≠ task role; migração com roles e segredo próprios.
-- [ ] Imagem implantada por digest; ECR imutável com Inspector; CI verde em `main`.
+- [ ] Imagem implantada por digest, com o Node 22 na última release de segurança; ECR imutável com
+      Inspector; CI verde na branch padrão (incluindo `secrets`, `audit` e `image`).
+- [ ] Ruleset da branch padrão e permissões do Actions do §13 conferidas (repositório público).
 - [ ] CSP de `apps/web/src/lib/csp.ts` aplicada no CloudFront (hash conferido); `dist-demo` fora do domínio de produção.
 - [ ] WAF fora do modo Count após o período de observação.
 - [ ] Open Finance: `OPEN_FINANCE_PROVIDER=pluggy` (ou `disabled`), credenciais e segredo do webhook

@@ -50,6 +50,11 @@ export class DriveError extends Error {
 
 const base64Url = (b: Buffer) => b.toString('base64url');
 
+/** A string literal for a Drive `q` query: backslashes and single quotes escaped. */
+export function driveQueryLiteral(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
 /** Email claim of a Google id_token (display only; the token came straight from Google over TLS). */
 export function emailFromIdToken(idToken: string | undefined): string | null {
   try {
@@ -162,7 +167,7 @@ export class GoogleDrive {
 
   async list(): Promise<DriveFile[]> {
     return this.inFolder(async (folder) => {
-    const q = encodeURIComponent(`'${folder}' in parents and trashed = false`);
+    const q = encodeURIComponent(`${driveQueryLiteral(folder)} in parents and trashed = false`);
     const res = await this.api(`${API}/files?q=${q}&fields=files(id,name,size)&pageSize=200&spaces=drive`);
     const { files } = (await res.json()) as { files: { id: string; name: string; size?: string }[] };
     return files
@@ -176,7 +181,7 @@ export class GoogleDrive {
   async upload(name: string, text: string, existing: DriveFile[]): Promise<string> {
     const same = existing.find((f) => f.name === name);
     if (same) {
-      await this.api(`${UPLOAD}/files/${same.id}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: text });
+      await this.api(`${UPLOAD}/files/${encodeURIComponent(same.id)}?uploadType=media`, { method: 'PATCH', headers: { 'Content-Type': 'text/plain; charset=utf-8' }, body: text });
       return same.id;
     }
     return this.inFolder(async (folder) => {
@@ -210,7 +215,7 @@ export class GoogleDrive {
   private async folderId(): Promise<string> {
     const cached = this.deps.store.settings().driveFolderId;
     if (cached) return cached;
-    const q = encodeURIComponent(`name = '${FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const q = encodeURIComponent(`name = ${driveQueryLiteral(FOLDER_NAME)} and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
     const found = (await (await this.api(`${API}/files?q=${q}&fields=files(id)&spaces=drive`)).json()) as { files: { id: string }[] };
     let id = found.files[0]?.id;
     if (!id) {
