@@ -50,6 +50,13 @@
       "when": 1792584391627,
       "tag": "0006_import_tombstones",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795656584858,
+      "tag": "0007_investment_purchases",
+      "breakpoints": true
     }
   ]
 }

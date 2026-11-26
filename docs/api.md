@@ -37,6 +37,10 @@ Erros: `{ error, message, details? }` com status HTTP adequado (400, 401, 402, 4
 | GET | `/api/credit-cards/:id/invoices?from=YYYY-MM&to=YYYY-MM` | — | `InvoiceSummary[]` |
 | GET | `/api/credit-cards/:id/invoices/:month` | — | `Invoice` |
 | POST | `/api/credit-cards/:id/invoices/:month/pay` | `payInvoiceSchema` | `Invoice` |
+| GET | `/api/investments` | — | `InvestmentPortfolioResponse` (posições por ticker com quantidade, total investido e preço médio com taxas; compras mais novas primeiro) |
+| POST | `/api/investments/purchases` | `investmentPurchaseInputSchema` | `InvestmentPurchase` (201) |
+| PUT | `/api/investments/purchases/:id` | `investmentPurchaseInputSchema` | `InvestmentPurchase` |
+| DELETE | `/api/investments/purchases/:id` | — | 204 |
 | GET | `/api/goals` | — | `Goal[]` |
 | POST | `/api/goals` | `goalInputSchema` | `Goal` (201) |
 | PUT | `/api/goals/:id` | `goalInputSchema` | `Goal` |

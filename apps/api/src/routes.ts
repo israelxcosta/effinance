@@ -6,6 +6,7 @@ import { creditCardRoutes } from './modules/credit-cards/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
 import { goalRoutes } from './modules/goals/routes';
 import { importRoutes } from './modules/imports/routes';
+import { investmentRoutes } from './modules/investments/routes';
 import { openFinanceRoutes } from './modules/open-finance/routes';
 import { reportRoutes } from './modules/reports/routes';
 import { searchRoutes } from './modules/search/routes';
@@ -22,6 +23,7 @@ export const domainRoutes: { prefix: string; plugin: FastifyPluginAsyncZod }[] =
   { prefix: '/accounts', plugin: accountRoutes },
   { prefix: '/credit-cards', plugin: creditCardRoutes },
   { prefix: '/goals', plugin: goalRoutes },
+  { prefix: '/investments', plugin: investmentRoutes },
   { prefix: '/contacts', plugin: contactRoutes },
   { prefix: '/transactions', plugin: transactionRoutes },
   { prefix: '/transfers', plugin: transferRoutes },

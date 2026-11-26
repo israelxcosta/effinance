@@ -2,6 +2,7 @@
 
 import type {
   AccountType,
+  AssetType,
   BankCode,
   CardBrand,
   CategoryType,
@@ -529,4 +530,50 @@ export interface SearchResponse {
   accounts: Account[];
   categories: Category[];
   contacts: Contact[];
+}
+
+// ---------------------------------------------------------------------------
+// Investments
+// ---------------------------------------------------------------------------
+
+export interface InvestmentPurchase {
+  id: string;
+  assetType: AssetType;
+  ticker: string;
+  name: string | null;
+  accountId: string | null;
+  account: { id: string; name: string; bank: BankCode | null; color: string } | null;
+  date: ISODate;
+  quantity: number;
+  /** Cents per unit. */
+  unitPrice: number;
+  /** Cents. */
+  fees: number;
+  /** quantity × unitPrice + fees, in cents. */
+  total: number;
+  createdAt: string;
+}
+
+/** Everything bought of one asset (same ticker). */
+export interface InvestmentPosition {
+  ticker: string;
+  name: string | null;
+  assetType: AssetType;
+  quantity: number;
+  /** Total paid (fees included), in cents. */
+  totalInvested: number;
+  /** totalInvested / quantity, in cents. */
+  averagePrice: number;
+  purchases: number;
+  firstDate: ISODate;
+  lastDate: ISODate;
+  /** Share of the portfolio's total invested (0–1). */
+  share: number;
+}
+
+export interface InvestmentPortfolioResponse {
+  positions: InvestmentPosition[];
+  /** Newest first. */
+  purchases: InvestmentPurchase[];
+  totalInvested: number;
 }

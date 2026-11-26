@@ -9,6 +9,7 @@ import {
   creditCards,
   goalContributions,
   goals,
+  investmentPurchases,
   recurrences,
   transactions,
   workspaces,
@@ -33,7 +34,7 @@ export async function exportWorkspace(db: DbExecutor, access: Access) {
   ]);
 
   const data = await withTenant(db, access.workspaceId, async (tx) => {
-    const [cats, accs, cards, goalRows, contributionRows, contactRows, seriesRows, txRows] = await Promise.all([
+    const [cats, accs, cards, goalRows, contributionRows, contactRows, seriesRows, txRows, purchaseRows] = await Promise.all([
       tx.select().from(categories).orderBy(asc(categories.createdAt)),
       tx.select().from(accounts).orderBy(asc(accounts.createdAt)),
       tx.select().from(creditCards).orderBy(asc(creditCards.createdAt)),
@@ -42,6 +43,7 @@ export async function exportWorkspace(db: DbExecutor, access: Access) {
       tx.select().from(contacts).orderBy(asc(contacts.name)),
       tx.select().from(recurrences).orderBy(asc(recurrences.createdAt)),
       tx.select().from(transactions).orderBy(asc(transactions.date), asc(transactions.createdAt)),
+      tx.select().from(investmentPurchases).orderBy(asc(investmentPurchases.date), asc(investmentPurchases.createdAt)),
     ]);
     const decrypt = (table: string, column: string, value: string | null) => cipher.decrypt(table, column, value);
     // Connections and import batches: metadata only (no aggregator ids, blind indexes or cursors).
@@ -67,6 +69,7 @@ export async function exportWorkspace(db: DbExecutor, access: Access) {
       transactions: await Promise.all(
         txRows.map(async ({ externalId: _external, ...t }) => ({ ...t, notes: await decrypt('transactions', 'notes', t.notes) })),
       ),
+      investmentPurchases: purchaseRows,
       ...integrations,
     };
   });

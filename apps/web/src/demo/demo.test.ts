@@ -32,6 +32,17 @@ describe('demo api (PGlite)', () => {
     expect(me.workspaces.map((w: { name: string }) => w.name)).toEqual(['Pessoal', 'Família Costa']);
   });
 
+  it('records investment purchases (migration 0007 applied)', async () => {
+    await call('POST', '/auth/login', { email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    const empty = await call('GET', '/investments');
+    expect(empty.status).toBe(200);
+    const created = await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'petr4', date: '2026-11-26', quantity: 100, unitPrice: 1500, fees: 490 });
+    expect(created.status).toBe(201);
+    await call('POST', '/investments/purchases', { assetType: 'stock', ticker: 'PETR4', date: '2026-11-27', quantity: 50, unitPrice: 1800 });
+    const r = (await call('GET', '/investments')).body;
+    expect(r.positions[0]).toMatchObject({ ticker: 'PETR4', quantity: 150, averagePrice: 1603 });
+  });
+
   it('serves dashboard, statement and every report', async () => {
     const dash = await call('GET', `/dashboard?month=${month}`);
     expect(dash.status).toBe(200);

@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import {
   ACCOUNT_TYPES,
+  ASSET_TYPES,
   BANK_CODES,
   CARD_BRANDS,
   CATEGORY_TYPES,
@@ -522,3 +523,35 @@ export type OverviewReportQuery = z.input<typeof overviewReportQuerySchema>;
 export const searchQuerySchema = z.object({
   q: z.string().trim().min(1).max(80),
 });
+
+// ---------------------------------------------------------------------------
+// Investments (portfolio): purchases → positions with average price
+// ---------------------------------------------------------------------------
+
+/** Quantity of an asset: positive, up to 8 decimal places (fractions for crypto, funds…). */
+export const assetQuantitySchema = z
+  .number({ message: 'Informe a quantidade' })
+  .positive({ message: 'A quantidade deve ser maior que zero' })
+  .max(1_000_000_000_000, { message: 'Quantidade muito alta' })
+  .refine((v) => Math.abs(Math.round(v * 1e8) - v * 1e8) < 1e-3, { message: 'Use no máximo 8 casas decimais' });
+
+export const investmentPurchaseInputSchema = z.object({
+  assetType: z.enum(ASSET_TYPES),
+  /** Ticker or code ("PETR4", "HGLG11", "BTC", "CDB Banco X 2028"): stored in upper case. */
+  ticker: z
+    .string()
+    .trim()
+    .min(1, { message: 'Informe o ativo' })
+    .max(30, { message: 'Máximo de 30 caracteres' })
+    .transform((v) => v.toUpperCase().replace(/\s+/g, ' ')),
+  name: optionalText(80),
+  /** Investment account (broker) the asset sits in; optional. */
+  accountId: idSchema.nullish().transform((v) => v ?? null),
+  date: isoDateSchema,
+  quantity: assetQuantitySchema,
+  /** Price per unit, in cents. */
+  unitPrice: amountSchema,
+  /** Brokerage fees and taxes of the purchase, in cents (they go into the average price). */
+  fees: z.int().min(0).max(100_000_000_000).default(0),
+});
+export type InvestmentPurchaseInput = z.input<typeof investmentPurchaseInputSchema>;

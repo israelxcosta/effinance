@@ -99,6 +99,18 @@ export const SERIES_SCOPE_LABELS: Record<SeriesScope, string> = {
 export const TRANSACTION_STATUSES = ['all', 'paid', 'pending', 'overdue'] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
+export const ASSET_TYPES = ['stock', 'fii', 'etf', 'bdr', 'fixed_income', 'crypto', 'other'] as const;
+export type AssetType = (typeof ASSET_TYPES)[number];
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  stock: 'Ação',
+  fii: 'Fundo imobiliário',
+  etf: 'ETF',
+  bdr: 'BDR',
+  fixed_income: 'Renda fixa',
+  crypto: 'Cripto',
+  other: 'Outro',
+};
+
 export const GRANULARITIES = ['day', 'week', 'month', 'year'] as const;
 export type Granularity = (typeof GRANULARITIES)[number];
 

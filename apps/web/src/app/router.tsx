@@ -21,6 +21,7 @@ const CardsPage = lazy(() => import('@/features/cards/pages/cards'));
 const CardDetailPage = lazy(() => import('@/features/cards/pages/card-detail'));
 const CategoriesPage = lazy(() => import('@/features/categories/pages/categories'));
 const GoalsPage = lazy(() => import('@/features/goals/pages/goals'));
+const InvestmentsPage = lazy(() => import('@/features/investments/pages/investments'));
 const ContactsPage = lazy(() => import('@/features/contacts/pages/contacts'));
 const ReportsPage = lazy(() => import('@/features/reports/pages/reports'));
 const SettingsPage = lazy(() => import('@/features/settings/pages/settings'));
@@ -67,6 +68,7 @@ export const router = (IS_LOCAL_API ? createHashRouter : createBrowserRouter)([
       { path: 'cartoes/:id', element: <CardDetailPage /> },
       { path: 'categorias', element: <CategoriesPage /> },
       { path: 'metas', element: <GoalsPage /> },
+      { path: 'investimentos', element: <InvestmentsPage /> },
       { path: 'contatos', element: <ContactsPage /> },
       { path: 'relatorios', element: <ReportsPage /> },
       { path: 'configuracoes', element: <SettingsPage /> },

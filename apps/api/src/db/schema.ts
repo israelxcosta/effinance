@@ -8,6 +8,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -19,6 +20,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type {
   AccountType,
+  AssetType,
   BankAccountKind,
   BankCode,
   BankConnectionStatus,
@@ -384,6 +386,41 @@ export const goals = pgTable(
     tenantUnique('goals', t),
     foreignKey({
       name: 'goals_account_fk',
+      columns: [t.workspaceId, t.accountId],
+      foreignColumns: [accounts.workspaceId, accounts.id],
+    }).onDelete('set null'),
+  ],
+);
+
+/** Portfolio purchases (quantity, unit price, fees); positions and average price are computed. */
+export const investmentPurchases = pgTable(
+  'investment_purchases',
+  {
+    id: id(),
+    workspaceId: workspaceRef().notNull(),
+    accountId: uuid(),
+    assetType: text().$type<AssetType>().notNull(),
+    ticker: text().notNull(),
+    name: text(),
+    date: calendarDate().notNull(),
+    quantity: numeric({ precision: 24, scale: 8, mode: 'number' }).notNull(),
+    unitPrice: money().notNull(),
+    fees: money().notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('investment_purchases_workspace_ticker_idx').on(t.workspaceId, t.ticker),
+    tenantUnique('investment_purchases', t),
+    check(
+      'investment_purchases_asset_type_chk',
+      sql`${t.assetType} in ('stock', 'fii', 'etf', 'bdr', 'fixed_income', 'crypto', 'other')`,
+    ),
+    check('investment_purchases_ticker_chk', sql`length(${t.ticker}) between 1 and 30`),
+    check('investment_purchases_name_chk', sql`${t.name} is null or length(${t.name}) <= 80`),
+    check('investment_purchases_quantity_chk', sql`${t.quantity} > 0`),
+    check('investment_purchases_amounts_chk', sql`${t.unitPrice} > 0 and ${t.fees} >= 0`),
+    foreignKey({
+      name: 'investment_purchases_account_fk',
       columns: [t.workspaceId, t.accountId],
       foreignColumns: [accounts.workspaceId, accounts.id],
     }).onDelete('set null'),
@@ -892,6 +929,7 @@ export type AccountRow = typeof accounts.$inferSelect;
 export type CreditCardRow = typeof creditCards.$inferSelect;
 export type GoalRow = typeof goals.$inferSelect;
 export type GoalContributionRow = typeof goalContributions.$inferSelect;
+export type InvestmentPurchaseRow = typeof investmentPurchases.$inferSelect;
 export type ContactRow = typeof contacts.$inferSelect;
 export type RecurrenceRow = typeof recurrences.$inferSelect;
 export type TransactionRow = typeof transactions.$inferSelect;

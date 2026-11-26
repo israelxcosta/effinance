@@ -10,6 +10,7 @@ import {
   Settings,
   Tags,
   Target,
+  TrendingUp,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/transferencias', label: 'Transferências e investimentos', icon: ArrowLeftRight, keywords: 'investir aplicar resgatar mover' },
   { to: '/contas', label: 'Contas e carteiras', icon: Landmark, keywords: 'bancos carteira poupanca' },
   { to: '/cartoes', label: 'Cartões de crédito', icon: CreditCard, keywords: 'fatura limite' },
+  { to: '/investimentos', label: 'Investimentos', icon: TrendingUp, keywords: 'acoes fii carteira preco medio bolsa ticker cripto' },
   { to: '/metas', label: 'Metas', icon: Target, keywords: 'objetivos reserva' },
   { to: '/categorias', label: 'Categorias', icon: Tags, keywords: 'subcategorias' },
   { to: '/contatos', label: 'Contatos', icon: Users, keywords: 'clientes fornecedores pessoas cpf' },
