@@ -245,3 +245,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: juros e multa só com pagamento atrasado e chave para desligar.
 - 2026-11-26: dashboard com o navegador ‹ mês › do extrato; clicar no nome abre grade de mês/ano (dia/semana: calendário; ano: lista de anos) em todas as telas com o navegador.
 - 2026-11-26: Fluxo de caixa do dashboard centrado no período: M = 2 meses antes + atual + 3 depois (pelo vencimento, via /reports/evolution); D = 6 dias antes/7 depois; S = 3 semanas antes/4 depois; A = 2 anos antes/1 depois. Atual em negrito, futuros mais claros (previstos).
+- 2026-11-26: sem a legenda "Mais claro = previsto" no fluxo de caixa (pedido do usuário: futuro já é óbvio). Protótipo de Metas no Resumo + Gastos por categoria em barras horizontais aguarda aprovação (`docs/prototipos/dashboard-metas-categorias/`). Arrastar/redimensionar cards: pendente.

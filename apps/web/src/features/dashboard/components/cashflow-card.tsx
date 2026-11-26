@@ -75,7 +75,6 @@ export function CashflowCard({ loading, anchorMonth }: { monthly?: MonthSummary[
       <div className="mt-3 flex gap-4">
         <LegendDot color={CHART_COLORS.income} label="Receita" striped />
         <LegendDot color={CHART_COLORS.expense} label="Despesa" striped />
-        {data.some((d) => d.projected) ? <span className="text-xs text-muted">Mais claro = previsto</span> : null}
       </div>
       <div className="mt-2 min-h-[240px] flex-1">
         {isLoading ? (
