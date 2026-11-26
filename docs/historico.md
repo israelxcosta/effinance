@@ -244,3 +244,4 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - 2026-11-26: módulo **Investimentos** (compras e preço médio) e espaçamentos do Dashboard inteligente.
 - 2026-11-26: juros e multa só com pagamento atrasado e chave para desligar.
 - 2026-11-26: dashboard com o navegador ‹ mês › do extrato; clicar no nome abre grade de mês/ano (dia/semana: calendário; ano: lista de anos) em todas as telas com o navegador.
+- 2026-11-26: Fluxo de caixa do dashboard centrado no período: M = 2 meses antes + atual + 3 depois (pelo vencimento, via /reports/evolution); D = 6 dias antes/7 depois; S = 3 semanas antes/4 depois; A = 2 anos antes/1 depois. Atual em negrito, futuros mais claros (previstos).
