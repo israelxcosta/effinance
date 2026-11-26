@@ -135,6 +135,7 @@ Pesos: 400 texto, 500 rótulos, 600 títulos e valores (700/800 só nas siglas d
 | CategoryPicker     | campo único de categoria: lista com busca no topo, categorias como títulos de grupo e só subcategorias selecionáveis (rádio circular); categoria sem subcategorias é selecionável; rodapé "+ Nova categoria" |
 | SplitEditor        | "Dividir" no campo Categoria: linhas categoria + valor (2–10), "Dividir igualmente", "+ Adicionar categoria" (já com o valor que falta) e faixa de conferência (Falta / Excede / Valores conferem) |
 | Select (lista)     | nunca o menu nativo: lista própria (Radix) com raio xl, borda, sombra lg, padding 6px; itens com raio lg, destaque `bg-subtle` no hover/teclado, item escolhido em negrito com ✓; grupos com rótulo overline e divisor |
+| DateInput          | nunca o calendário nativo: campo dd/mm/aaaa (aceita digitação) + botão de calendário redondo; popover com raio 2xl, borda, sombra lg; dias em círculo 36px, escolhido `bg-primary`, hoje com anel `brand-500/40`, fora do mês `subtle`; título abre a grade de meses; rodapé Limpar / Hoje |
 | MoneyInput         | prefixo "R$" muted, digitação da direita para a esquerda (centavos), tabular-nums |
 | Sheet (lateral)    | 440px, raio 2xl à esquerda, header (título `text-heading` + subtítulo muted + X), corpo rolável, rodapé fixo com `Cancelar` (ghost) e `Salvar` (primary) |
 | PaidToggle         | botão 👍/👎: pendente (padrão) = `ThumbsDown` em `danger-soft`/`danger`; pago = `ThumbsUp` em `success-soft`/`success`; animação de "pop" ao alternar |

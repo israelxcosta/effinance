@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAddContribution, useDeleteContribution, useGoalContributions } from './api';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
@@ -69,7 +70,7 @@ export function ContributionDialog({ goal, onClose }: { goal: Goal | null; onClo
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Data">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Nota">
             <Input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />

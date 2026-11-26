@@ -23,6 +23,7 @@ import { useAccounts } from '@/features/accounts/api';
 import { useSaveTransfer } from './api';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 export type TransferMode = 'transfer' | 'investment' | 'redemption';
 
@@ -208,7 +209,7 @@ export function TransferSheet({ state, onOpenChange }: { state: TransferSheetSta
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Data" error={formState.errors.date?.message}>
-            <Input type="date" {...register('date')} />
+            <DateInput {...register('date')} />
           </Field>
           <fieldset className="flex flex-col gap-1.5">
             <legend className="mb-1.5 text-label font-medium">Status</legend>

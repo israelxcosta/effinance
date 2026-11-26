@@ -37,6 +37,7 @@ import {
   useSyncConnection,
 } from './api';
 import { openPluggyConnect } from './pluggy-connect';
+import { DateInput } from '@/components/ui/date-input';
 
 /** Plain-language summary of what the connection can and cannot do (LGPD transparency). */
 export function OpenFinanceTransparency({ compact = false }: { compact?: boolean }) {
@@ -495,7 +496,7 @@ function LinkAccountsDialog({ connection, initial, onClose }: { connection: Bank
                     </Field>
                     {row.target !== 'ignore' ? (
                       <Field label={<>Importar desde<span className="sr-only"> ({a.name})</span></>} error={row.syncFrom < minDate || row.syncFrom > today ? `Entre ${formatDateBR(minDate)} e hoje` : undefined}>
-                        <Input type="date" min={minDate} max={today} value={row.syncFrom} onChange={(e) => setRow({ syncFrom: e.target.value })} />
+                        <DateInput min={minDate} max={today} value={row.syncFrom} onChange={(e) => setRow({ syncFrom: e.target.value })} />
                       </Field>
                     ) : null}
                   </div>

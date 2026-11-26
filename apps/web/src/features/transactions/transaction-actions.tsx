@@ -14,6 +14,7 @@ import { ScopeDialog } from './scope-dialog';
 import { TransactionSheet, type TransactionSheetState, type TxKind } from './transaction-sheet';
 import { toastError } from '@/lib/notify';
 import { usePermissions } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 interface OpenTransactionOptions {
   type: TxKind;
@@ -277,7 +278,7 @@ function PayWithAccountDialog({
           </Select>
         </Field>
         <Field label={income ? 'Recebido em' : 'Pago em'}>
-          <Input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+          <DateInput value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
         </Field>
       </div>
     </Modal>

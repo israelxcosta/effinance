@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DateInput } from '@/components/ui/date-input';
 
 /** Ranges are anchored on the active month (the one chosen on the dashboard), not on today. */
 export const PRESETS = {
@@ -105,16 +106,14 @@ export function PeriodFilter({ value, activeMonth, onChange, onMonthChange }: Pe
         />
       ) : value.preset === 'custom' ? (
         <div className="flex items-center gap-2">
-          <Input
-            type="date"
+          <DateInput
             value={from}
             onChange={(e) => onChange({ preset: 'custom', custom: { from: e.target.value, to } })}
             className="h-10 w-[150px]"
             aria-label="De"
           />
           <span className="text-xs text-muted">até</span>
-          <Input
-            type="date"
+          <DateInput
             value={to}
             onChange={(e) => onChange({ preset: 'custom', custom: { from, to: e.target.value } })}
             className="h-10 w-[150px]"

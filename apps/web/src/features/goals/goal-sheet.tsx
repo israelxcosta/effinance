@@ -16,6 +16,7 @@ import { useAccounts } from '@/features/accounts/api';
 import { useSaveGoal } from './api';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 type FormIn = z.input<typeof goalInputSchema>;
 type FormOut = z.output<typeof goalInputSchema>;
@@ -80,7 +81,7 @@ export function GoalSheet({ open, onOpenChange, goal }: { open: boolean; onOpenC
             <Controller
               control={control}
               name="deadline"
-              render={({ field }) => <Input type="date" value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />}
+              render={({ field }) => <DateInput value={field.value ?? ''} onChange={(e) => field.onChange(e.target.value || null)} />}
             />
           </Field>
           <Field label="Conta vinculada" hint="Opcional">

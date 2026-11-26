@@ -39,6 +39,7 @@ import { ScopeDialog } from './scope-dialog';
 import { SplitEditor, evenSplit, newSplitRow, validateSplits, type SplitRow, type SplitRowErrors } from './components/split-editor';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 export type TxKind = 'income' | 'expense';
 
@@ -435,7 +436,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
           {values.split ? (
             <>
               <Field label={isCard ? 'Data da compra' : values.paid ? 'Data' : 'Vencimento'} error={formState.errors.date?.message}>
-                <Input type="date" {...register('date')} />
+                <DateInput {...register('date')} />
               </Field>
               <SplitEditor
                 type={type}
@@ -470,7 +471,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
                 />
               </Field>
               <Field label={isCard ? 'Data da compra' : values.paid ? 'Data' : 'Vencimento'} error={formState.errors.date?.message}>
-                <Input type="date" {...register('date')} />
+                <DateInput {...register('date')} />
               </Field>
             </div>
           )}
@@ -488,7 +489,7 @@ export function TransactionSheet({ state, onOpenChange }: TransactionSheetProps)
             </Field>
             {values.paid && !isCard ? (
               <Field label={type === 'income' ? 'Recebido em' : 'Pago em'} error={formState.errors.paidAt?.message}>
-                <Input type="date" {...register('paidAt')} />
+                <DateInput {...register('paidAt')} />
               </Field>
             ) : (
               <Field label="Contato" hint="Opcional">

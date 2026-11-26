@@ -9,6 +9,7 @@ import { useAccounts } from '@/features/accounts/api';
 import { usePayInvoice } from './api';
 import { toastError } from '@/lib/notify';
 import { WriteGate } from '@/features/auth/permissions';
+import { DateInput } from '@/components/ui/date-input';
 
 interface Props {
   open: boolean;
@@ -75,7 +76,7 @@ export function PayInvoiceDialog({ open, onOpenChange, card, invoice }: Props) {
           </Select>
         </Field>
         <Field label="Data do pagamento">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
       </div>
     </Modal>

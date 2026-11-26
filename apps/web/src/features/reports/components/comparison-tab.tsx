@@ -24,6 +24,7 @@ import { axisProps, CHART_COLORS, LegendDot, moneyAxisFormatter, MoneyTooltip, S
 import { useActiveMonth } from '@/lib/active-month';
 import { cn } from '@/lib/utils';
 import { useComparisonReport } from '../api';
+import { DateInput } from '@/components/ui/date-input';
 
 type Range = { from: string; to: string };
 
@@ -186,9 +187,9 @@ function RangeInputs({ title, value, onChange }: { title: string; value: Range; 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
       <span className="w-20 text-xs font-semibold">{title}</span>
-      <Input type="date" value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} className="h-9 w-[150px]" aria-label={`${title} — de`} />
+      <DateInput value={value.from} onChange={(e) => onChange({ ...value, from: e.target.value })} className="h-9 w-[150px]" aria-label={`${title} — de`} />
       <span className="text-xs text-muted">até</span>
-      <Input type="date" value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} className="h-9 w-[150px]" aria-label={`${title} — até`} />
+      <DateInput value={value.to} onChange={(e) => onChange({ ...value, to: e.target.value })} className="h-9 w-[150px]" aria-label={`${title} — até`} />
     </div>
   );
 }

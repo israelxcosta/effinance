@@ -68,6 +68,11 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
 - **Pedido do usuário:** barra flutuante **só com ícones** (web e desktop), com dica e nome acessível
   em cada um; despesa = menos (vermelho), receita = mais (verde), para não depender só da cor.
 - Select customizado (Radix) com a API do select nativo, para funcionar com o react-hook-form.
+- **Pedido do usuário (2026-11-26):** calendário de datas com cantos arredondados. O seletor nativo do
+  navegador não aceita estilo, então todo `type="date"` virou `<DateInput>` (`components/ui/date-input.tsx`):
+  campo dd/mm/aaaa que aceita digitação + popover arredondado (raio 2xl, dias em círculo, escolha de mês
+  e ano, Limpar/Hoje, teclado como o nativo, `min`/`max`). Mesma API do input nativo (valor ISO,
+  `register` do react-hook-form), como o Select. Lógica pura em `lib/calendar.ts` com testes.
 - **Polimento de 2026-11-25 (skill `ui-taste` do uizze.sh, em `.claude/skills/ui-taste`):** escala de
   tipos fechada em 8 tokens (`text-2xs` 11, `xs` 12, `label` 13, `sm` 14, `title` 15, `lg` 18,
   `heading` 22, `display` 26), sem `text-[Npx]`; `cn()` registra a escala no tailwind-merge (senão
@@ -178,3 +183,6 @@ diário no fim. Seja curto: o arquivo inteiro entra no contexto. Detalhes ficam 
   secrets `GOOGLE_OAUTH_CLIENT_ID/SECRET` no GitHub; o instalador passa a sair com "Entrar com Google"
   pronto. Ícone do app estava ignorado pelo `.gitignore` (`build/`): liberado `apps/desktop/build/`.
   Pendência: página de Política de Privacidade real em efficio.com.br (hoje aponta para a home).
+- 2026-11-26: SmartScreen ("O Windows protegeu o computador") é esperado sem assinatura de código;
+  assinar (Azure Trusted Signing ou certificado OV) fica para quando outras pessoas instalarem.
+- 2026-11-26: calendário próprio `<DateInput>` no lugar do seletor de data nativo em todas as telas.
